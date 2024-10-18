@@ -66,7 +66,6 @@ import android.net.LinkProperties;
 import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.NetworkRequest;
-import android.net.vcn.Flags;
 import android.net.vcn.VcnCellUnderlyingNetworkTemplate;
 import android.net.vcn.VcnConfig;
 import android.net.vcn.VcnGatewayConnectionConfig;
@@ -79,9 +78,6 @@ import android.net.vcn.cts.TestNetworkWrapper.VcnTestNetworkCallback.Capabilitie
 import android.os.ParcelUuid;
 import android.os.PersistableBundle;
 import android.os.SystemClock;
-import android.platform.test.annotations.RequiresFlagsEnabled;
-import android.platform.test.flag.junit.CheckFlagsRule;
-import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
@@ -94,7 +90,6 @@ import com.android.compatibility.common.util.CarrierPrivilegeUtils;
 
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
@@ -113,9 +108,6 @@ import java.util.concurrent.TimeUnit;
 
 @RunWith(AndroidJUnit4.class)
 public class VcnManagerTest extends VcnTestBase {
-    @Rule
-    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
-
     private static final String TAG = VcnManagerTest.class.getSimpleName();
 
     private static final int TIMEOUT_MS = 500;
@@ -1341,7 +1333,6 @@ public class VcnManagerTest extends VcnTestBase {
         verifyVcnSafeModeTimeoutOnTestNetwork(subId, SAFEMODE_TIMEOUT_MILLIS);
     }
 
-    @RequiresFlagsEnabled(Flags.FLAG_SAFE_MODE_TIMEOUT_CONFIG)
     @Test
     public void testVcnSafeModeOnTestNetwork_overrideTimeout() throws Exception {
         final int subId = verifyAndGetValidDataSubId();
@@ -1409,14 +1400,12 @@ public class VcnManagerTest extends VcnTestBase {
                 .build();
     }
 
-    @RequiresFlagsEnabled({Flags.FLAG_SAFE_MODE_TIMEOUT_CONFIG})
     @Test
     public void testEnterSafeModeImmediately_safeModeEnabled() throws Exception {
         verifyEnterSafeModeImmediately(
                 newVcnConfig(true /* isSafeModeEnabled */), true /* isSafeModeExpected */);
     }
 
-    @RequiresFlagsEnabled({Flags.FLAG_SAFE_MODE_CONFIG, Flags.FLAG_SAFE_MODE_TIMEOUT_CONFIG})
     @Test
     public void testEnterSafeModeImmediately_safeModeDisabled() throws Exception {
         verifyEnterSafeModeImmediately(
