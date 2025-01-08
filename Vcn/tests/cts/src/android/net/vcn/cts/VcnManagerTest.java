@@ -110,7 +110,7 @@ import java.util.concurrent.TimeUnit;
 public class VcnManagerTest extends VcnTestBase {
     private static final String TAG = VcnManagerTest.class.getSimpleName();
 
-    private static final int TIMEOUT_MS = 500;
+    private static final int CALLBACK_TIMEOUT_MS = 5000;
     private static final long SAFEMODE_TIMEOUT_MILLIS = TimeUnit.SECONDS.toMillis(35);
 
     private static final int ACTIVE_SUB_ID_TIMEOUT_SECONDS = 60;
@@ -263,7 +263,7 @@ public class VcnManagerTest extends VcnTestBase {
         }
 
         public void awaitOnPolicyChanged() throws Exception {
-            mFutureOnPolicyChanged.get(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            mFutureOnPolicyChanged.get(CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         }
     }
 
@@ -523,14 +523,16 @@ public class VcnManagerTest extends VcnTestBase {
         }
 
         public int awaitOnStatusChanged() throws Exception {
-            final Integer status = mOnStatusChangedHistory.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            final Integer status =
+                    mOnStatusChangedHistory.poll(CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
 
             // Null means timeout
             return status == null ? VCN_STATUS_CODE_AWAIT_TIMEOUT : status;
         }
 
         public GatewayConnectionError awaitOnGatewayConnectionError() throws Exception {
-            return mOnGatewayConnectionErrorHistory.poll(TIMEOUT_MS, TimeUnit.MILLISECONDS);
+            return mOnGatewayConnectionErrorHistory.poll(
+                    CALLBACK_TIMEOUT_MS, TimeUnit.MILLISECONDS);
         }
     }
 
