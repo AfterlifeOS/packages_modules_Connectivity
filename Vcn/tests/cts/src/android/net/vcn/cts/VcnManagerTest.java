@@ -758,6 +758,24 @@ public class VcnManagerTest extends VcnTestBase {
     }
 
     @Test
+    public void testSetVcnConfigOnTestNetworkAndDumpsys() throws Exception {
+        final int subId = verifyAndGetValidDataSubId();
+
+        try (TestNetworkWrapper testNetworkWrapper =
+                createTestNetworkWrapper(true /* isMetered */, subId, LOCAL_ADDRESS)) {
+            verifyUnderlyingCellAndRunTest(subId, (subGrp, cellNetwork, cellNetworkCb) -> {
+                final VcnSetupResult vcnSetupResult =
+                    setupAndGetVcnNetwork(subGrp, cellNetwork, cellNetworkCb, testNetworkWrapper);
+
+                runShellCommand("dumpsys vcn_management");
+
+                clearVcnConfigsAndVerifyNetworkTeardown(
+                        subGrp, cellNetworkCb, vcnSetupResult.vcnNetwork);
+            });
+        }
+    }
+
+    @Test
     public void testSetVcnConfigOnTestNetworkAndHandleDataStall() throws Exception {
         final int subId = verifyAndGetValidDataSubId();
 
