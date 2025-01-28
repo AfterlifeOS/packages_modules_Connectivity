@@ -92,6 +92,7 @@ public class VcnGatewayConnectionConfigTest extends VcnTestBase {
                 UNDERLYING_NETWORK_TEMPLATES,
                 gatewayConnConfig.getVcnUnderlyingNetworkPriorities());
         assertArrayEquals(RETRY_INTERNAL_MILLIS, gatewayConnConfig.getRetryIntervalsMillis());
+        assertEquals(MAX_MTU, gatewayConnConfig.getMaxMtu());
     }
 
     @Test
