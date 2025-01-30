@@ -95,6 +95,7 @@ import org.junit.runner.RunWith;
 
 import java.net.InetAddress;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -230,6 +231,7 @@ public class VcnManagerTest extends VcnTestBase {
         CarrierPrivilegeUtils.withCarrierPrivileges(mContext, dataSubId, () -> {
             SubscriptionGroupUtils.withEphemeralSubscriptionGroup(mContext, dataSubId, (subGrp) -> {
                 mVcnManager.setVcnConfig(subGrp, buildVcnConfig());
+                mVcnManager.clearVcnConfig(subGrp);
             });
         });
 
@@ -247,6 +249,19 @@ public class VcnManagerTest extends VcnTestBase {
 
         CarrierPrivilegeUtils.withCarrierPrivileges(mContext, dataSubId, () -> {
             SubscriptionGroupUtils.withEphemeralSubscriptionGroup(mContext, dataSubId, (subGrp) -> {
+                mVcnManager.clearVcnConfig(subGrp);
+            });
+        });
+    }
+
+    @Test
+    public void testGetConfiguredSubscriptionGroups() throws Exception {
+        final int dataSubId = verifyAndGetValidDataSubId();
+        CarrierPrivilegeUtils.withCarrierPrivileges(mContext, dataSubId, () -> {
+            SubscriptionGroupUtils.withEphemeralSubscriptionGroup(mContext, dataSubId, (subGrp) -> {
+                mVcnManager.setVcnConfig(subGrp, buildVcnConfig());
+                assertEquals(Arrays.asList(subGrp), mVcnManager.getConfiguredSubscriptionGroups());
+
                 mVcnManager.clearVcnConfig(subGrp);
             });
         });
