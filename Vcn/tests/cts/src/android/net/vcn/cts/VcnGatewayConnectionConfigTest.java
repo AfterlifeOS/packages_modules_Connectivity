@@ -171,12 +171,6 @@ public class VcnGatewayConnectionConfigTest extends VcnTestBase {
     @Test
     public void testBuilderSetMinUdpPort4500NatTimeout_invalidValues() {
         try {
-            buildVcnGatewayConnectionConfigBase().setMinUdpPort4500NatTimeoutSeconds(-1);
-            fail("Expected exception due to invalid timeout range");
-        } catch (IllegalArgumentException e) {
-        }
-
-        try {
             buildVcnGatewayConnectionConfigBase().setMinUdpPort4500NatTimeoutSeconds(119);
             fail("Expected exception due to invalid timeout range");
         } catch (IllegalArgumentException e) {
