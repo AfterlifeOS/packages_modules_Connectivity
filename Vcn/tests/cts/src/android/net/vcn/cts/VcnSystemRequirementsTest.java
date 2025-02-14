@@ -26,17 +26,23 @@ import static org.junit.Assume.assumeTrue;
 import android.content.Context;
 import android.net.ConnectivityManager;
 import android.net.vcn.VcnManager;
+import android.os.Build;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 
 import androidx.test.InstrumentationRegistry;
-import androidx.test.ext.junit.runners.AndroidJUnit4;
+
+import com.android.testutils.DevSdkIgnoreRule;
+import com.android.testutils.DevSdkIgnoreRunner;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
 
-@RunWith(AndroidJUnit4.class)
+// TODO: b/374174952 After B finalization, use Sdk36ModuleController to ensure VCN tests only run on
+// Android B/B+
+@RunWith(DevSdkIgnoreRunner.class)
+@DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 public class VcnSystemRequirementsTest {
     private static final int VENDOR_API_FOR_ANDROID_V = 202404;
     private final Context mContext = InstrumentationRegistry.getContext();
