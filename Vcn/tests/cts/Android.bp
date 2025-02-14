@@ -24,6 +24,9 @@ android_test {
         "framework-connectivity-test-defaults",
     ],
 
+    // TODO: b/374174952 Use 36 after Android B finalization
+    min_sdk_version: "35",
+
     // Include both the 32 and 64 bit versions
     compile_multilib: "both",
 
@@ -57,6 +60,8 @@ android_test {
     test_suites: [
         "cts",
         "general-tests",
+        "mts-tethering",
+        "mcts-tethering",
     ],
     data: [":ConnectivityTestPreparer"],
     host_required: ["net-tests-utils-host-common"],

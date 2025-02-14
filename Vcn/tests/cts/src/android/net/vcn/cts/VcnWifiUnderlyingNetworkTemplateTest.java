@@ -22,12 +22,21 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.fail;
 
 import android.net.vcn.VcnWifiUnderlyingNetworkTemplate;
+import android.os.Build;
+
+import com.android.testutils.DevSdkIgnoreRule;
+import com.android.testutils.DevSdkIgnoreRunner;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
 
 import java.util.HashSet;
 import java.util.Set;
 
+// TODO: b/374174952 After B finalization, use Sdk36ModuleController to ensure VCN tests only run on
+// Android B/B+
+@RunWith(DevSdkIgnoreRunner.class)
+@DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.VANILLA_ICE_CREAM)
 public class VcnWifiUnderlyingNetworkTemplateTest extends VcnUnderlyingNetworkTemplateTestBase {
     private static final Set<String> SSIDS = Set.of("TestWifi");
 
