@@ -24,8 +24,7 @@ android_test {
         "framework-connectivity-test-defaults",
     ],
 
-    // TODO: b/374174952 Use 36 after Android B finalization
-    min_sdk_version: "35",
+    min_sdk_version: "36",
 
     // Include both the 32 and 64 bit versions
     compile_multilib: "both",
