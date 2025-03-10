@@ -75,7 +75,6 @@ import android.net.vcn.VcnUnderlyingNetworkTemplate;
 import android.net.vcn.VcnWifiUnderlyingNetworkTemplate;
 import android.net.vcn.cts.TestNetworkWrapper.VcnTestNetworkCallback;
 import android.net.vcn.cts.TestNetworkWrapper.VcnTestNetworkCallback.CapabilitiesChangedEvent;
-import android.os.Build;
 import android.os.ParcelUuid;
 import android.os.PersistableBundle;
 import android.os.SystemClock;
@@ -85,10 +84,9 @@ import android.telephony.TelephonyManager;
 import android.telephony.cts.util.SubscriptionGroupUtils;
 
 import androidx.test.InstrumentationRegistry;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.compatibility.common.util.CarrierPrivilegeUtils;
-import com.android.testutils.DevSdkIgnoreRule;
-import com.android.testutils.DevSdkIgnoreRunner;
 
 import org.junit.After;
 import org.junit.Before;
@@ -109,10 +107,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-// TODO: b/374174952 After B finalization, use Sdk36ModuleController to ensure VCN tests only run on
-// Android B/B+
-@RunWith(DevSdkIgnoreRunner.class)
-@DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+@RunWith(AndroidJUnit4.class)
 public class VcnManagerTest extends VcnTestBase {
     private static final String TAG = VcnManagerTest.class.getSimpleName();
 

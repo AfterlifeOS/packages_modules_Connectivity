@@ -19,8 +19,7 @@
     package="android.net.vcn.cts"
     android:targetSandboxVersion="2">
 
-    <!-- TODO: b/374174952 Use 36 after Android B finalization -->
-    <uses-sdk android:minSdkVersion="35" android:targetSdkVersion="35" />
+    <uses-sdk android:minSdkVersion="36" android:targetSdkVersion="36" />
 
     <!--Allow tests to call ConnectivityManager#getActiveNetwork()-->
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
