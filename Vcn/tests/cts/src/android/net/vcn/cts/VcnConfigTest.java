@@ -25,13 +25,10 @@ import static org.junit.Assert.fail;
 import android.content.Context;
 import android.net.vcn.VcnConfig;
 import android.net.vcn.VcnGatewayConnectionConfig;
-import android.os.Build;
 import android.util.ArraySet;
 
 import androidx.test.InstrumentationRegistry;
-
-import com.android.testutils.DevSdkIgnoreRule;
-import com.android.testutils.DevSdkIgnoreRunner;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -39,10 +36,7 @@ import org.junit.runner.RunWith;
 import java.util.Collections;
 import java.util.Set;
 
-// TODO: b/374174952 After B finalization, use Sdk36ModuleController to ensure VCN tests only run on
-// Android B/B+
-@RunWith(DevSdkIgnoreRunner.class)
-@DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+@RunWith(AndroidJUnit4.class)
 public class VcnConfigTest extends VcnTestBase {
     private static final VcnGatewayConnectionConfig GATEWAY_CONNECTION_CONFIG =
             VcnGatewayConnectionConfigTest.buildVcnGatewayConnectionConfig();
