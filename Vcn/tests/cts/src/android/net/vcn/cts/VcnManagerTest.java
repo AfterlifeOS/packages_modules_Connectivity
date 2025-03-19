@@ -78,7 +78,9 @@ import android.net.vcn.cts.TestNetworkWrapper.VcnTestNetworkCallback.Capabilitie
 import android.os.Build;
 import android.os.ParcelUuid;
 import android.os.PersistableBundle;
+import android.os.Process;
 import android.os.SystemClock;
+import android.os.UserManager;
 import android.telephony.CarrierConfigManager;
 import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
@@ -101,6 +103,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.BlockingQueue;
@@ -174,6 +177,11 @@ public class VcnManagerTest extends VcnTestBase {
         assumeTrue(hasTelephonyFlag || mVcnManager != null);
 
         getInstrumentation().getUiAutomation().adoptShellPermissionIdentity();
+
+        // TODO: b/348715017 Add multi-user support for VCN
+        // Skip the test if it is not running as a main user
+        final UserManager userManager = mContext.getSystemService(UserManager.class);
+        assumeTrue(Objects.equals(userManager.getMainUser(), Process.myUserHandle()));
 
         // Ensure Internet probing check will be performed on VCN networks
         setCaptivePortalMode(mContext, CAPTIVE_PORTAL_MODE_PROMPT);
