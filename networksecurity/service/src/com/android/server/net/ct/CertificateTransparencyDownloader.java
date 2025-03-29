@@ -32,7 +32,6 @@ import com.android.server.net.ct.DownloadHelper.DownloadStatus;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.GeneralSecurityException;
 import java.util.Collection;
 import java.util.Optional;
 
@@ -151,10 +150,9 @@ class CertificateTransparencyDownloader extends BroadcastReceiver {
             return;
         }
 
-        try {
-            mSignatureVerifier.setPublicKeyFrom(publicKeyUri);
-        } catch (GeneralSecurityException | IOException | IllegalArgumentException e) {
-            Log.e(TAG, "Error setting the public Key", e);
+        LogListUpdateStatus updateStatus = mSignatureVerifier.setPublicKeyFrom(publicKeyUri);
+        if (!updateStatus.isPublicKeySet()) {
+            mLogger.logCTLogListUpdateStateChangedEvent(updateStatus);
             return;
         }
 

@@ -782,8 +782,7 @@ public class EthernetTracker {
         mNetworkCapabilities.put(config.mIface, config.mCaps);
 
         if (null != config.mIpConfig) {
-            IpConfiguration ipConfig = parseStaticIpConfiguration(config.mIpConfig);
-            mIpConfigurations.put(config.mIface, ipConfig);
+            mIpConfigurations.put(config.mIface, config.mIpConfig);
         }
     }
 
@@ -792,67 +791,9 @@ public class EthernetTracker {
                 new NetworkCapabilities.Builder(DEFAULT_CAPABILITIES);
         if (isTestIface) {
             builder.addTransportType(NetworkCapabilities.TRANSPORT_TEST);
-            // TODO: do not remove INTERNET capability for test networks.
-            builder.removeCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
         }
 
         return builder.build();
-    }
-
-    /**
-     * Parses static IP configuration.
-     *
-     * @param staticIpConfig represents static IP configuration in the following format: {@code
-     * ip=<ip-address/mask> gateway=<ip-address> dns=<comma-sep-ip-addresses>
-     *     domains=<comma-sep-domains>}
-     */
-    @VisibleForTesting
-    static IpConfiguration parseStaticIpConfiguration(String staticIpConfig) {
-        final StaticIpConfiguration.Builder staticIpConfigBuilder =
-                new StaticIpConfiguration.Builder();
-
-        for (String keyValueAsString : staticIpConfig.trim().split(" ")) {
-            if (TextUtils.isEmpty(keyValueAsString)) continue;
-
-            String[] pair = keyValueAsString.split("=");
-            if (pair.length != 2) {
-                throw new IllegalArgumentException("Unexpected token: " + keyValueAsString
-                        + " in " + staticIpConfig);
-            }
-
-            String key = pair[0];
-            String value = pair[1];
-
-            switch (key) {
-                case "ip":
-                    staticIpConfigBuilder.setIpAddress(new LinkAddress(value));
-                    break;
-                case "domains":
-                    staticIpConfigBuilder.setDomains(value);
-                    break;
-                case "gateway":
-                    staticIpConfigBuilder.setGateway(InetAddress.parseNumericAddress(value));
-                    break;
-                case "dns": {
-                    ArrayList<InetAddress> dnsAddresses = new ArrayList<>();
-                    for (String address: value.split(",")) {
-                        dnsAddresses.add(InetAddress.parseNumericAddress(address));
-                    }
-                    staticIpConfigBuilder.setDnsServers(dnsAddresses);
-                    break;
-                }
-                default : {
-                    throw new IllegalArgumentException("Unexpected key: " + key
-                            + " in " + staticIpConfig);
-                }
-            }
-        }
-        return createIpConfiguration(staticIpConfigBuilder.build());
-    }
-
-    private static IpConfiguration createIpConfiguration(
-            @NonNull final StaticIpConfiguration staticIpConfig) {
-        return new IpConfiguration.Builder().setStaticIpConfiguration(staticIpConfig).build();
     }
 
     private IpConfiguration getOrCreateIpConfiguration(String iface) {
@@ -971,7 +912,7 @@ public class EthernetTracker {
     static class EthernetConfigParser {
         final String mIface;
         final NetworkCapabilities mCaps;
-        final String mIpConfig;
+        @Nullable final IpConfiguration mIpConfig;
 
         private static NetworkCapabilities parseCapabilities(@Nullable String capabilitiesString,
                 boolean isAtLeastB) {
@@ -992,7 +933,11 @@ public class EthernetTracker {
             if (isAtLeastB && capabilitiesString.equals("*")) {
                 // On Android B+, a "*" string defaults to the same set of default
                 // capabilities assigned to unconfigured interfaces.
-                return new NetworkCapabilities(DEFAULT_CAPABILITIES);
+                // Note that the transport type is populated later with the result of
+                // parseTransportType().
+                return new NetworkCapabilities.Builder(DEFAULT_CAPABILITIES)
+                        .removeTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
+                        .build();
             }
 
             for (String strNetworkCapability : capabilitiesString.split(",")) {
@@ -1038,18 +983,64 @@ public class EthernetTracker {
             }
         }
 
-        EthernetConfigParser(String configString, boolean isAtLeastB) {
-            Objects.requireNonNull(configString, "EthernetConfigParser requires non-null config");
-            final String[] tokens = configString.split(";", /* limit of tokens */ 4);
-            mIface = tokens[0];
+        @Nullable
+        private static IpConfiguration parseStaticIpConfiguration(String staticIpConfig) {
+            if (TextUtils.isEmpty(staticIpConfig)) return null;
 
-            final NetworkCapabilities nc =
-                    parseCapabilities(tokens.length > 1 ? tokens[1] : null, isAtLeastB);
-            final int transportType = parseTransportType(tokens.length > 3 ? tokens[3] : null);
+            final StaticIpConfiguration.Builder staticIpConfigBuilder =
+                    new StaticIpConfiguration.Builder();
+
+            for (String keyValueAsString : staticIpConfig.trim().split(" ")) {
+                if (TextUtils.isEmpty(keyValueAsString)) continue;
+
+                final String[] pair = keyValueAsString.split("=");
+                if (pair.length != 2) {
+                    throw new IllegalArgumentException("Unexpected token: " + keyValueAsString
+                            + " in " + staticIpConfig);
+                }
+
+                final String key = pair[0];
+                final String value = pair[1];
+                switch (key) {
+                    case "ip":
+                        staticIpConfigBuilder.setIpAddress(new LinkAddress(value));
+                        break;
+                    case "domains":
+                        staticIpConfigBuilder.setDomains(value);
+                        break;
+                    case "gateway":
+                        staticIpConfigBuilder.setGateway(InetAddress.parseNumericAddress(value));
+                        break;
+                    case "dns": {
+                        ArrayList<InetAddress> dnsAddresses = new ArrayList<>();
+                        for (String address: value.split(",")) {
+                            dnsAddresses.add(InetAddress.parseNumericAddress(address));
+                        }
+                        staticIpConfigBuilder.setDnsServers(dnsAddresses);
+                        break;
+                    }
+                    default: {
+                        throw new IllegalArgumentException("Unexpected key: " + key
+                                + " in " + staticIpConfig);
+                    }
+                }
+            }
+            return new IpConfiguration.Builder()
+                    .setStaticIpConfiguration(staticIpConfigBuilder.build())
+                    .build();
+        }
+
+        EthernetConfigParser(String configString, boolean bplus) {
+            Objects.requireNonNull(configString, "EthernetConfigParser requires non-null config");
+            final String[] t = configString.split(";", /* limit of tokens */ 4);
+            mIface = t[0];
+
+            final NetworkCapabilities nc = parseCapabilities(t.length > 1 ? t[1] : null, bplus);
+            final int transportType = parseTransportType(t.length > 3 ? t[3] : null);
             nc.addTransportType(transportType);
             mCaps = nc;
 
-            mIpConfig = tokens.length > 2 && !TextUtils.isEmpty(tokens[2]) ? tokens[2] : null;
+            mIpConfig = parseStaticIpConfiguration(t.length > 2 ? t[2] : null);
         }
     }
 }
