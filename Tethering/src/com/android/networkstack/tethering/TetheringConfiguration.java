@@ -131,6 +131,9 @@ public class TetheringConfiguration {
     public static final String TETHER_ENABLE_WEAR_TETHERING =
             "tether_enable_wear_tethering";
 
+    public static final String TETHER_FORCE_RANDOM_PREFIX_BASE_SELECTION =
+            "tether_force_random_prefix_base_selection";
+
     public static final String TETHER_ENABLE_SYNC_SM = "tether_enable_sync_sm";
 
     /**
@@ -153,6 +156,13 @@ public class TetheringConfiguration {
      * Disabled by default.
      */
     public static final String TETHERING_LOCAL_NETWORK_AGENT = "tethering_local_network_agent";
+
+    /**
+     * A feature flag to control whether the Wifi P2P Group Owner local network agent
+     * should be enabled. Disabled by default. This depends on TETHERING_LOCAL_AGENT
+     * and will not be enabled if that flag is off.
+     */
+    public static final String WIFIP2PGO_LOCAL_NETWORK_AGENT = "wifip2pgo_local_network_agent";
 
     public final String[] tetherableUsbRegexs;
     public final String[] tetherableWifiRegexs;
