@@ -19,6 +19,7 @@
 
 package android.net.cts
 
+import android.Manifest.permission
 import android.content.pm.PackageManager.FEATURE_AUTOMOTIVE
 import android.content.pm.PackageManager.FEATURE_LEANBACK
 import android.content.pm.PackageManager.FEATURE_WIFI
@@ -72,6 +73,7 @@ import com.android.compatibility.common.util.SystemUtil.runShellCommand
 import com.android.compatibility.common.util.SystemUtil.runShellCommandOrThrow
 import com.android.compatibility.common.util.VsrTest
 import com.android.internal.util.HexDump
+import com.android.modules.utils.build.SdkLevel
 import com.android.net.module.util.NetworkStackConstants.ETHER_ADDR_LEN
 import com.android.net.module.util.NetworkStackConstants.ETHER_DST_ADDR_OFFSET
 import com.android.net.module.util.NetworkStackConstants.ETHER_HEADER_LEN
@@ -88,6 +90,7 @@ import com.android.testutils.RecorderCallback.CallbackEntry.LinkPropertiesChange
 import com.android.testutils.SkipPresubmit
 import com.android.testutils.TestableNetworkCallback
 import com.android.testutils.pollingCheck
+import com.android.testutils.runAsShell
 import com.android.testutils.waitForIdle
 import com.google.common.truth.Expect
 import com.google.common.truth.Truth.assertThat
@@ -117,6 +120,8 @@ private const val TIMEOUT_MS = 2000L
 private const val RCV_BUFFER_SIZE = 1480
 private const val PING_HEADER_LENGTH = 8
 
+open class FromU<Type>(val value: Type)
+
 @AppModeFull(reason = "CHANGE_NETWORK_STATE permission can't be granted to instant apps")
 @RunWith(DevSdkIgnoreRunner::class)
 @RequiresDevice
@@ -130,6 +135,8 @@ class ApfIntegrationTest {
         private val context = InstrumentationRegistry.getInstrumentation().context
         private val powerManager = context.getSystemService(PowerManager::class.java)!!
         private val wakeLock = powerManager.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, TAG)
+        private var isLowPowerStandbyOriginalEnabled: Boolean = false
+        private var originalPolicy: FromU<PowerManager.LowPowerStandbyPolicy?>? = null
 
         fun turnScreenOff() {
             if (!wakeLock.isHeld()) wakeLock.acquire()
@@ -166,6 +173,33 @@ class ApfIntegrationTest {
                     userManager.isVisibleBackgroundUsersSupported)
         }
 
+        private fun disableLowPowerStandby() {
+            if (!SdkLevel.isAtLeastU()) {
+                return
+            }
+            runAsShell(permission.DEVICE_POWER) {
+                if (powerManager.isLowPowerStandbySupported) {
+                    isLowPowerStandbyOriginalEnabled = powerManager.isLowPowerStandbyEnabled
+                    originalPolicy = FromU(powerManager.lowPowerStandbyPolicy)
+                    powerManager.isLowPowerStandbyEnabled = false
+                    Log.i(TAG, "Low power standby is supported, disabling it temporary.")
+                }
+            }
+        }
+
+        private fun restoreLowPowerStandby() {
+            if (!SdkLevel.isAtLeastU()) {
+                return
+            }
+            runAsShell(permission.DEVICE_POWER) {
+                if (powerManager.isLowPowerStandbySupported) {
+                    powerManager.isLowPowerStandbyEnabled = isLowPowerStandbyOriginalEnabled
+                    powerManager.lowPowerStandbyPolicy = originalPolicy?.value
+                    Log.i(TAG, "Reset Low power standby to original state.")
+                }
+            }
+        }
+
         @BeforeClass
         @JvmStatic
         @Suppress("ktlint:standard:no-multi-spaces")
@@ -180,12 +214,14 @@ class ApfIntegrationTest {
             Thread.sleep(1000)
             // TODO: check that there is no active wifi network. Otherwise, ApfFilter has already been
             // created.
+            disableLowPowerStandby()
         }
 
         @AfterClass
         @JvmStatic
         fun tearDownOnce() {
             turnScreenOn()
+            restoreLowPowerStandby()
         }
     }
 
@@ -434,8 +470,8 @@ class ApfIntegrationTest {
     @SkipPresubmit(reason = "This test takes longer than 1 minute, do not run it on presubmit.")
     // APF integration is mostly broken before V, only run the full read / write test on V+.
     @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    // Increase timeout for test to 15 minutes to accommodate device with large APF RAM.
-    @Test(timeout = 15 * 60 * 1000)
+    // Increase timeout for test to 20 minutes to accommodate device with large APF RAM.
+    @Test(timeout = 20 * 60 * 1000)
     fun testReadWriteProgram() {
         assumeApfVersionSupportAtLeast(4)
 
