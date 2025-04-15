@@ -161,7 +161,7 @@ public class MdnsServiceTypeClientTests {
 
         expectedIPv4Packets = new DatagramPacket[24];
         expectedIPv6Packets = new DatagramPacket[24];
-        socketKey = new SocketKey(mockNetwork, INTERFACE_INDEX);
+        socketKey = new SocketKey(mockNetwork, INTERFACE_INDEX, "interface");
 
         for (int i = 0; i < expectedIPv4Packets.length; ++i) {
             expectedIPv4Packets[i] = new DatagramPacket(buf, 0 /* offset */, 5 /* length */,
