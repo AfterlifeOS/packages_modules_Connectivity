@@ -857,7 +857,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     if (ret) return ret;
 
     struct btf *btf = NULL;
-    auto scopeGuard = base::make_scope_guard([btf] { if (btf) btf__free(btf); });
+    auto btfGuard = base::make_scope_guard([&btf] { if (btf) btf__free(btf); });
     if (isAtLeastKernelVersion(5, 10, 0)) {
         // Untested on Linux Kernel 5.4, but likely compatible.
         // On Linux Kernels older than 4.18 BPF_BTF_LOAD command doesn't exist.
@@ -1814,12 +1814,6 @@ static int doLoad(char** argv, char * const envp[]) {
             ALOGE("[x86] 64-bit userspace required on 6.2+ kernels.");
             return 1;
         }
-    }
-
-    // On handheld, 6.6 is highest version supported by Android V (sdk=35), so this is for sdk=36+
-    if (!isArm() && isUserspace32bit() && isAtLeastKernelVersion(6, 7, 0)) {
-        ALOGE("64-bit userspace required on 6.7+ kernels.");
-        return 1;
     }
 
     if (isAtLeast25Q2) {
