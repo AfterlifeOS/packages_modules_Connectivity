@@ -57,7 +57,6 @@ import static com.android.networkstack.tethering.BpfCoordinator.NON_OFFLOADED_UP
 import static com.android.networkstack.tethering.BpfCoordinator.StatsType;
 import static com.android.networkstack.tethering.BpfCoordinator.StatsType.STATS_PER_IFACE;
 import static com.android.networkstack.tethering.BpfCoordinator.StatsType.STATS_PER_UID;
-import static com.android.networkstack.tethering.BpfCoordinator.toIpv4MappedAddressBytes;
 import static com.android.networkstack.tethering.BpfUtils.DOWNSTREAM;
 import static com.android.networkstack.tethering.BpfUtils.UPSTREAM;
 import static com.android.networkstack.tethering.TetheringConfiguration.DEFAULT_TETHER_OFFLOAD_POLL_INTERVAL_MS;
@@ -351,8 +350,8 @@ public class BpfCoordinatorTest {
             private MacAddress mEthSrcMac = MacAddress.ALL_ZEROS_ADDRESS /* dstMac (rawip) */;
             private int mEthProto = ETH_P_IP;
             private short mPmtu = NetworkStackConstants.ETHER_MTU;
-            private byte[] mSrc46 = toIpv4MappedAddressBytes(PUBLIC_ADDR);
-            private byte[] mDst46 = toIpv4MappedAddressBytes(REMOTE_ADDR);
+            private InetAddress mSrc46 = PUBLIC_ADDR;
+            private InetAddress mDst46 = REMOTE_ADDR;
             private int mSrcPort = PUBLIC_PORT;
             private int mDstPort = REMOTE_PORT;
             private long mLastUsed = 0;
@@ -376,8 +375,8 @@ public class BpfCoordinatorTest {
             private MacAddress mEthSrcMac = DOWNSTREAM_MAC;
             private int mEthProto = ETH_P_IP;
             private short mPmtu = NetworkStackConstants.ETHER_MTU;
-            private byte[] mSrc46 = toIpv4MappedAddressBytes(REMOTE_ADDR);
-            private byte[] mDst46 = toIpv4MappedAddressBytes(PRIVATE_ADDR);
+            private InetAddress mSrc46 = REMOTE_ADDR;
+            private InetAddress mDst46 = PRIVATE_ADDR;
             private int mSrcPort = REMOTE_PORT;
             private int mDstPort = PRIVATE_PORT;
             private long mLastUsed = 0;
@@ -2445,8 +2444,7 @@ public class BpfCoordinatorTest {
         return new Tether4Value(UPSTREAM_IFINDEX,
                 MacAddress.ALL_ZEROS_ADDRESS /* ethDstMac (rawip) */,
                 MacAddress.ALL_ZEROS_ADDRESS /* ethSrcMac (rawip) */, ETH_P_IP,
-                NetworkStackConstants.ETHER_MTU, toIpv4MappedAddressBytes(PUBLIC_ADDR),
-                toIpv4MappedAddressBytes(REMOTE_ADDR), publicPort, REMOTE_PORT,
+                NetworkStackConstants.ETHER_MTU, PUBLIC_ADDR, REMOTE_ADDR, publicPort, REMOTE_PORT,
                 0 /* lastUsed */);
     }
 
@@ -2455,8 +2453,8 @@ public class BpfCoordinatorTest {
             @NonNull final MacAddress clientMac, @NonNull final MacAddress downstreamMac,
             @NonNull final Inet4Address privateAddr, final short privatePort) {
         return new Tether4Value(downstreamIfindex, clientMac, downstreamMac,
-                ETH_P_IP, NetworkStackConstants.ETHER_MTU, toIpv4MappedAddressBytes(REMOTE_ADDR),
-                toIpv4MappedAddressBytes(privateAddr), REMOTE_PORT, privatePort, 0 /* lastUsed */);
+                ETH_P_IP, NetworkStackConstants.ETHER_MTU, REMOTE_ADDR, privateAddr, REMOTE_PORT,
+                privatePort, 0 /* lastUsed */);
     }
 
     @NonNull

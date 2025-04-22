@@ -1026,11 +1026,9 @@ public class EthernetTetheringTest extends EthernetTetheringTestBase {
         assertEquals(REMOTE_PORT, upstream4Key.dstPort);
 
         final Tether4Value upstream4Value = rule.getValue();
-        assertTrue(Arrays.equals(tetheringUpstreamIp.getAddress(),
-                InetAddress.getByAddress(upstream4Value.src46).getAddress()));
+        assertEquals(tetheringUpstreamIp, upstream4Value.src46);
         assertEquals(LOCAL_PORT, upstream4Value.srcPort);
-        assertTrue(Arrays.equals(REMOTE_IP4_ADDR.getAddress(),
-                InetAddress.getByAddress(upstream4Value.dst46).getAddress()));
+        assertEquals(REMOTE_IP4_ADDR, upstream4Value.dst46);
         assertEquals(REMOTE_PORT, upstream4Value.dstPort);
 
         // [2] Verify stats map.
