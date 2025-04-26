@@ -2242,7 +2242,7 @@ public class NsdService extends INsdManager.Stub {
         final String targetInterface = offloadEngineInfo.mInterfaceName;
         final IOffloadEngine offloadEngine = offloadEngineInfo.mOffloadEngine;
         final List<MdnsAdvertiser.OffloadServiceInfoWrapper> offloadWrappers =
-                mAdvertiser.getAllInterfaceOffloadServiceInfos(targetInterface);
+                mAdvertiser.notifyOffloadStart(targetInterface);
         for (MdnsAdvertiser.OffloadServiceInfoWrapper wrapper : offloadWrappers) {
             try {
                 offloadEngine.onOffloadServiceUpdated(wrapper.mOffloadServiceInfo);
