@@ -16,6 +16,7 @@
 package com.android.server.connectivity
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.role.OnRoleHoldersChangedListener
 import android.app.role.RoleManager
 import android.content.Context
@@ -23,11 +24,11 @@ import android.content.pm.ApplicationInfo
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.os.UserHandle
 import android.os.UserManager
-import android.util.ArraySet
 import com.android.server.connectivity.ConnectivityFlags.CONSTRAINED_DATA_SATELLITE_OPTIN
 import com.android.server.connectivity.SatelliteAccessController.PER_USER_RANGE
 import com.android.server.connectivity.SatelliteAccessController.PROPERTY_SATELLITE_DATA_OPTIMIZED
@@ -37,10 +38,7 @@ import com.android.testutils.com.android.testutils.SetFeatureFlagsRule
 import com.android.testutils.com.android.testutils.SetFeatureFlagsRule.FeatureFlag
 import java.util.concurrent.CompletableFuture
 import java.util.concurrent.Executor
-import java.util.function.Consumer
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
-import org.junit.Assert.assertTrue
+import java.util.function.BiConsumer
 import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
@@ -50,6 +48,7 @@ import org.mockito.ArgumentMatchers.any
 import org.mockito.ArgumentMatchers.anyInt
 import org.mockito.ArgumentMatchers.eq
 import org.mockito.Mockito.doReturn
+import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
 import org.mockito.Mockito.times
@@ -69,21 +68,14 @@ private const val SMS_APP2 = "sms_app_2"
 private const val SMS_APP_ID1 = 100
 private const val SMS_APP_ID2 = 101
 
-// UID for app1 and app2 on primary user
-// These app could become default sms app for user1
-private val PRIMARY_USER_SMS_APP_UID1 = UserHandle.getUid(PRIMARY_USER, SMS_APP_ID1)
-private val PRIMARY_USER_SMS_APP_UID2 = UserHandle.getUid(PRIMARY_USER, SMS_APP_ID2)
-
-// UID for app1 and app2 on secondary user
-// These app could become default sms app for user2
-private val SECONDARY_USER_SMS_APP_UID1 = UserHandle.getUid(SECONDARY_USER, SMS_APP_ID1)
-private val SECONDARY_USER_SMS_APP_UID2 = UserHandle.getUid(SECONDARY_USER, SMS_APP_ID2)
+private fun Int.toUid(userId: Int) = UserHandle.getUid(userId, this)
 
 private const val TEST_PACKAGE1 = "com.android.package1"
 private const val TEST_PACKAGE2 = "com.android.package2"
 private const val TEST_UID1 = 2001
 private const val TEST_UID2 = 2002 + SECONDARY_USER * PER_USER_RANGE // Under 2nd user.
 
+@SuppressLint("VisibleForTests", "MissingPermission")
 @RunWith(DevSdkIgnoreRunner::class)
 @IgnoreUpTo(Build.VERSION_CODES.TIRAMISU)
 class SatelliteAccessControllerTest {
@@ -91,14 +83,14 @@ class SatelliteAccessControllerTest {
     private val primaryUserContext = mock(Context::class.java)
     private val secondaryUserContext = mock(Context::class.java)
     private val packageManager = mock(PackageManager::class.java)
-    private val mPackageManagerPrimaryUser = mock(PackageManager::class.java)
-    private val mPackageManagerSecondaryUser = mock(PackageManager::class.java)
-    private val mDeps = mock(SatelliteAccessController.Dependencies::class.java)
-    private val mCallback = mock(Consumer::class.java) as Consumer<Set<Int>>
+    private val packageManagerPrimaryUser = mock(PackageManager::class.java)
+    private val packageManagerSecondaryUser = mock(PackageManager::class.java)
+    private val deps = mock(SatelliteAccessController.Dependencies::class.java)
+    private val callback = mock(BiConsumer::class.java) as BiConsumer<Set<Int>, Set<Int>>
     private val userManager = mock(UserManager::class.java)
-    private val mHandler = Handler(Looper.getMainLooper())
-    private lateinit var mSatelliteAccessController: SatelliteAccessController
-    private lateinit var mRoleHolderChangedListener: OnRoleHoldersChangedListener
+    private val handler = Handler(Looper.getMainLooper())
+    private lateinit var satelliteAccessController: SatelliteAccessController
+    private lateinit var roleHolderChangedListener: OnRoleHoldersChangedListener
 
     private val featureFlags = HashSet<String>()
 
@@ -121,223 +113,238 @@ class SatelliteAccessControllerTest {
     }
 
     @Before
-    @Throws(PackageManager.NameNotFoundException::class)
     fun setup() {
         doReturn(emptyList<UserHandle>()).`when`(userManager).getUserHandles(true)
         mockService(Context.USER_SERVICE, UserManager::class.java, userManager)
         doReturn(packageManager).`when`(context).packageManager
         doReturn(featureFlags.contains(CONSTRAINED_DATA_SATELLITE_OPTIN))
-                .`when`(mDeps).supportConstrainedDataSatelliteOptIn(any())
-        mSatelliteAccessController = SatelliteAccessController(context, mDeps, mCallback, mHandler)
+                .`when`(deps).supportConstrainedDataSatelliteOptIn(any())
+        satelliteAccessController = SatelliteAccessController(context, deps, callback, handler)
 
         doReturn(primaryUserContext).`when`(context).createContextAsUser(PRIMARY_USER_HANDLE, 0)
-        doReturn(mPackageManagerPrimaryUser).`when`(primaryUserContext).packageManager
+        doReturn(packageManagerPrimaryUser).`when`(primaryUserContext).packageManager
 
         doReturn(secondaryUserContext).`when`(context).createContextAsUser(SECONDARY_USER_HANDLE, 0)
-        doReturn(mPackageManagerSecondaryUser).`when`(secondaryUserContext).packageManager
+        doReturn(packageManagerSecondaryUser).`when`(secondaryUserContext).packageManager
 
         for (app in listOf(SMS_APP1, SMS_APP2)) {
             doReturn(PackageManager.PERMISSION_GRANTED)
-                .`when`(mPackageManagerPrimaryUser)
+                .`when`(packageManagerPrimaryUser)
                 .checkPermission(Manifest.permission.SATELLITE_COMMUNICATION, app)
             doReturn(PackageManager.PERMISSION_GRANTED)
-                .`when`(mPackageManagerSecondaryUser)
+                .`when`(packageManagerSecondaryUser)
                 .checkPermission(Manifest.permission.SATELLITE_COMMUNICATION, app)
         }
 
-        // Initialise message application primary user package1
-        val applicationInfo1 = ApplicationInfo()
-        applicationInfo1.uid = PRIMARY_USER_SMS_APP_UID1
-        doReturn(applicationInfo1)
-            .`when`(mPackageManagerPrimaryUser)
-            .getApplicationInfo(eq(SMS_APP1), anyInt())
-
-        // Initialise message application primary user package2
-        val applicationInfo2 = ApplicationInfo()
-        applicationInfo2.uid = PRIMARY_USER_SMS_APP_UID2
-        doReturn(applicationInfo2)
-            .`when`(mPackageManagerPrimaryUser)
-            .getApplicationInfo(eq(SMS_APP2), anyInt())
-
-        // Initialise message application secondary user package1
-        val applicationInfo3 = ApplicationInfo()
-        applicationInfo3.uid = SECONDARY_USER_SMS_APP_UID1
-        doReturn(applicationInfo3)
-            .`when`(mPackageManagerSecondaryUser)
-            .getApplicationInfo(eq(SMS_APP1), anyInt())
-
-        // Initialise message application secondary user package2
-        val applicationInfo4 = ApplicationInfo()
-        applicationInfo4.uid = SECONDARY_USER_SMS_APP_UID2
-        doReturn(applicationInfo4)
-            .`when`(mPackageManagerSecondaryUser)
-            .getApplicationInfo(eq(SMS_APP2), anyInt())
+        for ((appName, appId) in listOf(
+            SMS_APP1 to SMS_APP_ID1,
+            SMS_APP2 to SMS_APP_ID2
+        )) {
+            val primaryUid = appId.toUid(PRIMARY_USER)
+            val primaryAppInfo = ApplicationInfo().apply { uid = primaryUid }
+            doReturn(primaryAppInfo)
+                    .`when`(packageManagerPrimaryUser)
+                    .getApplicationInfo(eq(appName), anyInt())
+            val secondaryUid = appId.toUid(SECONDARY_USER)
+            val secondaryAppInfo = ApplicationInfo().apply { uid = secondaryUid }
+            doReturn(secondaryAppInfo)
+                    .`when`(packageManagerSecondaryUser)
+                    .getApplicationInfo(eq(appName), anyInt())
+        }
     }
 
     @Test
-    fun test_onRoleHoldersChanged_SatelliteFallbackUid_Changed_SingleUser() {
+    fun testRoleHoldersChanged_satelliteRoleSmsUidChanged_singleUser() {
         startSatelliteAccessController()
-        doReturn(listOf<String>()).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf<String>()).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             PRIMARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback, never()).accept(any())
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback, never()).accept(any(), any())
 
         // check DEFAULT_MESSAGING_APP1 is available as satellite network fallback uid
         doReturn(listOf(SMS_APP1))
-            .`when`(mDeps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback).accept(setOf(PRIMARY_USER_SMS_APP_UID1))
+            .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback).accept(setOf(SMS_APP_ID1.toUid(PRIMARY_USER)), emptySet())
 
         // check SMS_APP2 is available as satellite network Fallback uid
-        doReturn(listOf(SMS_APP2)).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf(SMS_APP2)).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             PRIMARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback).accept(setOf(PRIMARY_USER_SMS_APP_UID2))
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback).accept(setOf(SMS_APP_ID2.toUid(PRIMARY_USER)), emptySet())
 
         // check no uid is available as satellite network fallback uid
-        doReturn(listOf<String>()).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf<String>()).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             PRIMARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback).accept(ArraySet())
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback).accept(emptySet(), emptySet())
     }
 
     @Test
-    fun test_onRoleHoldersChanged_NoSatelliteCommunicationPermission() {
+    fun testRoleHoldersChanged_noSatelliteCommunicationPermission() {
         startSatelliteAccessController()
-        doReturn(listOf<Any>()).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf<Any>()).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             PRIMARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback, never()).accept(any())
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback, never()).accept(any(), any())
 
-        // check DEFAULT_MESSAGING_APP1 is not available as satellite network fallback uid
+        // Check DEFAULT_MESSAGING_APP1 is not available as satellite network fallback uid
         // since satellite communication permission not available.
         doReturn(PackageManager.PERMISSION_DENIED)
-            .`when`(mPackageManagerPrimaryUser)
+            .`when`(packageManagerPrimaryUser)
             .checkPermission(Manifest.permission.SATELLITE_COMMUNICATION, SMS_APP1)
         doReturn(listOf(SMS_APP1))
-            .`when`(mDeps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback, never()).accept(any())
+            .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback, never()).accept(any(), any())
     }
 
     @Test
-    fun test_onRoleHoldersChanged_RoleSms_NotAvailable() {
+    fun testRoleHoldersChanged_roleSms_notAvailable() {
         startSatelliteAccessController()
         doReturn(listOf(SMS_APP1))
-            .`when`(mDeps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        mRoleHolderChangedListener.onRoleHoldersChanged(
-            RoleManager.ROLE_BROWSER,
-            PRIMARY_USER_HANDLE
-        )
-        verify(mCallback, never()).accept(any())
+            .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        onRoleHoldersChanged(RoleManager.ROLE_BROWSER, PRIMARY_USER_HANDLE)
+        verify(callback, never()).accept(any(), any())
     }
 
     @Test
-    fun test_onRoleHoldersChanged_SatelliteNetworkFallbackUid_Changed_multiUser() {
+    fun testRoleHoldersChanged_satelliteRoleSmsUidChanged_multiUser() {
         startSatelliteAccessController()
-        doReturn(listOf<String>()).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf<String>()).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             PRIMARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback, never()).accept(any())
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback, never()).accept(any(), any())
 
         // check SMS_APP1 is available as satellite network fallback uid at primary user
         doReturn(listOf(SMS_APP1))
-            .`when`(mDeps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback).accept(setOf(PRIMARY_USER_SMS_APP_UID1))
+            .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback).accept(setOf(SMS_APP_ID1.toUid(PRIMARY_USER)), emptySet())
 
         // check SMS_APP2 is available as satellite network fallback uid at primary user
-        doReturn(listOf(SMS_APP2)).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf(SMS_APP2)).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             PRIMARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback).accept(setOf(PRIMARY_USER_SMS_APP_UID2))
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback).accept(setOf(SMS_APP_ID2.toUid(PRIMARY_USER)), emptySet())
 
         // check SMS_APP1 is available as satellite network fallback uid at secondary user
-        doReturn(listOf(SMS_APP1)).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf(SMS_APP1)).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             SECONDARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
-        verify(mCallback).accept(setOf(PRIMARY_USER_SMS_APP_UID2, SECONDARY_USER_SMS_APP_UID1))
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
+        verify(callback).accept(
+            setOf(SMS_APP_ID2.toUid(PRIMARY_USER), SMS_APP_ID1.toUid(SECONDARY_USER)),
+            emptySet()
+        )
 
         // check no uid is available as satellite network fallback uid at primary user
-        doReturn(listOf<String>()).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf<String>()).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             PRIMARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(
-            RoleManager.ROLE_SMS,
-            PRIMARY_USER_HANDLE
-        )
-        verify(mCallback).accept(setOf(SECONDARY_USER_SMS_APP_UID1))
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback).accept(setOf(SMS_APP_ID1.toUid(SECONDARY_USER)), emptySet())
 
         // check SMS_APP2 is available as satellite network fallback uid at secondary user
         doReturn(listOf(SMS_APP2))
-            .`when`(mDeps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
-        verify(mCallback).accept(setOf(SECONDARY_USER_SMS_APP_UID2))
+            .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
+        verify(callback).accept(setOf(SMS_APP_ID2.toUid(SECONDARY_USER)), emptySet())
 
         // check no uid is available as satellite network fallback uid at secondary user
-        doReturn(listOf<String>()).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf<String>()).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             SECONDARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
-        verify(mCallback).accept(ArraySet())
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
+        verify(callback).accept(emptySet(), emptySet())
     }
 
     @Test
-    fun test_SatelliteFallbackUidCallback_OnUserRemoval() {
+    fun testSatelliteFallbackUidCallback_onUserRemoval() {
         startSatelliteAccessController()
         // check SMS_APP2 is available as satellite network fallback uid at primary user
-        doReturn(listOf(SMS_APP2)).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf(SMS_APP2)).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             PRIMARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
-        verify(mCallback).accept(setOf(PRIMARY_USER_SMS_APP_UID2))
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback).accept(setOf(SMS_APP_ID2.toUid(PRIMARY_USER)), emptySet())
 
         // check SMS_APP1 is available as satellite network fallback uid at secondary user
-        doReturn(listOf(SMS_APP1)).`when`(mDeps).getRoleHoldersAsUser(
+        doReturn(listOf(SMS_APP1)).`when`(deps).getRoleHoldersAsUser(
             RoleManager.ROLE_SMS,
             SECONDARY_USER_HANDLE
         )
-        mRoleHolderChangedListener.onRoleHoldersChanged(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
-        verify(mCallback).accept(setOf(PRIMARY_USER_SMS_APP_UID2, SECONDARY_USER_SMS_APP_UID1))
-        processOnHandlerThread {
-            mSatelliteAccessController.onUserRemoved(SECONDARY_USER_HANDLE)
-        }
-        verify(mCallback, times(2)).accept(setOf(PRIMARY_USER_SMS_APP_UID2))
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, SECONDARY_USER_HANDLE)
+        verify(callback).accept(
+            setOf(SMS_APP_ID2.toUid(PRIMARY_USER), SMS_APP_ID1.toUid(SECONDARY_USER)),
+            emptySet()
+        )
+        onUserRemoved(SECONDARY_USER_HANDLE)
+        verify(callback, times(2)).accept(
+            setOf(SMS_APP_ID2.toUid(PRIMARY_USER)),
+            emptySet()
+        )
     }
 
     private fun <T : Any> processOnHandlerThread(function: () -> T): T {
         val future = CompletableFuture<T>()
-        mHandler.post { future.complete(function()) }
+        handler.post { future.complete(function()) }
         return future.get()
     }
 
+    private fun onRoleHoldersChanged(roleName: String, userHandle: UserHandle) =
+        processOnHandlerThread {
+            roleHolderChangedListener.onRoleHoldersChanged(roleName, userHandle)
+        }
+
+    private fun onUserAddedWithInstalledPackageList(
+            userHandle: UserHandle,
+            apps: List<PackageInfo>
+    ) = processOnHandlerThread {
+        satelliteAccessController.onUserAddedWithInstalledPackageList(userHandle, apps)
+    }
+
+    private fun onUserRemoved(userHandle: UserHandle) = processOnHandlerThread {
+        satelliteAccessController.onUserRemoved(userHandle)
+    }
+
+    private fun onPackageAdded(packageName: String, uid: Int) =
+            processOnHandlerThread { satelliteAccessController.onPackageAdded(packageName, uid) }
+
+    private fun onPackageRemoved(packageName: String, uid: Int) =
+            processOnHandlerThread { satelliteAccessController.onPackageRemoved(packageName, uid) }
+
+    private fun onExternalApplicationsAvailable(pkgList: Array<String>) =
+            processOnHandlerThread {
+                satelliteAccessController.onExternalApplicationsAvailable(pkgList)
+            }
+
     private fun startSatelliteAccessController() {
-        mSatelliteAccessController.start()
+        satelliteAccessController.start()
         // Get registered listener using captor
         val listenerCaptor = ArgumentCaptor.forClass(OnRoleHoldersChangedListener::class.java)
-        verify(mDeps).addOnRoleHoldersChangedListenerAsUser(
+        verify(deps).addOnRoleHoldersChangedListenerAsUser(
             any(Executor::class.java),
             listenerCaptor.capture(),
             any(UserHandle::class.java)
         )
-        mRoleHolderChangedListener = listenerCaptor.value
+        roleHolderChangedListener = listenerCaptor.value
     }
 
     private fun makePackageInfo(packageName: String, uid: Int) = PackageInfo().apply {
@@ -350,112 +357,183 @@ class SatelliteAccessControllerTest {
     }
 
     private fun mockIsSatelliteDataOptimizedApp(packageName: String, isOptimized: Boolean) {
-        val property = mock(PackageManager.Property::class.java)
-        `when`(property.isString).thenReturn(isOptimized)
+        val appInfo = ApplicationInfo()
         if (isOptimized) {
-            `when`(property.string).thenReturn(packageName)
+            appInfo.metaData = Bundle()
+            appInfo.metaData.putString(PROPERTY_SATELLITE_DATA_OPTIMIZED, packageName)
         }
-        `when`(packageManager.getProperty(
-                eq(PROPERTY_SATELLITE_DATA_OPTIMIZED),
-                eq(packageName)
-        )).thenReturn(property)
+        doReturn(appInfo).`when`(packageManager)
+                .getApplicationInfo(packageName, PackageManager.GET_META_DATA)
     }
 
     @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
     @Test
-    fun testSatelliteOptimizedUids_onPackageAdded() {
+    fun testSatelliteOptInUids_onPackageAdded() {
         mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, true)
-        mSatelliteAccessController.onPackageAdded(TEST_PACKAGE1, TEST_UID1)
-        assertTrue(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 1)
+        onPackageAdded(TEST_PACKAGE1, TEST_UID1)
+        verify(callback).accept(emptySet(), setOf(TEST_UID1))
     }
 
     @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
     @Test
-    fun testSatelliteOptimizedUids_onPackageAdded_ignoresIfNotSatelliteOptimized() {
+    fun testSatelliteOptInUids_onPackageAdded_ignoresIfNotSatelliteOptimized() {
         mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, false)
-        mSatelliteAccessController.onPackageAdded(TEST_PACKAGE1, TEST_UID1)
-        assertFalse(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 0)
+        onPackageAdded(TEST_PACKAGE1, TEST_UID1)
+        verify(callback, never()).accept(any(), any())
     }
 
     @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
     @Test
-    fun testSatelliteOptimizedUids_onPackageRemoved_noOtherShareUid() {
+    fun testSatelliteOptInUids_onPackageRemoved_noOtherShareUid() {
         mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, true)
         mockGetPackagesForUid(TEST_UID1, arrayOf(TEST_PACKAGE1))
 
-        mSatelliteAccessController.onPackageAdded(TEST_PACKAGE1, TEST_UID1)
-        assertTrue(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 1)
-        mSatelliteAccessController.onPackageRemoved(TEST_PACKAGE1, TEST_UID1)
-        assertFalse(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 0)
+        onPackageAdded(TEST_PACKAGE1, TEST_UID1)
+        verify(callback).accept(emptySet(), setOf(TEST_UID1))
+        onPackageRemoved(TEST_PACKAGE1, TEST_UID1)
+        verify(callback).accept(emptySet(), emptySet())
     }
 
     @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
     @Test
-    fun testSatelliteOptimizedUids_onPackageRemoved_otherShareUid() {
+    fun testSatelliteOptInUids_onPackageRemoved_otherShareUid() {
         mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, true)
         mockIsSatelliteDataOptimizedApp(TEST_PACKAGE2, true)
         mockGetPackagesForUid(TEST_UID1, arrayOf(TEST_PACKAGE1, TEST_PACKAGE2))
 
         // Verify uid is not removed if there is still another package shares the same uid.
-        mSatelliteAccessController.onPackageAdded(TEST_PACKAGE1, TEST_UID1)
-        assertTrue(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 1)
-        mSatelliteAccessController.onPackageRemoved(TEST_PACKAGE1, TEST_UID1)
-        assertTrue(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 1)
+        val inOrder = inOrder(callback)
+        onPackageAdded(TEST_PACKAGE1, TEST_UID1)
+        inOrder.verify(callback).accept(emptySet(), setOf(TEST_UID1))
+        onPackageRemoved(TEST_PACKAGE1, TEST_UID1)
+        inOrder.verifyNoMoreInteractions()
 
         // Verify uid is removed if there is no other package with shared uid.
         mockGetPackagesForUid(TEST_UID1, null)
-        mSatelliteAccessController.onPackageRemoved(TEST_PACKAGE2, TEST_UID1)
-        assertFalse(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 0)
+        onPackageRemoved(TEST_PACKAGE2, TEST_UID1)
+        inOrder.verify(callback).accept(emptySet(), emptySet())
     }
 
     @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
     @Test
-    fun testSatelliteOptimizedUids_onUserAddedRemoved() {
+    fun testSatelliteOptInUids_onUserAddedRemoved() {
         mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, true)
         mockIsSatelliteDataOptimizedApp(TEST_PACKAGE2, true)
         val packageInfo1 = makePackageInfo(TEST_PACKAGE1, TEST_UID1)
         val packageInfo2 = makePackageInfo(TEST_PACKAGE2, TEST_UID2)
 
-        mSatelliteAccessController
-                .onUserAddedWithInstalledPackageList(PRIMARY_USER_HANDLE, listOf(packageInfo1))
-        mSatelliteAccessController
-                .onUserAddedWithInstalledPackageList(SECONDARY_USER_HANDLE, listOf(packageInfo2))
-        assertTrue(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        assertTrue(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID2))
+        val inOrder = inOrder(callback)
+        onUserAddedWithInstalledPackageList(PRIMARY_USER_HANDLE, listOf(packageInfo1))
+        onUserAddedWithInstalledPackageList(SECONDARY_USER_HANDLE, listOf(packageInfo2))
+        inOrder.verify(callback).accept(emptySet(), setOf(TEST_UID1))
+        inOrder.verify(callback).accept(emptySet(), setOf(TEST_UID1, TEST_UID2))
 
-        mSatelliteAccessController.onUserRemoved(SECONDARY_USER_HANDLE)
+        onUserRemoved(SECONDARY_USER_HANDLE)
         // Verify that the app associated with the non-removed user is not removed.
-        assertTrue(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID1))
-        // Verify that the app associated with the removed user is removed.
-        assertFalse(mSatelliteAccessController.isSatelliteDataOptimizedUid(TEST_UID2))
+        inOrder.verify(callback).accept(emptySet(), setOf(TEST_UID1))
 
-        mSatelliteAccessController.onUserRemoved(PRIMARY_USER_HANDLE)
+        onUserRemoved(PRIMARY_USER_HANDLE)
         // Verify everything is removed.
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 0)
+        inOrder.verify(callback).accept(emptySet(), emptySet())
+        inOrder.verifyNoMoreInteractions()
     }
 
     @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN, enabled = false)
     @Test
-    fun testSatelliteOptimizedUids_featureDisabled() {
+    fun testSatelliteOptInUids_featureDisabled() {
         mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, true)
         val packageInfo1 = makePackageInfo(TEST_PACKAGE1, TEST_UID1)
 
         // Verify nothing changes and nothing crashes.
-        mSatelliteAccessController
-                .onUserAddedWithInstalledPackageList(PRIMARY_USER_HANDLE, listOf(packageInfo1))
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 0)
-        mSatelliteAccessController.onPackageAdded(TEST_PACKAGE1, TEST_UID1)
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 0)
-        mSatelliteAccessController.onPackageRemoved(TEST_PACKAGE1, TEST_UID1)
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 0)
-        mSatelliteAccessController.onUserRemoved(PRIMARY_USER_HANDLE)
-        assertEquals(mSatelliteAccessController.satelliteDataOptimizedUidCount, 0)
+        onUserAddedWithInstalledPackageList(PRIMARY_USER_HANDLE, listOf(packageInfo1))
+        onPackageAdded(TEST_PACKAGE1, TEST_UID1)
+        onPackageRemoved(TEST_PACKAGE1, TEST_UID1)
+        onExternalApplicationsAvailable(arrayOf(SMS_APP1, SMS_APP2))
+        onUserRemoved(PRIMARY_USER_HANDLE)
+        verify(callback, never()).accept(any(), any())
+    }
+
+    @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
+    @Test
+    fun testSatelliteOptInUids_withRoleSmsUids() {
+        startSatelliteAccessController()
+        // Set SMS_APP1 under primary user as a role-sms Uid.
+        doReturn(listOf(SMS_APP1))
+                .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        verify(callback).accept(setOf(SMS_APP_ID1.toUid(PRIMARY_USER)), emptySet())
+
+        // Mock another opt-in uid, verify they both reported via the callback.
+        mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, true)
+        onPackageAdded(TEST_PACKAGE1, TEST_UID1)
+        verify(callback).accept(setOf(SMS_APP_ID1.toUid(PRIMARY_USER)), setOf(TEST_UID1))
+    }
+
+    @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
+    @Test
+    fun testSatelliteOptInUids_onUserAddedWithRoleSmsUids() {
+        mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, true)
+        val packageInfo1 = makePackageInfo(TEST_PACKAGE1, TEST_UID1)
+        doReturn(listOf(SMS_APP1))
+                .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+
+        val inOrder = inOrder(callback)
+        onUserAddedWithInstalledPackageList(PRIMARY_USER_HANDLE, listOf(packageInfo1))
+        // Verify the callback only fired once after both lists are ready.
+        inOrder.verify(callback, never())
+                .accept(setOf(SMS_APP_ID1.toUid(PRIMARY_USER)), emptySet())
+        inOrder.verify(callback).accept(setOf(SMS_APP_ID1.toUid(PRIMARY_USER)), setOf(TEST_UID1))
+        inOrder.verifyNoMoreInteractions()
+    }
+
+    @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
+    @Test
+    fun testSatelliteOptInUids_withRoleSmsUids_overlappedUid() {
+        startSatelliteAccessController()
+        val smsUid = SMS_APP_ID1.toUid(PRIMARY_USER)
+
+        val inOrder = inOrder(callback)
+        // Mock opt-in uids, verify they both reported via the callback.
+        // However, one opt-in uid is a messaging app and will surprise us later.
+        mockIsSatelliteDataOptimizedApp(TEST_PACKAGE1, true)
+        mockIsSatelliteDataOptimizedApp(SMS_APP1, true)
+        onPackageAdded(TEST_PACKAGE1, TEST_UID1)
+        inOrder.verify(callback).accept(emptySet(), setOf(TEST_UID1))
+        onPackageAdded(SMS_APP1, smsUid)
+        inOrder.verify(callback).accept(emptySet(), setOf(TEST_UID1, smsUid))
+
+        // Set SMS_APP1 as a role-sms Uid.
+        // Verify the role-sms Uid is excluded from the opt-in Uid list.
+        doReturn(listOf(SMS_APP1))
+                .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        inOrder.verify(callback).accept(setOf(smsUid), setOf(TEST_UID1))
+
+        // Unset SMS_APP1 as the role-sms Uid.
+        // Verify the role-sms Uid is included to the opt-in Uid list again.
+        doReturn(emptyList<String>())
+                .`when`(deps).getRoleHoldersAsUser(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        onRoleHoldersChanged(RoleManager.ROLE_SMS, PRIMARY_USER_HANDLE)
+        inOrder.verify(callback).accept(emptySet(), setOf(TEST_UID1, smsUid))
+    }
+
+    @FeatureFlag(name = CONSTRAINED_DATA_SATELLITE_OPTIN)
+    @Test
+    fun testSatelliteOptInUids_onExternalApplicationsAvailable() {
+        // Mock the sms apps as general opt-in apps without setting role-sms.
+        mockIsSatelliteDataOptimizedApp(SMS_APP1, true)
+        mockIsSatelliteDataOptimizedApp(SMS_APP2, true)
+
+        val inOrder = inOrder(callback)
+        onUserAddedWithInstalledPackageList(PRIMARY_USER_HANDLE, emptyList<PackageInfo>())
+        onUserAddedWithInstalledPackageList(SECONDARY_USER_HANDLE, emptyList<PackageInfo>())
+        onExternalApplicationsAvailable(arrayOf(SMS_APP1, SMS_APP2))
+        inOrder.verify(callback).accept(emptySet(), setOf(
+                SMS_APP_ID1.toUid(PRIMARY_USER),
+                SMS_APP_ID1.toUid(SECONDARY_USER),
+                SMS_APP_ID2.toUid(PRIMARY_USER),
+                SMS_APP_ID2.toUid(SECONDARY_USER)
+        ))
+        inOrder.verifyNoMoreInteractions()
     }
 }
