@@ -65,6 +65,7 @@ import android.text.TextUtils;
 import com.android.net.module.util.CollectionUtils;
 import com.android.net.module.util.SharedLog;
 import com.android.server.connectivity.mdns.MdnsServiceInfo.TextEntry;
+import com.android.server.connectivity.mdns.MdnsServiceTypeClient.FilterRepliesInfo;
 import com.android.server.connectivity.mdns.util.MdnsUtils;
 import com.android.testutils.DevSdkIgnoreRule;
 import com.android.testutils.DevSdkIgnoreRunner;
@@ -92,6 +93,8 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
@@ -2320,6 +2323,37 @@ public class MdnsServiceTypeClientTests {
                 .onServiceNameRemoved(matchServiceName(requestedInstance));
         verify(mockListenerTwo, never()).onServiceRemoved(any());
         verify(mockListenerTwo, never()).onServiceNameRemoved(any());
+    }
+
+    @Test
+    public void testGetFilterRepliesInfo() throws Exception {
+        final String instanceName = "instance1";
+        final String subtype = "subtype";
+        final MdnsSearchOptions resolveOptions = MdnsSearchOptions.newBuilder()
+                .addSubtype(subtype).setResolveInstanceName(instanceName).build();
+        final MdnsSearchOptions discoverOptions = MdnsSearchOptions.newBuilder()
+                .addSubtype(subtype).build();
+        // Register two listener, one is for service resolution and one is for service discovery.
+        startSendAndReceive(mockListenerOne, resolveOptions);
+        startSendAndReceive(mockListenerTwo, discoverOptions);
+
+        // Get a service response
+        processResponse(createResponse(instanceName, "192.0.2.0", 5353, SUBTYPE,
+                Collections.emptyMap() /* textAttributes */, TEST_TTL), socketKey);
+
+        // Check offload service info. There should be two services for both resolution and
+        // discovery.
+        final CompletableFuture<Set<FilterRepliesInfo>> future = new CompletableFuture<>();
+        handler.post(() -> future.complete(client.getFilterRepliesInfo()));
+        final Set<FilterRepliesInfo> offloadInfo =
+                future.get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+        assertEquals(2, offloadInfo.size());
+
+        final FilterRepliesInfo resolveInfo = new FilterRepliesInfo(
+                instanceName, SERVICE_TYPE, List.of(subtype), "hostname");
+        final FilterRepliesInfo discoverInfo = new FilterRepliesInfo(
+                "" /* serviceName */, SERVICE_TYPE, List.of(subtype), "" /* hostname */);
+        assertTrue(offloadInfo.containsAll(Set.of(resolveInfo, discoverInfo)));
     }
 
     private static MdnsServiceInfo matchServiceName(String name) {
