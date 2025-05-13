@@ -23,6 +23,7 @@ import static com.android.server.connectivity.mdns.MdnsServiceCache.findMatchedR
 import static com.android.server.connectivity.mdns.MdnsQueryScheduler.ScheduledQueryTaskArgs;
 import static com.android.server.connectivity.mdns.util.MdnsUtils.Clock;
 import static com.android.server.connectivity.mdns.util.MdnsUtils.buildMdnsServiceInfoFromResponse;
+import static com.android.server.connectivity.mdns.util.MdnsUtils.createOffloadServiceInfoFromFilterReplies;
 import static com.android.server.connectivity.mdns.util.MdnsUtils.responseMatchesInstanceNameAndSubtypes;
 
 import android.annotation.NonNull;
@@ -97,6 +98,7 @@ public class MdnsServiceTypeClient {
                 }
             };
     @NonNull private final MdnsFeatureFlags featureFlags;
+    @NonNull private final OffloadCallback offloadCallback;
     private final ArrayMap<MdnsServiceBrowserListener, ListenerInfo> listeners =
             new ArrayMap<>();
     /**
@@ -444,9 +446,10 @@ public class MdnsServiceTypeClient {
             @NonNull SharedLog sharedLog,
             @NonNull Looper looper,
             @NonNull MdnsServiceCache serviceCache,
-            @NonNull MdnsFeatureFlags featureFlags) {
+            @NonNull MdnsFeatureFlags featureFlags,
+            @NonNull OffloadCallback offloadCallback) {
         this(serviceType, socketClient, executor, new Clock(), socketKey, sharedLog, looper,
-                new Dependencies(), serviceCache, featureFlags);
+                new Dependencies(), serviceCache, featureFlags, offloadCallback);
     }
 
     @VisibleForTesting
@@ -460,7 +463,8 @@ public class MdnsServiceTypeClient {
             @NonNull Looper looper,
             @NonNull Dependencies dependencies,
             @NonNull MdnsServiceCache serviceCache,
-            @NonNull MdnsFeatureFlags featureFlags) {
+            @NonNull MdnsFeatureFlags featureFlags,
+            @NonNull OffloadCallback offloadCallback) {
         this.serviceType = serviceType;
         this.socketClient = socketClient;
         this.executor = executor;
@@ -477,6 +481,7 @@ public class MdnsServiceTypeClient {
         this.featureFlags = featureFlags;
         this.scheduler = featureFlags.isAccurateDelayCallbackEnabled()
                 ? dependencies.createScheduler(handler) : null;
+        this.offloadCallback = offloadCallback;
     }
 
     /**
@@ -535,10 +540,22 @@ public class MdnsServiceTypeClient {
             combinedInfo = getDiscoveryFilterRepliesInfo();
         }
 
+        final FilterRepliesInfo oldInfo = offloadInfo.get(serviceName);
         if (combinedInfo == null) {
             offloadInfo.remove(serviceName);
+            if (featureFlags.mIsSelectiveMdnsResponseOffloadEnabled && oldInfo != null) {
+                offloadCallback.onOffloadStop(
+                        socketKey.getInterfaceName(),
+                        createOffloadServiceInfoFromFilterReplies(oldInfo));
+            }
         } else {
             offloadInfo.put(serviceName, combinedInfo);
+            if (featureFlags.mIsSelectiveMdnsResponseOffloadEnabled
+                    && (oldInfo == null || !oldInfo.equals(combinedInfo))) {
+                offloadCallback.onOffloadStartOrUpdate(
+                        socketKey.getInterfaceName(),
+                        createOffloadServiceInfoFromFilterReplies(combinedInfo));
+            }
         }
     }
 

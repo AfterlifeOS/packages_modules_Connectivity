@@ -27,4 +27,11 @@ flag {
     namespace: "com_android_tethering"
     description: "The flag enables the Tethering and WI-Fi P2p Group Owner mode local network agent."
     bug: "420590461"
+}    
+
+flag {
+    name: "nsd_selective_mdns_response_offload"
+    namespace: "com_android_tethering"
+    description: "A flag to control whether the selective mDNS response offload should be enabled."
+    bug: "410734687"
 }
