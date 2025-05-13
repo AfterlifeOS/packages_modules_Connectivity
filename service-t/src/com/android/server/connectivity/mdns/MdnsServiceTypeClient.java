@@ -110,16 +110,53 @@ public class MdnsServiceTypeClient {
     private long currentSessionId = 0;
     private long lastSentTime;
 
+    /**
+     * Represents information used to filter mDNS replies.
+     */
+    public static class FilterRepliesInfo {
+        /**
+         * The name of the service to filter for.
+         */
+        public final String serviceName;
+        /**
+         * The type of the service to filter for (e.g., "_http._tcp.").
+         */
+        public final String serviceType;
+        /**
+         * A list of service subtypes to filter for.
+         * Can be an empty list if no specific subtypes are desired.
+         */
+        public final List<String> subtypes;
+        /**
+         * The hostname of the service to filter for.
+         * Can be empty if filtering is not based on hostname.
+         */
+        public String hostname;
+
+        public FilterRepliesInfo(@NonNull String serviceName, @NonNull String serviceType,
+                @NonNull List<String> subtypes, @NonNull String hostname) {
+            this.serviceName = serviceName;
+            this.serviceType = serviceType;
+            this.subtypes = new ArrayList<>(subtypes); // Defensive copy
+            this.hostname = hostname;
+        }
+    }
+
     private static class ListenerInfo {
         @NonNull
         final MdnsSearchOptions searchOptions;
         final Set<String> discoveredServiceNames;
+        final FilterRepliesInfo filterRepliesInfoInfo;
 
         ListenerInfo(@NonNull MdnsSearchOptions searchOptions,
-                @Nullable ListenerInfo previousInfo) {
+                @Nullable ListenerInfo previousInfo, @NonNull String serviceType) {
             this.searchOptions = searchOptions;
             this.discoveredServiceNames = previousInfo == null
                     ? MdnsUtils.newSet() : previousInfo.discoveredServiceNames;
+            final String resolveName = searchOptions.getResolveInstanceName();
+            this.filterRepliesInfoInfo = new FilterRepliesInfo(
+                    resolveName != null ? resolveName : "", serviceType,
+                    searchOptions.getSubtypes(), "" /* hostname */);
         }
 
         /**
@@ -138,6 +175,23 @@ public class MdnsServiceTypeClient {
          */
         boolean unsetServiceDiscovered(@NonNull String serviceName) {
             return discoveredServiceNames.remove(DnsUtils.toDnsUpperCase(serviceName));
+        }
+
+        /**
+         * Updates the hostname used for filtering replies.
+         * <p>
+         * The hostname is only set if the search options specify a particular service
+         * instance name to resolve. Otherwise, it remains empty.
+         *
+         * @param hostname The new hostname to use for filtering.
+         */
+        void updateFilterRepliesHostname(@NonNull String hostname) {
+            // The hostname is only set for resolution or service information callback requests.
+            // Since discovery can find numerous services, replies for other services could be
+            // blocked if a hostname is assigned to specific one. Consequently, for discovery
+            // requests, the hostname should remain empty.
+            filterRepliesInfoInfo.hostname =
+                    searchOptions.getResolveInstanceName() != null ? hostname : "";
         }
     }
 
@@ -407,7 +461,8 @@ public class MdnsServiceTypeClient {
         this.searchOptions = searchOptions;
         boolean hadReply = false;
         final ListenerInfo existingInfo = listeners.get(listener);
-        final ListenerInfo listenerInfo = new ListenerInfo(searchOptions, existingInfo);
+        final ListenerInfo listenerInfo =
+                new ListenerInfo(searchOptions, existingInfo, serviceType);
         listeners.put(listener, listenerInfo);
         if (existingInfo == null) {
             for (MdnsResponse existingResponse : serviceCache.getCachedServices(
@@ -422,6 +477,8 @@ public class MdnsServiceTypeClient {
                 listenerInfo.setServiceDiscovered(info.getServiceInstanceName());
                 if (existingResponse.isComplete()) {
                     listener.onServiceFound(info, true /* isServiceFromCache */);
+                    listenerInfo.updateFilterRepliesHostname(MdnsRecord.labelsToString(
+                            existingResponse.getServiceRecord().getServiceHost()));
                     hadReply = true;
                 }
             }
@@ -694,6 +751,8 @@ public class MdnsServiceTypeClient {
                 if (newServiceFound || serviceBecomesComplete) {
                     sharedLog.log("onServiceFound: " + serviceInfo);
                     listener.onServiceFound(serviceInfo, false /* isServiceFromCache */);
+                    listenerInfo.updateFilterRepliesHostname(MdnsRecord.labelsToString(
+                            response.getServiceRecord().getServiceHost()));
                 } else {
                     sharedLog.log("onServiceUpdated: " + serviceInfo);
                     listener.onServiceUpdated(serviceInfo);
