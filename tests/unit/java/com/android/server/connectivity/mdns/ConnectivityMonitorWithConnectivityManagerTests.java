@@ -19,8 +19,6 @@ package com.android.server.connectivity.mdns;
 import static android.net.InetAddresses.parseNumericAddress;
 import static android.net.RouteInfo.RTN_UNICAST;
 
-import static com.android.testutils.DevSdkIgnoreRuleKt.SC_V2;
-
 import static org.junit.Assert.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
@@ -37,6 +35,7 @@ import android.net.LinkProperties;
 import android.net.Network;
 import android.net.NetworkRequest;
 import android.net.RouteInfo;
+import android.os.Build;
 
 import com.android.net.module.util.SharedLog;
 import com.android.testutils.DevSdkIgnoreRule;
@@ -55,7 +54,7 @@ import java.util.List;
 
 /** Tests for {@link ConnectivityMonitor}. */
 @RunWith(DevSdkIgnoreRunner.class)
-@DevSdkIgnoreRule.IgnoreUpTo(SC_V2)
+@DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.S_V2)
 public class ConnectivityMonitorWithConnectivityManagerTests {
     @Mock private Context mContext;
     @Mock private ConnectivityMonitor.Listener mockListener;
@@ -156,10 +155,16 @@ public class ConnectivityMonitorWithConnectivityManagerTests {
         lp1.setInterfaceName("iface1");
         lp1.addRoute(new RouteInfo(
                 new IpPrefix("192.0.1.123/24"), null, lp1.getInterfaceName(), RTN_UNICAST));
+        lp1.addRoute(new RouteInfo(
+                new IpPrefix("0.0.0.0/0"), parseNumericAddress("192.0.1.1"),
+                lp1.getInterfaceName(), RTN_UNICAST));
         final LinkProperties lp2 = new LinkProperties();
         lp2.setInterfaceName("iface2");
         lp2.addRoute(new RouteInfo(
                 new IpPrefix("192.0.2.123/24"), null, lp2.getInterfaceName(), RTN_UNICAST));
+        lp2.addRoute(new RouteInfo(
+                new IpPrefix("0.0.0.0/0"), parseNumericAddress("192.0.2.1"),
+                lp2.getInterfaceName(), RTN_UNICAST));
 
         callback.onLinkPropertiesChanged(testNetwork1, lp1);
         callback.onLinkPropertiesChanged(testNetwork2, lp2);
@@ -169,7 +174,29 @@ public class ConnectivityMonitorWithConnectivityManagerTests {
     }
 
     @Test
-    public void testGuessNetworkOfRemoteHost_linkLocalAddress() throws Exception {
+    public void testGuessNetworkOfRemoteHost_ipv4LinkLocalAddress() {
+        final NetworkCallback callback = setupCallback();
+
+        final Network testNetwork = mock(Network.class);
+        final int ifIndex = 1;
+        final NetworkInterfaceWrapper iface = getTestInterface("iface1", ifIndex);
+
+        final LinkProperties lp = new LinkProperties();
+        lp.setInterfaceName("iface1");
+        lp.addRoute(new RouteInfo(
+                new IpPrefix("0.0.0.0/0"), parseNumericAddress("192.0.1.1"), lp.getInterfaceName(),
+                RTN_UNICAST));
+        lp.addRoute(new RouteInfo(
+                new IpPrefix("169.254.0.0/16"), null, lp.getInterfaceName(), RTN_UNICAST));
+
+        callback.onLinkPropertiesChanged(testNetwork, lp);
+
+        assertEquals(new SocketKey(testNetwork, ifIndex), monitor.guessNetworkOfRemoteHost(
+                List.of(iface), parseNumericAddress("169.254.1.2")));
+    }
+
+    @Test
+    public void testGuessNetworkOfRemoteHost_inet6LinkLocalAddress() throws Exception {
         final NetworkCallback callback = setupCallback();
 
         final Network testNetwork1 = mock(Network.class);
@@ -183,6 +210,9 @@ public class ConnectivityMonitorWithConnectivityManagerTests {
         lp1.setInterfaceName("wrongiface");
         lp1.addRoute(new RouteInfo(
                 new IpPrefix("fe80::123/64"), null, lp1.getInterfaceName(), RTN_UNICAST));
+        lp1.addRoute(new RouteInfo(
+                new IpPrefix("::/0"), parseNumericAddress("fe80::111"), lp1.getInterfaceName(),
+                RTN_UNICAST));
         final LinkProperties lp2 = new LinkProperties();
         // Use an interface that is known to exist so the link-local address scope can be parsed
         lp2.setInterfaceName("lo");

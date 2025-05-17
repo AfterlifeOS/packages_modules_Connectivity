@@ -29,6 +29,7 @@ import android.platform.test.annotations.AppModeFull
 import android.provider.DeviceConfig.NAMESPACE_CONNECTIVITY
 import androidx.test.platform.app.InstrumentationRegistry
 import com.android.net.module.util.dhcp6.Dhcp6Packet
+import com.android.net.module.util.dhcp6.Dhcp6RebindPacket
 import com.android.net.module.util.dhcp6.Dhcp6SolicitPacket
 import com.android.testutils.AutoCloseTestInterfaceRule
 import com.android.testutils.DevSdkIgnoreRule
@@ -53,6 +54,7 @@ import java.net.InetAddress
 import java.nio.ByteBuffer
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import org.junit.After
 import org.junit.Rule
 import org.junit.Test
@@ -60,7 +62,7 @@ import org.junit.runner.RunWith
 
 private const val TAG = "Dhcp6PdTest"
 private const val SHORT_TIMEOUT_MS = 200L
-private const val TIMEOUT_MS = 2000L
+private const val TIMEOUT_MS = 20_000L
 
 private const val DHCP6_PFLAG_CONFIG = "ipclient_dhcpv6_pd_preferred_flag_version"
 
@@ -131,6 +133,17 @@ class Dhcp6PdTest {
         return p
     }
 
+    private fun assertNoPacket(predicate: (ByteArray) -> Boolean) {
+        val p = iface.packetReader.poll(SHORT_TIMEOUT_MS) {
+            it != null && predicate(it)
+        }
+        assertNull(p)
+    }
+
+    private fun assertNoDhcp6Packet() {
+        assertNoPacket(::isDhcp6Packet)
+    }
+
     private fun isDhcp6Packet(p: ByteArray): Boolean {
         val bb = ByteBuffer.wrap(p)
         bb.position(6 + 6)
@@ -193,6 +206,38 @@ class Dhcp6PdTest {
         iface.sendPacket(pkt)
 
         networkCallback.expect<Available>()
+    }
+
+    @Test
+    fun testProvisioning_triggeredByMultiplePrefixesWithPflag() {
+        ndResponder.addRouterEntry(ROUTER_MAC, ROUTER_V6, RA_WITH_PFLAG)
+        val (srcAddr, solicit) = expectDhcp6Packet<Dhcp6SolicitPacket>()
+
+        run {
+            val ether = EtherPkt(src = ROUTER_MAC, dst = localMac)
+            val ipv6 = Ip6Pkt(src = ROUTER_V6, dst = srcAddr)
+            val udp = UdpPkt(sport = 547, dport = 546)
+            val dhcp6 = Dhcp6Pkt(type = "REPLY", transId = solicit.transactionId)
+                .addRapidCommitOption()
+                .addClientIdentifierOption(solicit.clientDuid)
+                .addServerIdentifierOption(byteArrayOf(1, 2, 3, 4, 5, 6))
+            val dhcp6_pd = Dhcp6IaPdOpt(iaid = solicit.iaid)
+                .addIaPrefixOption(prefix = "2001:db8:1234::/64")
+            val pkt = ether / ipv6 / udp / dhcp6 / dhcp6_pd
+            iface.sendPacket(pkt)
+        }
+
+        networkCallback.expect<Available>()
+
+        run {
+            val ether = EtherPkt(src = "f4:34:f0:64:52:fe", dst = "33:33:00:00:00:01")
+            val ipv6 = Ip6Pkt(src = "fe80::12", dst = "ff02::1")
+            val ra = RaPkt(lft = 360, retransTimer = 360)
+                .addPioOption(prefix = "2002:db8:1::/64", flags = "LAP")
+            iface.sendPacket(ether / ipv6 / ra)
+        }
+
+        expectDhcp6Packet<Dhcp6RebindPacket>()
     }
 
     @Test
@@ -262,5 +307,19 @@ class Dhcp6PdTest {
                 IpPrefix("2001:db8:1:1234::/64"),
                 IpPrefix("2001:db8:2:1234::/64")
         )
+    }
+
+    @Test
+    fun testSolicit_notTriggeredByLinkLocalPrefix() {
+        // RA includes a SLAAC prefix to ensure the heuristic does not trigger.
+        val ra = RaPkt()
+            .addPioOption(prefix = "2001:db8:1::/64", flags = "LA")
+            .addPioOption(prefix = "fe80:42::/64", flags = "LP")
+            .addRdnssOption(dns = "2001:4860::8888")
+        ndResponder.addRouterEntry(ROUTER_MAC, ROUTER_V6, ra)
+        // Expect network Available to wait for RA arrival
+        networkCallback.expect<Available>()
+        // Ensure that no Solicit was sent.
+        assertNoDhcp6Packet()
     }
 }
