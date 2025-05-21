@@ -119,13 +119,19 @@ public class NetworkStatsCollectionTest {
         RecurrenceRule.sClock = Clock.fixed(instant, ZoneId.systemDefault());
     }
 
+    private NetworkStatsCollection buildNetworkStatsCollection(long bucketDuration) {
+        return new NetworkStatsCollection(bucketDuration, false /* useFastDataInput */,
+                true /* storeTransportTypes */);
+    }
+
     @Test
     public void testReadLegacyNetwork() throws Exception {
         final File testFile =
                 new File(InstrumentationRegistry.getContext().getFilesDir(), TEST_FILE);
         stageFile(R.raw.netstats_v1, testFile);
 
-        final NetworkStatsCollection collection = new NetworkStatsCollection(30 * MINUTE_IN_MILLIS);
+        final NetworkStatsCollection collection =
+                buildNetworkStatsCollection(30 * MINUTE_IN_MILLIS);
         collection.readLegacyNetwork(testFile);
 
         // verify that history read correctly
@@ -153,7 +159,8 @@ public class NetworkStatsCollectionTest {
                 new File(InstrumentationRegistry.getContext().getFilesDir(), TEST_FILE);
         stageFile(R.raw.netstats_uid_v4, testFile);
 
-        final NetworkStatsCollection collection = new NetworkStatsCollection(30 * MINUTE_IN_MILLIS);
+        final NetworkStatsCollection collection =
+                buildNetworkStatsCollection(30 * MINUTE_IN_MILLIS);
         collection.readLegacyUid(testFile, false);
 
         // verify that history read correctly
@@ -181,7 +188,8 @@ public class NetworkStatsCollectionTest {
                 new File(InstrumentationRegistry.getContext().getFilesDir(), TEST_FILE);
         stageFile(R.raw.netstats_uid_v4, testFile);
 
-        final NetworkStatsCollection collection = new NetworkStatsCollection(30 * MINUTE_IN_MILLIS);
+        final NetworkStatsCollection collection =
+                buildNetworkStatsCollection(30 * MINUTE_IN_MILLIS);
         collection.readLegacyUid(testFile, true);
 
         // verify that history read correctly
@@ -208,7 +216,8 @@ public class NetworkStatsCollectionTest {
                 new File(InstrumentationRegistry.getContext().getFilesDir(), TEST_FILE);
         stageFile(uidRes, testFile);
 
-        final NetworkStatsCollection collection = new NetworkStatsCollection(30 * MINUTE_IN_MILLIS);
+        final NetworkStatsCollection collection =
+                buildNetworkStatsCollection(30 * MINUTE_IN_MILLIS);
         collection.readLegacyUid(testFile, true);
 
         // now export into a unified format
@@ -220,9 +229,11 @@ public class NetworkStatsCollectionTest {
     @Test
     public void testFastDataInputRead() throws Exception {
         final NetworkStatsCollection legacyCollection =
-                new NetworkStatsCollection(30 * MINUTE_IN_MILLIS, false /* useFastDataInput */);
+                new NetworkStatsCollection(30 * MINUTE_IN_MILLIS, false /* useFastDataInput */,
+                        true /* storeTransportTypes */);
         final NetworkStatsCollection fastReadCollection =
-                new NetworkStatsCollection(30 * MINUTE_IN_MILLIS, true /* useFastDataInput */);
+                new NetworkStatsCollection(30 * MINUTE_IN_MILLIS, true /* useFastDataInput */,
+                        true /* storeTransportTypes */);
         final InputStream bis = getUidInputStreamFromRes(R.raw.netstats_uid_v4);
         legacyCollection.read(bis);
         bis.reset();
@@ -232,7 +243,7 @@ public class NetworkStatsCollectionTest {
 
     @Test
     public void testStartEndAtomicBuckets() throws Exception {
-        final NetworkStatsCollection collection = new NetworkStatsCollection(HOUR_IN_MILLIS);
+        final NetworkStatsCollection collection = buildNetworkStatsCollection(HOUR_IN_MILLIS);
 
         // record empty data straddling between buckets
         final NetworkStats.Entry entry = new NetworkStats.Entry();
@@ -247,7 +258,7 @@ public class NetworkStatsCollectionTest {
 
     @Test
     public void testAccessLevels() throws Exception {
-        final NetworkStatsCollection collection = new NetworkStatsCollection(HOUR_IN_MILLIS);
+        final NetworkStatsCollection collection = buildNetworkStatsCollection(HOUR_IN_MILLIS);
         final NetworkStats.Entry entry = new NetworkStats.Entry();
         final NetworkIdentitySet identSet = new NetworkIdentitySet();
         identSet.add(new NetworkIdentity(TYPE_MOBILE, TelephonyManager.NETWORK_TYPE_UNKNOWN,
@@ -314,8 +325,9 @@ public class NetworkStatsCollectionTest {
         stageFile(R.raw.netstats_v1, testFile);
 
         final NetworkStatsCollection emptyCollection =
-                new NetworkStatsCollection(30 * MINUTE_IN_MILLIS);
-        final NetworkStatsCollection collection = new NetworkStatsCollection(30 * MINUTE_IN_MILLIS);
+                buildNetworkStatsCollection(30 * MINUTE_IN_MILLIS);
+        final NetworkStatsCollection collection =
+                buildNetworkStatsCollection(30 * MINUTE_IN_MILLIS);
         collection.readLegacyNetwork(testFile);
 
         // We're in the future, but not that far off
@@ -511,7 +523,7 @@ public class NetworkStatsCollectionTest {
         setClock(Instant.parse("2012-06-01T00:00:00.00Z"));
 
         // Create a simple history with a ton of measured usage
-        final NetworkStatsCollection large = new NetworkStatsCollection(HOUR_IN_MILLIS);
+        final NetworkStatsCollection large = buildNetworkStatsCollection(HOUR_IN_MILLIS);
         final NetworkIdentitySet ident = new NetworkIdentitySet();
         ident.add(new NetworkIdentity(ConnectivityManager.TYPE_MOBILE, -1, TEST_IMSI, null,
                 false, true, true, OEM_NONE, TEST_SUBID,
@@ -532,7 +544,7 @@ public class NetworkStatsCollectionTest {
 
     @Test
     public void testRounding() throws Exception {
-        final NetworkStatsCollection coll = new NetworkStatsCollection(HOUR_IN_MILLIS);
+        final NetworkStatsCollection coll = buildNetworkStatsCollection(HOUR_IN_MILLIS);
 
         // Special values should remain unchanged
         for (long time : new long[] {
