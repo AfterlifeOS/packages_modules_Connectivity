@@ -2037,6 +2037,13 @@ public class ConnectivityServiceTest {
         }
 
         @Override
+        public void registerContentObserverAsUser(ContentResolver cr, Uri uri,
+                boolean notifyForDescendants, ContentObserver observer, UserHandle userHandle) {
+            ((ContentResolverWithFakeSettingsProvider) mServiceContext.getContentResolver())
+                    .registerContentObserverAsUser(uri, observer, userHandle);
+        }
+
+        @Override
         public NetworkStackClientBase getNetworkStack() {
             return mNetworkStack;
         }

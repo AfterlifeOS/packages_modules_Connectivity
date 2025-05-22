@@ -1596,6 +1596,11 @@ public class ConnectivityService extends IConnectivityManager.Stub
             cr.registerContentObserver(uri, notifyForDescendants, observer);
         }
 
+        public void registerContentObserverAsUser(ContentResolver cr, Uri uri,
+                boolean notifyForDescendants, ContentObserver observer, UserHandle userHandle) {
+            cr.registerContentObserverAsUser(uri, notifyForDescendants, observer, userHandle);
+        }
+
         /**
          * Get a reference to the ModuleNetworkStackClient.
          */
@@ -7667,10 +7672,19 @@ public class ConnectivityService extends IConnectivityManager.Stub
     }
 
     private static class SettingsObserver extends ContentObserver {
-        private final HashMap<Uri, Integer> mUriEventMap;
+        private final HashMap<Uri, SettingInfo> mUriEventMap;
         private final Context mContext;
         private final Handler mHandler;
         private final Dependencies mDeps;
+
+        private static class SettingInfo {
+            final int what;
+            final boolean forAllUsers;
+            SettingInfo(int what, boolean forAllUsers) {
+                this.what = what;
+                this.forAllUsers = forAllUsers;
+            }
+        }
 
         SettingsObserver(Context context, Handler handler, Dependencies deps) {
             super(null);
@@ -7680,9 +7694,50 @@ public class ConnectivityService extends IConnectivityManager.Stub
             mDeps = deps;
         }
 
+        /**
+         * Observe settings changes for the specified URI on the current user.
+         *
+         * Sends an empty message with the specified {@code what} whenever the setting changes on
+         * the current user.
+         *
+         * @param uri The URI to observe.
+         * @param what The empty message to send whenever the setting changes.
+         */
         void observe(Uri uri, int what) {
-            mUriEventMap.put(uri, what);
-            mDeps.registerContentObserver(mContext.getContentResolver(), uri, false, this);
+            mUriEventMap.put(uri, new SettingInfo(what, false /* forAllUsers */));
+            final ContentResolver resolver = mContext.getContentResolver();
+            mDeps.registerContentObserver(resolver, uri, false, this);
+        }
+
+        /**
+         * Observe settings changes for the specified URI on all users.
+         *
+         * Sends an empty message with the specified {@code what} whenever the setting changes on
+         * any user, or whenever a user is added or removed.
+         *
+         * @param uri The URI to observe.
+         * @param what The empty message to send whenever the setting changes.
+         */
+        void observeForAllUsers(Uri uri, int what) {
+            if (!SdkLevel.isAtLeastT()) {
+                observe(uri, what);
+                return;
+            }
+            mUriEventMap.put(uri, new SettingInfo(what, true /* forAllUsers */));
+            final ContentResolver resolver = mContext.getContentResolver();
+            mDeps.registerContentObserverAsUser(resolver, uri, false, this, UserHandle.ALL);
+        }
+
+        void onUsersChanged() {
+            for (SettingInfo si : mUriEventMap.values()) {
+                if (si.forAllUsers) {
+                    sendMessage(si.what);
+                }
+            }
+        }
+
+        private void sendMessage(int what) {
+            mHandler.obtainMessage(what).sendToTarget();
         }
 
         @Override
@@ -7692,11 +7747,19 @@ public class ConnectivityService extends IConnectivityManager.Stub
 
         @Override
         public void onChange(boolean selfChange, Uri uri) {
-            final Integer what = mUriEventMap.get(uri);
-            if (what != null) {
-                mHandler.obtainMessage(what).sendToTarget();
+            final SettingInfo si = mUriEventMap.get(uri);
+            if (si != null) {
+                sendMessage(si.what);
             } else {
                 loge("No matching event to send for URI=" + uri);
+            }
+        }
+
+        @Override
+        public void onChange(boolean selfChange, @NonNull Collection<Uri> uris,
+                int flags, UserHandle unused) {
+            for (Uri uri : uris) {
+                onChange(selfChange, uri);
             }
         }
     }
@@ -7998,6 +8061,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (mSatelliteAccessController != null) {
             mSatelliteAccessController.onUserAddedWithInstalledPackageList(user, apps);
         }
+        mSettingsObserver.onUsersChanged();
     }
 
     @Override
@@ -8016,6 +8080,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (mSatelliteAccessController != null) {
             mSatelliteAccessController.onUserRemoved(user);
         }
+        mSettingsObserver.onUsersChanged();
     }
 
     @Override
