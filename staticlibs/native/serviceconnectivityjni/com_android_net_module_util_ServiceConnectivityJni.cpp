@@ -18,6 +18,7 @@
 #include <errno.h>
 #include <fcntl.h>
 #include <jni.h>
+#include <linux/ethtool.h>
 #include <linux/if.h>
 #include <linux/if_tun.h>
 #include <linux/ipv6_route.h>
@@ -78,6 +79,31 @@ static void setTimerFdTime(JNIEnv *env, jclass clazz, jint tfd,
   if (ret == -1) {
     jniThrowErrnoException(env, "setTimerFdTime", ret);
   }
+}
+
+static jstring getDriverNameForInterface(JNIEnv *env, jclass clazz, jstring jifname) {
+  base::unique_fd fd(socket(AF_INET6, SOCK_DGRAM, 0));
+  if (!fd.ok()) {
+    jniThrowErrnoException(env, "getDriverNameForInterface", errno);
+    return nullptr;
+  }
+
+  ScopedUtfChars ifname(env, jifname);
+  if (!ifname.c_str()) {
+    jniThrowNullPointerException(env, "getDriverNameForInterface: ifname is null");
+    return nullptr;
+  }
+
+  ethtool_drvinfo msg = { .cmd = ETHTOOL_GDRVINFO };
+  ifreq ifr = { .ifr_data = reinterpret_cast<char *>(&msg) };
+  strlcpy(ifr.ifr_name, ifname.c_str(), IFNAMSIZ);
+
+  if (ioctl(fd, SIOCETHTOOL, &ifr)) {
+    jniThrowErrnoException(env, "getDriverNameForInterface", errno);
+    return nullptr;
+  }
+
+  return env->NewStringUTF(msg.driver);
 }
 
 static void throwException(JNIEnv *env, int error, const char *action,
@@ -195,6 +221,8 @@ static const JNINativeMethod gMethods[] = {
     /* name, signature, funcPtr */
     {"createTimerFd", "()I", (void *)createTimerFd},
     {"setTimerFdTime", "(IJ)V", (void *)setTimerFdTime},
+    {"getDriverNameForInterface", "(Ljava/lang/String;)Ljava/lang/String;",
+      (void *)getDriverNameForInterface},
     {"setTunTapCarrierEnabled", "(Ljava/lang/String;IZ)V",
      (void *)setTunTapCarrierEnabled},
     {"createTunTap", "(ZZZLjava/lang/String;)I", (void *)createTunTap},
