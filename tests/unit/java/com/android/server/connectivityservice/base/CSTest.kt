@@ -423,6 +423,16 @@ open class CSTest {
             return defaultWifiDataInactivityTimeoutForTest
         }
 
+        var networkSuspendedTimeoutForTestMs: Int = 10
+        override fun getNetworkSuspendedTimeoutMs(): Int {
+            return networkSuspendedTimeoutForTestMs
+        }
+
+        // Enable the feature for testing.
+        override fun isShortNetworkSuspensionEnforced(context: Context?): Boolean {
+            return true
+        }
+
         override fun isChangeEnabled(changeId: Long, pkg: String, user: UserHandle) =
                 changeId in enabledChangeIds
         override fun isChangeEnabled(changeId: Long, uid: Int) =
