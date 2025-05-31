@@ -16,6 +16,13 @@
 
 package android.net.netstats
 
+import android.net.NetworkCapabilities.TRANSPORT_BLUETOOTH
+import android.net.NetworkCapabilities.TRANSPORT_CELLULAR
+import android.net.NetworkCapabilities.TRANSPORT_ETHERNET
+import android.net.NetworkCapabilities.TRANSPORT_SATELLITE
+import android.net.NetworkCapabilities.TRANSPORT_TEST
+import android.net.NetworkCapabilities.TRANSPORT_VPN
+import android.net.NetworkCapabilities.TRANSPORT_WIFI
 import android.net.NetworkStats.DEFAULT_NETWORK_ALL
 import android.net.NetworkStats.METERED_ALL
 import android.net.NetworkStats.METERED_YES
@@ -27,9 +34,11 @@ import android.net.NetworkTemplate.MATCH_CARRIER
 import android.net.NetworkTemplate.MATCH_ETHERNET
 import android.net.NetworkTemplate.MATCH_MOBILE
 import android.net.NetworkTemplate.MATCH_PROXY
+import android.net.NetworkTemplate.MATCH_TEST
 import android.net.NetworkTemplate.MATCH_WIFI
 import android.net.NetworkTemplate.NETWORK_TYPE_ALL
 import android.net.NetworkTemplate.OEM_MANAGED_ALL
+import android.net.NetworkTemplate.TRANSPORT_TYPES_ALL
 import android.os.Build
 import android.telephony.TelephonyManager
 import com.android.testutils.ConnectivityModuleTest
@@ -44,6 +53,7 @@ import org.junit.runners.JUnit4
 private const val TEST_IMSI1 = "imsi"
 private const val TEST_WIFI_KEY1 = "wifiKey1"
 private const val TEST_WIFI_KEY2 = "wifiKey2"
+private const val INVALID_TRANSPORT = 100
 
 @RunWith(JUnit4::class)
 @ConnectivityModuleTest
@@ -74,7 +84,8 @@ class NetworkTemplateTest {
                                 ROAMING_ALL,
                                 DEFAULT_NETWORK_ALL,
                                 NETWORK_TYPE_ALL,
-                                OEM_MANAGED_ALL
+                                OEM_MANAGED_ALL,
+                                TRANSPORT_TYPES_ALL
                         )
                         assertEquals(expectedTemplate, it)
                     }
@@ -93,7 +104,8 @@ class NetworkTemplateTest {
                                 ROAMING_YES,
                                 DEFAULT_NETWORK_ALL,
                                 NETWORK_TYPE_ALL,
-                                OEM_MANAGED_ALL
+                                OEM_MANAGED_ALL,
+                                TRANSPORT_TYPES_ALL
                         )
                         assertEquals(expectedTemplate, it)
                     }
@@ -123,7 +135,8 @@ class NetworkTemplateTest {
                         ROAMING_ALL,
                         DEFAULT_NETWORK_ALL,
                         NETWORK_TYPE_ALL,
-                        OEM_MANAGED_ALL
+                        OEM_MANAGED_ALL,
+                        TRANSPORT_TYPES_ALL
                 )
                 assertEquals(expectedTemplate, it)
             }
@@ -140,7 +153,8 @@ class NetworkTemplateTest {
                     ROAMING_ALL,
                     DEFAULT_NETWORK_ALL,
                     NETWORK_TYPE_ALL,
-                    OEM_MANAGED_ALL
+                    OEM_MANAGED_ALL,
+                    TRANSPORT_TYPES_ALL
             )
             assertEquals(expectedTemplate, it)
         }
@@ -157,7 +171,8 @@ class NetworkTemplateTest {
                             ROAMING_ALL,
                             DEFAULT_NETWORK_ALL,
                             TelephonyManager.NETWORK_TYPE_UMTS,
-                            OEM_MANAGED_ALL
+                            OEM_MANAGED_ALL,
+                            TRANSPORT_TYPES_ALL
                     )
                     assertEquals(expectedTemplate, it)
                 }
@@ -173,7 +188,8 @@ class NetworkTemplateTest {
                     ROAMING_ALL,
                     DEFAULT_NETWORK_ALL,
                     NETWORK_TYPE_ALL,
-                    OEM_MANAGED_ALL
+                    OEM_MANAGED_ALL,
+                    TRANSPORT_TYPES_ALL
             )
             assertEquals(expectedTemplate, it)
         }
@@ -190,7 +206,8 @@ class NetworkTemplateTest {
                             ROAMING_ALL,
                             DEFAULT_NETWORK_ALL,
                             NETWORK_TYPE_ALL,
-                            OEM_MANAGED_ALL
+                            OEM_MANAGED_ALL,
+                            TRANSPORT_TYPES_ALL
                     )
             assertEquals(expectedTemplate, it)
         }
@@ -207,7 +224,8 @@ class NetworkTemplateTest {
                             ROAMING_ALL,
                             DEFAULT_NETWORK_ALL,
                             NETWORK_TYPE_ALL,
-                            OEM_MANAGED_ALL
+                            OEM_MANAGED_ALL,
+                            TRANSPORT_TYPES_ALL
                     )
                     assertEquals(expectedTemplate, it)
                 }
@@ -224,7 +242,8 @@ class NetworkTemplateTest {
                         ROAMING_ALL,
                         DEFAULT_NETWORK_ALL,
                         NETWORK_TYPE_ALL,
-                        OEM_MANAGED_ALL
+                        OEM_MANAGED_ALL,
+                        TRANSPORT_TYPES_ALL
                 )
                 assertEquals(expectedTemplate, it)
             }
@@ -273,9 +292,100 @@ class NetworkTemplateTest {
                     ROAMING_ALL,
                     DEFAULT_NETWORK_ALL,
                     NETWORK_TYPE_ALL,
-                    OEM_MANAGED_ALL
+                    OEM_MANAGED_ALL,
+                    TRANSPORT_TYPES_ALL
             )
             assertEquals(expectedTemplate, it)
+        }
+    }
+
+    // Verify the builder does not throw, and transports read from the getter is expected.
+    @Test
+    fun testBuilderTransportTypes() {
+        assertGetSetTransportTypes(MATCH_MOBILE, TRANSPORT_CELLULAR)
+        assertGetSetTransportTypes(MATCH_MOBILE, TRANSPORT_SATELLITE)
+        assertGetSetTransportTypes(MATCH_WIFI, TRANSPORT_WIFI)
+        assertGetSetTransportTypes(MATCH_ETHERNET, TRANSPORT_ETHERNET)
+        assertGetSetTransportTypes(MATCH_BLUETOOTH, TRANSPORT_BLUETOOTH)
+        assertGetSetTransportTypes(MATCH_PROXY, TRANSPORT_BLUETOOTH)
+        assertGetSetTransportTypes(MATCH_CARRIER, TRANSPORT_CELLULAR)
+        assertGetSetTransportTypes(MATCH_CARRIER, TRANSPORT_WIFI)
+        assertGetSetTransportTypes(MATCH_TEST, TRANSPORT_TEST)
+    }
+
+    private fun assertGetSetTransportTypes(matchRule: Int, transport: Int) {
+        val builder = NetworkTemplate.Builder(matchRule)
+                .setTransportTypes(intArrayOf(transport))
+        if (matchRule == MATCH_CARRIER) {
+            builder.setSubscriberIds(setOf(TEST_IMSI1))
+        }
+        val template = builder.build()
+        assertEquals(1, template.transportTypes.size)
+        assertEquals(transport, template.transportTypes[0])
+    }
+
+    @Test
+    fun testValidateTransportTypesNoTransportsSetSuccess() {
+        // Should succeed for any match rule if no transports are explicitly set.
+        listOf(
+                MATCH_WIFI,
+                MATCH_MOBILE,
+                MATCH_ETHERNET,
+                MATCH_BLUETOOTH,
+                MATCH_PROXY,
+                MATCH_TEST
+        ).forEach { matchRule ->
+            NetworkTemplate.Builder(matchRule)
+                    .setTransportTypes(intArrayOf()) // Explicitly empty, or just don't call it
+                    .build() // Should not throw
+        }
+        NetworkTemplate.Builder(MATCH_CARRIER)
+                .setSubscriberIds(setOf(TEST_IMSI1))
+                .setTransportTypes(intArrayOf())
+                .build() // Should not throw
+    }
+
+    @Test
+    fun testValidateTransportTypesDeducedTransportPlusCompatibleSuccess() {
+        NetworkTemplate.Builder(MATCH_WIFI)
+                .setTransportTypes(intArrayOf(TRANSPORT_WIFI, TRANSPORT_VPN))
+                .build()
+        NetworkTemplate.Builder(MATCH_MOBILE)
+                .setTransportTypes(intArrayOf(TRANSPORT_CELLULAR, TRANSPORT_TEST))
+                .build()
+    }
+
+    @Test
+    fun testValidateTransportTypesDeducedTransportMissingThrows() {
+        assertFailsWith<IllegalArgumentException> {
+            NetworkTemplate.Builder(MATCH_WIFI)
+                    .setTransportTypes(intArrayOf(TRANSPORT_CELLULAR))
+                    .build()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NetworkTemplate.Builder(MATCH_MOBILE)
+                    .setTransportTypes(intArrayOf(TRANSPORT_WIFI))
+                    .build()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NetworkTemplate.Builder(MATCH_ETHERNET)
+                    .setTransportTypes(intArrayOf(TRANSPORT_WIFI))
+                    .build()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NetworkTemplate.Builder(MATCH_CARRIER)
+                    .setTransportTypes(intArrayOf(TRANSPORT_SATELLITE))
+                    .build()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NetworkTemplate.Builder(MATCH_TEST)
+                    .setTransportTypes(intArrayOf(TRANSPORT_SATELLITE))
+                    .build()
+        }
+        assertFailsWith<IllegalArgumentException> {
+            NetworkTemplate.Builder(MATCH_TEST)
+                    .setTransportTypes(intArrayOf(INVALID_TRANSPORT))
+                    .build()
         }
     }
 }
