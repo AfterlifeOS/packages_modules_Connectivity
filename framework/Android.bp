@@ -90,6 +90,7 @@ java_defaults {
     ],
     static_libs: [
         "com.android.net.flags-aconfig-java",
+        "android.net.platform.flags-aconfig-java-export",
         // Not using the latest stable version because all functions in the latest version of
         // mdns_aidl_interface are deprecated.
         "mdns_aidl_interface-V1-java",
