@@ -817,4 +817,16 @@ public class Dhcp6Packet {
                         clientDuid, iaAddress, preferred, valid);
         return pkt.buildPacket();
     }
+
+    /**
+     * Builds a DHCPv6 ADDR-REG-INFORM packet from the required specified parameters.
+     */
+    public static ByteBuffer buildAddrRegReplyPacket(int transId, @NonNull final byte[] clientDuid,
+            @NonNull final byte[] serverDuid, @NonNull final Inet6Address iaAddress, long preferred,
+            long valid) {
+        final Dhcp6AddrRegReplyPacket pkt =
+                new Dhcp6AddrRegReplyPacket(transId, clientDuid, serverDuid, iaAddress, preferred,
+                        valid);
+        return pkt.buildPacket();
+    }
 }
