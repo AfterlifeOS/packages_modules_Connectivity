@@ -798,4 +798,16 @@ public class Dhcp6Packet {
                 (int) (millisecs / 10) /* elapsed time */, clientDuid, iapd);
         return pkt.buildPacket();
     }
+
+    /**
+     * Builds a DHCPv6 ADDR-REG-INFORM packet from the required specified parameters.
+     */
+    public static ByteBuffer buildAddrRegInformPacket(int transId, long millisecs,
+            @NonNull final byte[] clientDuid, @NonNull final Inet6Address iaAddress, long preferred,
+            long valid) {
+        final Dhcp6AddrRegInformPacket pkt =
+                new Dhcp6AddrRegInformPacket(transId, (int) (millisecs / 10) /* elapsed time */,
+                        clientDuid, iaAddress, preferred, valid);
+        return pkt.buildPacket();
+    }
 }
