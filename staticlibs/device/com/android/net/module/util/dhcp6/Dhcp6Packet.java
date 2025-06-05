@@ -610,6 +610,13 @@ public class Dhcp6Packet {
                 newPacket = new Dhcp6AddrRegInformPacket(transId, elapsedTime, clientDuid,
                         iaAddress, preferred, valid);
                 break;
+            case DHCP6_MESSAGE_TYPE_ADDR_REG_REPLY:
+                if (iaAddress == null) {
+                    throw new ParseException("IA Address option isn't present in ADDR_REG_REPLY");
+                }
+                newPacket = new Dhcp6AddrRegReplyPacket(transId, clientDuid, serverDuid,
+                        iaAddress, preferred, valid);
+                break;
             default:
                 throw new ParseException("Unimplemented DHCP6 message type %d" + messageType);
         }
