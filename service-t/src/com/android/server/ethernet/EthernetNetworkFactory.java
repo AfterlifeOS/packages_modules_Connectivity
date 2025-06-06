@@ -665,7 +665,7 @@ public class EthernetNetworkFactory {
                 Log.i(TAG, String.format("maybeRestart() called on stopped interface %s", mPort));
                 return;
             }
-            if (DBG) Log.d(TAG, "restart IpClient");
+            if (DBG) Log.d(TAG, "Restart IpClient on: " + mPort);
             stop();
             start();
         }
