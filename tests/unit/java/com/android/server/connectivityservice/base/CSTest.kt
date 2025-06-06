@@ -21,12 +21,14 @@ import android.app.AlarmManager
 import android.app.AppOpsManager
 import android.bluetooth.BluetoothManager
 import android.content.BroadcastReceiver
+import android.content.ContentResolver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.PackageManager.PERMISSION_GRANTED
 import android.content.pm.UserInfo
 import android.content.res.Resources
+import android.database.ContentObserver
 import android.net.ConnectivityManager
 import android.net.IDnsResolver
 import android.net.INetd
@@ -48,6 +50,7 @@ import android.net.NetworkProvider
 import android.net.NetworkScore
 import android.net.NetworkScore.KEEP_CONNECTED_FOR_TEST
 import android.net.PacProxyManager
+import android.net.Uri
 import android.net.connectivity.ConnectivityCompatChanges.ENABLE_MATCH_LOCAL_NETWORK
 import android.net.networkstack.NetworkStackClientBase
 import android.os.BatteryStatsManager
@@ -66,6 +69,7 @@ import android.util.SparseArray
 import androidx.test.platform.app.InstrumentationRegistry
 import com.android.internal.app.IBatteryStats
 import com.android.internal.util.test.BroadcastInterceptingContext
+import com.android.internal.util.test.FakeSettingsProvider
 import com.android.metrics.DefaultNetworkRematchMetrics
 import com.android.metrics.SatelliteCoarseUsageMetricsCollector
 import com.android.metrics.SatisfiedByLocalNetworkMetrics
@@ -88,6 +92,7 @@ import com.android.server.connectivity.PermissionMonitor
 import com.android.server.connectivity.ProxyTracker
 import com.android.server.connectivity.QuicConnectionCloser
 import com.android.server.connectivity.SatelliteAccessController
+import com.android.testutils.ContentResolverWithFakeSettingsProvider
 import com.android.testutils.visibleOnHandlerThread
 import com.android.testutils.waitForIdle
 import java.net.InetAddress
@@ -168,7 +173,11 @@ open class CSTest {
 
     val instrumentationContext =
             TestableContext(InstrumentationRegistry.getInstrumentation().context)
-    val context = CSContext(instrumentationContext)
+    val context = CSContext(instrumentationContext).also {
+        // TestableContext uses its own fake settings provider. Reset it so that
+        // the code uses the ContentResolverWithFakeSettingsProvider initialized later.
+        FakeSettingsProvider.clearSettingsProvider()
+    }
 
     // See constructor for default-enabled features. All queried features must be either enabled
     // or disabled, because the test can't hold READ_DEVICE_CONFIG and device config utils query
@@ -195,7 +204,7 @@ open class CSTest {
     // When adding new members, consider if it's not better to build the object in CSTestHelpers
     // to keep this file clean of implementation details. Generally, CSTestHelpers should only
     // need changes when new details of instrumentation are needed.
-    val contentResolver = makeMockContentResolver(context)
+    val contentResolver = ContentResolverWithFakeSettingsProvider()
 
     val PRIMARY_USER = 0
     val PRIMARY_USER_INFO = UserInfo(
@@ -339,6 +348,14 @@ open class CSTest {
         override fun makeProxyTracker(context: Context, connServiceHandler: Handler) = proxyTracker
         override fun makeMulticastRoutingCoordinatorService(handler: Handler) =
                 this@CSTest.multicastRoutingCoordinatorService
+
+        override fun registerContentObserver(
+            cr: ContentResolver,
+            uri: Uri,
+            notifyForDescendants: Boolean,
+            observer: ContentObserver
+        ) =
+            (cr as ContentResolverWithFakeSettingsProvider).registerContentObserver(uri, observer)
 
         override fun makeCarrierPrivilegeAuthenticator(
                 context: Context,
