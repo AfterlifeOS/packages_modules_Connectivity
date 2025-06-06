@@ -2516,7 +2516,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 EVENT_CONFIGURE_ALWAYS_ON_NETWORKS);
 
         // Watch for mobile data preferred uids changes.
-        mSettingsObserver.observe(
+        mSettingsObserver.observeForAllUsers(
                 Settings.Secure.getUriFor(ConnectivitySettingsManager.MOBILE_DATA_PREFERRED_UIDS),
                 EVENT_MOBILE_DATA_PREFERRED_UIDS_CHANGED);
 
@@ -4388,7 +4388,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         // Note that updating can be skipped here if the list is empty only because no uid
         // rules are applied before system ready. Normally, the empty uid list means to clear
         // the uids rules on netd.
-        if (!ConnectivitySettingsManager.getMobileDataPreferredUids(mContext).isEmpty()) {
+        if (!getMobileDataPreferredUids().isEmpty()) {
             mHandler.sendEmptyMessage(EVENT_MOBILE_DATA_PREFERRED_UIDS_CHANGED);
         }
 
@@ -14971,8 +14971,17 @@ public class ConnectivityService extends IConnectivityManager.Stub
         return requests;
     }
 
+    private Set<Integer> getMobileDataPreferredUids() {
+        Set<Integer> uids = new ArraySet<>();
+        for (UserHandle userHandle : mUserManager.getUserHandles(/* excludeDying= */ true)) {
+            final Context userContext = mContext.createContextAsUser(userHandle, 0 /* flags */);
+            uids.addAll(ConnectivitySettingsManager.getMobileDataPreferredUids(userContext));
+        }
+        return uids;
+    }
+
     private void handleMobileDataPreferredUidsChanged() {
-        mMobileDataPreferredUids = ConnectivitySettingsManager.getMobileDataPreferredUids(mContext);
+        mMobileDataPreferredUids = getMobileDataPreferredUids();
         removeDefaultNetworkRequestsForPreference(PREFERENCE_ORDER_MOBILE_DATA_PREFERERRED);
         addPerAppDefaultNetworkRequests(
                 createNrisFromMobileDataPreferredUids(mMobileDataPreferredUids));
