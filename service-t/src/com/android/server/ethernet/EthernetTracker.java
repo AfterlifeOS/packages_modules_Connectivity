@@ -161,10 +161,6 @@ public class EthernetTracker {
     // returned when a tethered interface is requested; until then, it remains in client mode. Its
     // current mode is reflected in mTetheringInterfaceMode.
     private EthernetPort mTetheringInterface;
-    // If the tethering interface is in server mode, it is not tracked by factory. The HW address
-    // must be maintained by the EthernetTracker. Its current mode is reflected in
-    // mTetheringInterfaceMode.
-    private String mTetheringInterfaceHwAddr;
     private int mTetheringInterfaceMode = INTERFACE_MODE_CLIENT;
     // Tracks whether clients were notified that the tethered interface is available
     private boolean mTetheredInterfaceWasAvailable = false;
@@ -659,7 +655,6 @@ public class EthernetTracker {
         final String iface = port.getInterfaceName();
         if (mTetheringInterface != null && iface.equals(mTetheringInterface.getInterfaceName())) {
             mTetheringInterface = null;
-            mTetheringInterfaceHwAddr = null;
         }
         broadcastInterfaceStateChange(iface);
     }
@@ -684,18 +679,15 @@ public class EthernetTracker {
         // Only bring the interface up when ethernet is enabled, otherwise set interface down.
         setInterfaceUpState(iface, mIsEthernetEnabled);
 
-        final String hwAddress = port.getMacAddress().toString();
-
         if (getInterfaceMode(iface) == INTERFACE_MODE_SERVER) {
             maybeUpdateServerModeInterfaceState(iface, true);
-            mTetheringInterfaceHwAddr = hwAddress;
             return;
         }
 
         NetworkCapabilities nc = mNetworkCapabilities.get(iface);
         if (nc == null) {
             // Try to resolve using mac address
-            nc = mNetworkCapabilities.get(hwAddress);
+            nc = mNetworkCapabilities.get(port.getMacAddress().toString());
             if (nc == null) {
                 final boolean isTestIface = iface.matches(TEST_IFACE_REGEXP);
                 nc = createDefaultNetworkCapabilities(isTestIface);
