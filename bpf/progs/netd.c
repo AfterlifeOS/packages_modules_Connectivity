@@ -193,13 +193,17 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
             uint64_t packets = 1;                                                                \
             uint64_t bytes = skb->len;                                                           \
             if (bytes > mtu) {                                                                   \
-                bool is_ipv6 = (skb->protocol == htons(ETH_P_IPV6));                             \
-                int ip_overhead = (is_ipv6 ? sizeof(struct ipv6hdr) : sizeof(struct iphdr));     \
-                int tcp_overhead = ip_overhead + sizeof(struct tcphdr) + 12;                     \
-                int mss = mtu - tcp_overhead;                                                    \
-                uint64_t payload = bytes - tcp_overhead;                                         \
-                packets = (payload + mss - 1) / mss;                                             \
-                bytes = tcp_overhead * packets + payload;                                        \
+                const bool is5_4 = KVER_IS_AT_LEAST(kver, 5, 4, 0);                              \
+                const bool is_ipv6 = (skb->protocol == htons(ETH_P_IPV6));                       \
+                const int ip_overhead = is_ipv6 ? sizeof(struct ipv6hdr) : sizeof(struct iphdr); \
+                struct bpf_sock * const sk = is5_4 && skb->sk ? bpf_sk_fullsock(skb->sk) : NULL; \
+                const bool is_tcp = !sk || sk->protocol == IPPROTO_TCP;                          \
+                const int L4_size = is_tcp ? sizeof(struct tcphdr) + 12 : sizeof(struct udphdr); \
+                const int overhead = ip_overhead + L4_size;                                      \
+                const int mss = mtu - overhead;                                                  \
+                const uint64_t payload = bytes - overhead;                                       \
+                packets = is5_4 ? skb->gso_segs : (payload + mss - 1) / mss;                     \
+                bytes = overhead * packets + payload;                                            \
             }                                                                                    \
             if (egress.egress) {                                                                 \
                 __sync_fetch_and_add(&value->txPackets, packets);                                \
@@ -630,11 +634,18 @@ DEFINE_NETD_BPF_PROG_RANGES("cgroupskb/ingress/stats$5_10_u",
     return bpf_traffic_account(skb, INGRESS, KVER_5_10, SDK_LEVEL_U);
 }
 
-// Android T/U/V 4.19 & T/U/V/25Q2 5.4 & T 5.10/5.15
-DEFINE_NETD_BPF_PROG_KVER_RANGE("cgroupskb/ingress/stats$4_19",
-                                bpf_cgroup_ingress_4_19, KVER_4_19, KVER_INF)
+// Android T/U/V/25Q2 5.4 & T 5.10/5.15
+DEFINE_NETD_BPF_PROG_KVER_RANGE("cgroupskb/ingress/stats$5_4",
+                                bpf_cgroup_ingress_5_4, KVER_5_4, KVER_INF)
 (struct __sk_buff* skb) {
-    return bpf_traffic_account(skb, INGRESS, KVER_4_19, SDK_LEVEL_T);
+    return bpf_traffic_account(skb, INGRESS, KVER_5_4, SDK_LEVEL_T);
+}
+
+// Android T/U/V 4.19
+DEFINE_NETD_BPF_PROG_KVER_RANGE("cgroupskb/ingress/stats$4_19",
+                               bpf_cgroup_ingress_4_19, KVER_4_19, KVER_5_4)
+(struct __sk_buff* skb) {
+return bpf_traffic_account(skb, INGRESS, KVER_4_19, SDK_LEVEL_T);
 }
 
 // Android T 4.9 & T/U 4.14
@@ -670,11 +681,18 @@ DEFINE_NETD_BPF_PROG_RANGES("cgroupskb/egress/stats$5_10_u",
     return bpf_traffic_account(skb, EGRESS, KVER_5_10, SDK_LEVEL_U);
 }
 
-// Android T/U/V 4.19 & T/U/V/25Q2 5.4 & T 5.10/5.15
-DEFINE_NETD_BPF_PROG_KVER_RANGE("cgroupskb/egress/stats$4_19",
-                                bpf_cgroup_egress_4_19, KVER_4_19, KVER_INF)
+// Android T/U/V/25Q2 5.4 & T 5.10/5.15
+DEFINE_NETD_BPF_PROG_KVER_RANGE("cgroupskb/egress/stats$5_4",
+                                bpf_cgroup_egress_5_4, KVER_5_4, KVER_INF)
 (struct __sk_buff* skb) {
-    return bpf_traffic_account(skb, EGRESS, KVER_4_19, SDK_LEVEL_T);
+    return bpf_traffic_account(skb, EGRESS, KVER_5_4, SDK_LEVEL_T);
+}
+
+// Android T/U/V 4.19
+DEFINE_NETD_BPF_PROG_KVER_RANGE("cgroupskb/egress/stats$4_19",
+                                bpf_cgroup_egress_4_19, KVER_4_19, KVER_5_4)
+(struct __sk_buff* skb) {
+return bpf_traffic_account(skb, EGRESS, KVER_4_19, SDK_LEVEL_T);
 }
 
 // Android T 4.9 & T/U 4.14

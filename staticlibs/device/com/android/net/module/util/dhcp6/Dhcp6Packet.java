@@ -20,6 +20,7 @@ import android.net.MacAddress;
 import android.util.Log;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.net.module.util.HexDump;
@@ -65,6 +66,8 @@ public class Dhcp6Packet {
     public static final byte DHCP6_MESSAGE_TYPE_INFORMATION_REQUEST = 11;
     public static final byte DHCP6_MESSAGE_TYPE_RELAY_FORW = 12;
     public static final byte DHCP6_MESSAGE_TYPE_RELAY_REPL = 13;
+    public static final byte DHCP6_MESSAGE_TYPE_ADDR_REG_INFORM = 36;
+    public static final byte DHCP6_MESSAGE_TYPE_ADDR_REG_REPLY = 37;
 
     /**
      * DHCPv6 Optional Type: Client Identifier.
@@ -78,7 +81,15 @@ public class Dhcp6Packet {
      * DHCPv6 Optional Type: Server Identifier.
      */
     public static final byte DHCP6_SERVER_IDENTIFIER = 2;
+    @Nullable
     protected final byte[] mServerDuid;
+
+    /**
+     * DHCPv6 Optional Type: IA Address option.
+     */
+    public static final byte DHCP6_IA_ADDR = 5;
+    @Nullable
+    protected byte[] mIaAddress;
 
     /**
      * DHCPv6 Optional Type: Option Request Option.
@@ -196,8 +207,17 @@ public class Dhcp6Packet {
     /**
      * Returns the server's DUID.
      */
+    @Nullable
     public byte[] getServerDuid() {
         return mServerDuid;
+    }
+
+    /**
+     * Returns the IA Address option.
+     */
+    @Nullable
+    public byte[] getIaAddress() {
+        return mIaAddress;
     }
 
     /**
@@ -453,6 +473,7 @@ public class Dhcp6Packet {
     private static Dhcp6Packet decode(@NonNull final ByteBuffer packet) throws ParseException {
         int elapsedTime = 0;
         byte[] iapd = null;
+        byte[] iaAddress = null;
         byte[] serverDuid = null;
         byte[] clientDuid = null;
         short statusCode = STATUS_SUCCESS;
@@ -524,6 +545,20 @@ public class Dhcp6Packet {
                             skipOption(packet, optionLen - 2);
                         }
                         break;
+                    case DHCP6_IA_ADDR:
+                        expectedLen = optionLen;
+                        final byte[] iaAddressBytes = new byte[16];
+                        packet.get(iaAddressBytes, 0 /* offset */, 16);
+                        iaAddress = iaAddressBytes;
+                        // TODO: support parsing preferred and valid lifetime.
+                        packet.getInt(); // preferred lifetime
+                        packet.getInt(); // valid lifetime
+                        // IAaddr-options are currently unsupported, skip over them.
+                        final int remainingBytesLength = optionLen - 16 - 8;
+                        if (remainingBytesLength > 0) {
+                            skipOption(packet, remainingBytesLength);
+                        }
+                        break;
                     case DHCP6_SOL_MAX_RT:
                         expectedLen = 4;
                         solMaxRt = packet.getInt();
@@ -572,6 +607,10 @@ public class Dhcp6Packet {
                 break;
             case DHCP6_MESSAGE_TYPE_REBIND:
                 newPacket = new Dhcp6RebindPacket(transId, elapsedTime, clientDuid, iapd);
+                break;
+            case DHCP6_MESSAGE_TYPE_ADDR_REG_INFORM:
+                newPacket = new Dhcp6AddrRegInformPacket(transId, elapsedTime, clientDuid,
+                        iaAddress);
                 break;
             default:
                 throw new ParseException("Unimplemented DHCP6 message type %d" + messageType);
