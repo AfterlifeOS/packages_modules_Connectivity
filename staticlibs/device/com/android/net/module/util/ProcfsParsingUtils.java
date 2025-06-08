@@ -35,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public final class ProcfsParsingUtils {
     public static final String TAG = ProcfsParsingUtils.class.getSimpleName();
@@ -48,6 +49,8 @@ public final class ProcfsParsingUtils {
     private static final String IPV4_MCAST_PATH = "/proc/net/igmp";
     private static final String IPV6_MCAST_PATH = "/proc/net/igmp6";
     private static final String IPV4_DEFAULT_TTL_PATH = "/proc/sys/net/ipv4/ip_default_ttl";
+
+    private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
     private ProcfsParsingUtils() {
     }
@@ -129,7 +132,7 @@ public final class ProcfsParsingUtils {
         final List<Inet6Address> addresses = new ArrayList<>();
         try {
             for (String line : lines) {
-                final String[] fields = line.split("\\s+");
+                final String[] fields = WHITESPACE_PATTERN.split(line);
                 if (!fields[1].equals(ifname)) {
                     continue;
                 }
@@ -156,7 +159,7 @@ public final class ProcfsParsingUtils {
             @NonNull List<String> lines, @NonNull String ifname) {
         final List<MacAddress> addresses = new ArrayList<>();
         for (String line: lines) {
-            final String[] fields = line.split("\\s+");
+            final String[] fields = WHITESPACE_PATTERN.split(line);
             if (!fields[1].equals(ifname)) {
                 continue;
             }
@@ -182,7 +185,7 @@ public final class ProcfsParsingUtils {
         final List<Inet6Address> addresses = new ArrayList<>();
         try {
             for (String line: lines) {
-                final String[] fields = line.split("\\s+");
+                final String[] fields = WHITESPACE_PATTERN.split(line);
                 if (!fields[1].equals(ifname)) {
                     continue;
                 }
@@ -217,7 +220,7 @@ public final class ProcfsParsingUtils {
             String name = "";
             // parse output similar to `ip maddr` command (iproute2/ip/ipmaddr.c#read_igmp())
             for (String line : lines) {
-                final String[] parts = line.trim().split("\\s+");
+                final String[] parts = WHITESPACE_PATTERN.split(line.trim());
                 if (!line.startsWith("\t")) {
                     name = parts[1];
                     if (name.endsWith(":")) {
