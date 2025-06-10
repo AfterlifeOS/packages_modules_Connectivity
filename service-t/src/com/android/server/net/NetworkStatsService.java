@@ -499,6 +499,8 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
     @VisibleForTesting
     public static final String TRAFFICSTATS_CLIENT_RATE_LIMIT_CACHE_ENABLED_FLAG =
             "trafficstats_client_rate_limit_cache_enabled_flag";
+    @VisibleForTesting
+    public static final String STORE_TRANSPORT_TYPES = "store_transport_types";
     static final String TRAFFICSTATS_SERVICE_RATE_LIMIT_CACHE_ENABLED_FLAG =
             "trafficstats_rate_limit_cache_enabled_flag";
     static final String BROADCAST_NETWORK_STATS_UPDATED_RATE_LIMIT_ENABLED_FLAG =
@@ -694,6 +696,8 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         mIfaceStatsMap = mDeps.getIfaceStatsMap();
         // To prevent any possible races, the flag is not allowed to change until rebooting.
         mSupportEventLogger = mDeps.supportEventLogger(mContext);
+        mStoreTransportTypes =
+                mDeps.isTetheringFeatureNotChickenedOut(mContext, STORE_TRANSPORT_TYPES);
         if (mSupportEventLogger) {
             mEventLogger = new NetworkStatsEventLogger();
         } else {
@@ -984,6 +988,13 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
 
         /**
+         * @see DeviceConfigUtils#isTetheringFeatureNotChickenedOut
+         */
+        public boolean isTetheringFeatureNotChickenedOut(Context ctx, String feature) {
+            return DeviceConfigUtils.isTetheringFeatureNotChickenedOut(ctx, feature);
+        }
+
+        /**
          * Get client side traffic stats rate-limit cache config.
          *
          * This method should only be called once in the constructor,
@@ -1185,7 +1196,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         return new NetworkStatsRecorder(new FileRotator(
                 baseDir, prefix, config.rotateAgeMillis, config.deleteAgeMillis),
                 mNonMonotonicObserver, dropBox, prefix, config.bucketDuration, includeTags,
-                wipeOnError, useFastDataInput, baseDir);
+                wipeOnError, useFastDataInput, mStoreTransportTypes, baseDir);
     }
 
     @GuardedBy("mStatsLock")
@@ -3061,6 +3072,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
                 }
             }
             pw.println(CONFIG_ENABLE_NETWORK_STATS_EVENT_LOGGER + ": " + mSupportEventLogger);
+            pw.println(STORE_TRANSPORT_TYPES + ": " + mStoreTransportTypes);
             pw.print(NETSTATS_FASTDATAINPUT_TARGET_ATTEMPTS,
                     mDeps.getUseFastDataInputTargetAttempts());
             pw.println();
@@ -3627,6 +3639,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
     }
 
     private final boolean mSupportEventLogger;
+    private final boolean mStoreTransportTypes;
     @GuardedBy("mStatsLock")
     @Nullable
     private final NetworkStatsEventLogger mEventLogger;
