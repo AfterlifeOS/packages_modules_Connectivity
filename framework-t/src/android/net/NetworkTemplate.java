@@ -41,6 +41,7 @@ import static com.android.net.module.util.NetworkCapabilitiesUtils.TYPE_TEST;
 
 import static java.util.Objects.requireNonNull;
 
+import android.annotation.FlaggedApi;
 import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -57,6 +58,7 @@ import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.modules.utils.build.SdkLevel;
+import com.android.net.flags.Flags;
 import com.android.net.module.util.BitUtils;
 import com.android.net.module.util.CollectionUtils;
 import com.android.net.module.util.NetworkIdentityUtils;
@@ -748,8 +750,8 @@ public final class NetworkTemplate implements Parcelable {
      *
      * This is only valid when the template is constructed by using
      * {@link NetworkTemplate.Builder}.
-     * @hide
      */
+    @FlaggedApi(Flags.FLAG_NETSTATS_TRANSPORT_TYPE)
     public int getTransportType() {
         if (mTransportTypesBits == TRANSPORT_TYPES_ALL) {
             throw new IllegalStateException("Transport was not set");
@@ -1140,8 +1142,8 @@ public final class NetworkTemplate implements Parcelable {
          *
          * Note that {@link #setTransportType} MUST be called to specify
          * the transport type filter.
-         * @hide
          */
+        @FlaggedApi(Flags.FLAG_NETSTATS_TRANSPORT_TYPE)
         public Builder() {
             this(MATCH_ALL);
         }
@@ -1246,8 +1248,8 @@ public final class NetworkTemplate implements Parcelable {
          *
          * @param transportType {@code NetworkCapabilities#TRANSPORT_*} constant.
          * @return This {@code Builder} for chaining.
-           @hide
          */
+        @FlaggedApi(Flags.FLAG_NETSTATS_TRANSPORT_TYPE)
         @NonNull
         public Builder setTransportType(int transportType) {
             if (mMatchRule != MATCH_ALL) {
