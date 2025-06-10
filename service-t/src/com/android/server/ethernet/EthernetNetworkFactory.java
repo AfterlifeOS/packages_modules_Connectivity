@@ -219,17 +219,10 @@ public class EthernetNetworkFactory {
     }
 
     /** Removes the interface from the factory and returns whether the interface was tracked */
-    public boolean removeInterface(EthernetPort port) {
-        NetworkInterfaceState iface = mTrackingInterfaces.remove(port.getInterfaceName());
-        if (iface != null) {
-            iface.unregisterNetworkOfferAndStop();
-            return true;
-        }
-        // TODO(b/236892130): if an interface is currently in server mode, it may not be properly
-        // removed.
-        // TODO: when false is returned, do not send a STATE_ABSENT callback.
-        Log.w(TAG, "removeInterface() failed because port is not tracked " + port);
-        return false;
+    public void removeInterface(EthernetPort port) {
+        final NetworkInterfaceState iface = mTrackingInterfaces.remove(port.getInterfaceName());
+        if (iface == null) return; // interface is in tethering mode; nothing to do.
+        iface.unregisterNetworkOfferAndStop();
     }
 
     /** Returns true if state has been modified */
@@ -665,7 +658,7 @@ public class EthernetNetworkFactory {
                 Log.i(TAG, String.format("maybeRestart() called on stopped interface %s", mPort));
                 return;
             }
-            if (DBG) Log.d(TAG, "restart IpClient");
+            if (DBG) Log.d(TAG, "Restart IpClient on: " + mPort);
             stop();
             start();
         }

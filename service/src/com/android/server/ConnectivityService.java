@@ -10052,36 +10052,37 @@ public class ConnectivityService extends IConnectivityManager.Stub
             return;
         }
 
-        final CompareResult<LinkAddress> result =
-                LinkPropertiesUtils.compareAllAddresses(oldLp, newLp);
-
-        if (!result.added.isEmpty()) {
-            for (LinkAddress la : result.added) {
-                if (la.getAddress() instanceof Inet6Address
-                        && la.getAddress().isLinkLocalAddress()) {
-                    // Some NetworkAgents may not report IPv6 link local address to CS, thus socket
-                    // destruction on the address will be done at handling RTM_DELADDR and the
-                    // address doesn't need to be added to mIpToNetworksMap.
-                    continue;
-                }
-                mIpToNetworksMap.computeIfAbsent(la.getAddress(), k -> new ArraySet<>()).add(nai);
-            }
+        if (!nai.isCreated()) {
+            return;
         }
 
-        if (!result.removed.isEmpty()) {
-            for (LinkAddress la : result.removed) {
-                if (la.getAddress() instanceof Inet6Address
-                        && la.getAddress().isLinkLocalAddress()) {
-                    continue;
-                }
-                final Set<NetworkAgentInfo> networks = mIpToNetworksMap.get(la.getAddress());
-                destroySocketsForRemovedAddress(la.getAddress(), nai, networks);
-                if (networks != null) {
-                    networks.remove(nai);
-                    if (networks.isEmpty()) {
-                        mIpToNetworksMap.remove(la.getAddress());
-                    }
-                }
+        final CompareResult<InetAddress> result =
+                LinkPropertiesUtils.compareAllAddresses(oldLp, newLp);
+
+        for (InetAddress address : result.added) {
+            if (address instanceof Inet6Address && address.isLinkLocalAddress()) {
+                // Some NetworkAgents may not report IPv6 link local address to CS, thus socket
+                // destruction on the address will be done at handling RTM_DELADDR and the
+                // address doesn't need to be added to mIpToNetworksMap.
+                continue;
+            }
+            mIpToNetworksMap.computeIfAbsent(address, k -> new ArraySet<>()).add(nai);
+        }
+
+        for (InetAddress address : result.removed) {
+            if (address instanceof Inet6Address && address.isLinkLocalAddress()) {
+                continue;
+            }
+            final Set<NetworkAgentInfo> networks = mIpToNetworksMap.get(address);
+            if (networks == null) {
+                loge("No matched network for " + address);
+                mIpToNetworksMap.remove(address);
+                continue;
+            }
+            destroySocketsForRemovedAddress(address, nai, networks);
+            networks.remove(nai);
+            if (networks.isEmpty()) {
+                mIpToNetworksMap.remove(address);
             }
         }
     }
