@@ -80,6 +80,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.regex.Pattern;
 
 /**
  * Tracks Ethernet interfaces and manages interface configurations.
@@ -104,7 +105,7 @@ public class EthernetTracker {
     private static final String TAG = EthernetTracker.class.getSimpleName();
     private static final boolean DBG = EthernetNetworkFactory.DBG;
 
-    private static final String TEST_IFACE_REGEXP = TEST_TAP_PREFIX + "\\d+";
+    private static final Pattern TEST_IFACE_REGEXP = Pattern.compile(TEST_TAP_PREFIX + "\\d+");
 
     // TODO: consider using SharedLog consistently across ethernet service.
     private static final SharedLog sLog = new SharedLog(TAG);
@@ -547,7 +548,7 @@ public class EthernetTracker {
         final Iterator<String> iterator = mIpConfigurations.keySet().iterator();
         while (iterator.hasNext()) {
             final String iface = iterator.next();
-            if (iface.matches(TEST_IFACE_REGEXP)) {
+            if (TEST_IFACE_REGEXP.matcher(iface).matches()) {
                 mConfigStore.write(iface, null);
                 iterator.remove();
             }
@@ -555,7 +556,7 @@ public class EthernetTracker {
     }
 
     private void removeTestCapabilityData() {
-        mNetworkCapabilities.keySet().removeIf(iface -> iface.matches(TEST_IFACE_REGEXP));
+        mNetworkCapabilities.keySet().removeIf(iface -> TEST_IFACE_REGEXP.matcher(iface).matches());
     }
 
     public void requestTetheredInterface(ITetheredInterfaceCallback cb) {
@@ -689,7 +690,7 @@ public class EthernetTracker {
             // Try to resolve using mac address
             nc = mNetworkCapabilities.get(port.getMacAddress().toString());
             if (nc == null) {
-                final boolean isTestIface = iface.matches(TEST_IFACE_REGEXP);
+                final boolean isTestIface = TEST_IFACE_REGEXP.matcher(iface).matches();
                 nc = createDefaultNetworkCapabilities(isTestIface);
             }
         }
@@ -839,7 +840,7 @@ public class EthernetTracker {
      * interface prefix, {@code false} otherwise.
      */
     public boolean isValidTestInterface(@NonNull final String iface) {
-        return mIncludeTestInterfaces && iface.matches(TEST_IFACE_REGEXP);
+        return mIncludeTestInterfaces && TEST_IFACE_REGEXP.matcher(iface).matches();
     }
 
     private void postAndWaitForRunnable(Runnable r) {
