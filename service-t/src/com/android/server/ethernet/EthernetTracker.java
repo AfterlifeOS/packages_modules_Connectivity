@@ -131,7 +131,7 @@ public class EthernetTracker {
      * Use shouldTrackInterface to check if a interface name is a valid ethernet interface (this
      * includes test interfaces if setIncludeTestInterfaces is set to true).
      */
-    private final String mIfaceMatch;
+    private final Pattern mIfaceMatch;
 
     /**
      * Track test interfaces if true, don't track otherwise.
@@ -311,7 +311,7 @@ public class EthernetTracker {
                 ifaceMatchRegex = "eth\\d+";
             }
         }
-        mIfaceMatch = ifaceMatchRegex;
+        mIfaceMatch = Pattern.compile(ifaceMatchRegex);
 
         // Read default Ethernet interface configuration from resources
         final String[] interfaceConfigs = mDeps.getInterfaceConfigFromResource(context);
@@ -829,7 +829,7 @@ public class EthernetTracker {
     }
 
     private boolean shouldTrackInterface(String iface) {
-        return iface.matches(mIfaceMatch) || isValidTestInterface(iface);
+        return mIfaceMatch.matcher(iface).matches() || isValidTestInterface(iface);
     }
 
     /**
