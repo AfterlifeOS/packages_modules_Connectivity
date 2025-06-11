@@ -50,6 +50,13 @@ public class Dhcp6AddrRegReplyPacket extends Dhcp6Packet {
     }
 
     /**
+     * Return the DHCPv6 ADDR_REG_REPLY message type (37).
+     */
+    public byte getMessageType() {
+        return DHCP6_MESSAGE_TYPE_ADDR_REG_REPLY;
+    }
+
+    /**
      * Build a DHCPv6 ADDR-REG-REPLY message with the specific parameters.
      */
     public ByteBuffer buildPacket() {

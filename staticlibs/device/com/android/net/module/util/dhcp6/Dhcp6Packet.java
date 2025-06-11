@@ -47,7 +47,7 @@ import java.util.OptionalInt;
  *
  * @hide
  */
-public class Dhcp6Packet {
+public abstract class Dhcp6Packet {
     private static final String TAG = Dhcp6Packet.class.getSimpleName();
     /** DHCP constants copied from NetworkStackConstants.java */
     protected static final int DHCP_MAX_LENGTH = 1500;
@@ -71,6 +71,11 @@ public class Dhcp6Packet {
     public static final byte DHCP6_MESSAGE_TYPE_RELAY_REPL = 13;
     public static final byte DHCP6_MESSAGE_TYPE_ADDR_REG_INFORM = 36;
     public static final byte DHCP6_MESSAGE_TYPE_ADDR_REG_REPLY = 37;
+
+    /**
+     * Returns a specific DHCPv6 message type.
+     */
+    public abstract byte getMessageType();
 
     /**
      * DHCPv6 Optional Type: Client Identifier.
