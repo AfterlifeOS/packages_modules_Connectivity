@@ -83,6 +83,14 @@
           "exclude-annotation": "com.android.testutils.NetworkStackModuleTest"
         }
       ]
+    },
+    {
+      "name": "CtsHostsideNetworkTests",
+      "options": [
+        {
+          "exclude-annotation": "androidx.test.filters.RequiresDevice"
+        }
+      ]
     }
   ],
   "captiveportal-networkstack-mainline-presubmit": [
@@ -314,14 +322,6 @@
         {
           "exclude-annotation": "com.android.testutils.SkipMainlinePresubmit"
         },
-        {
-          "exclude-annotation": "androidx.test.filters.RequiresDevice"
-        }
-      ]
-    },
-    {
-      "name": "CtsHostsideNetworkTests[CaptivePortalLoginGoogle.apk+NetworkStackGoogle.apk+com.google.android.resolv.apex+com.google.android.tethering.apex]",
-      "options": [
         {
           "exclude-annotation": "androidx.test.filters.RequiresDevice"
         }

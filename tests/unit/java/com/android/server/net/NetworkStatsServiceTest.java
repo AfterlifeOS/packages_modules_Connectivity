@@ -620,6 +620,12 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
         }
 
         @Override
+        public boolean isTetheringFeatureNotChickenedOut(@NonNull Context cts,
+                @NonNull String feature) {
+            return mFeatureFlags.getOrDefault(feature, true);
+        }
+
+        @Override
         public boolean isTrafficStatsServiceRateLimitCacheEnabled(Context ctx,
                 boolean isClientCacheEnabled) {
             return !isClientCacheEnabled && mFeatureFlags.getOrDefault(
@@ -2676,7 +2682,7 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
         return new NetworkStatsRecorder(new FileRotator(
                 directory, prefix, config.rotateAgeMillis, config.deleteAgeMillis),
                 observer, dropBox, prefix, config.bucketDuration, includeTags, wipeOnError,
-                false /* useFastDataInput */, directory);
+                false /* useFastDataInput */, true /* storeTransportTypes */, directory);
     }
 
     private NetworkStatsCollection getLegacyCollection(String prefix, boolean includeTags) {
