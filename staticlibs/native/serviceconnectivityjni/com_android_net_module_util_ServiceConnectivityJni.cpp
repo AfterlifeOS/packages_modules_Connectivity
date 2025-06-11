@@ -52,35 +52,6 @@
 
 namespace android {
 
-static jint createTimerFd(JNIEnv *env, jclass clazz) {
-  int tfd;
-  // For safety, the file descriptor should have O_NONBLOCK(TFD_NONBLOCK) set
-  // using fcntl during creation. This ensures that, in the worst-case scenario,
-  // an EAGAIN error is returned when reading.
-  tfd = timerfd_create(CLOCK_BOOTTIME, TFD_NONBLOCK);
-  if (tfd == -1) {
-    jniThrowErrnoException(env, "createTimerFd", tfd);
-  }
-  return tfd;
-}
-
-static void setTimerFdTime(JNIEnv *env, jclass clazz, jint tfd,
-                           jlong milliseconds) {
-  struct itimerspec new_value;
-  new_value.it_value.tv_sec = milliseconds / MSEC_PER_SEC;
-  new_value.it_value.tv_nsec = (milliseconds % MSEC_PER_SEC) * NSEC_PER_MSEC;
-  // Set the interval time to 0 because it's designed for repeated timer
-  // expirations after the initial expiration, which doesn't fit the current
-  // usage.
-  new_value.it_interval.tv_sec = 0;
-  new_value.it_interval.tv_nsec = 0;
-
-  int ret = timerfd_settime(tfd, 0, &new_value, NULL);
-  if (ret == -1) {
-    jniThrowErrnoException(env, "setTimerFdTime", ret);
-  }
-}
-
 static jstring getDriverNameForInterface(JNIEnv *env, jclass clazz, jstring jifname) {
   base::unique_fd fd(socket(AF_INET6, SOCK_DGRAM, 0));
   if (!fd.ok()) {
@@ -219,8 +190,6 @@ static void bringUpInterface(JNIEnv *env, jclass /* clazz */, jstring jIface) {
  */
 static const JNINativeMethod gMethods[] = {
     /* name, signature, funcPtr */
-    {"createTimerFd", "()I", (void *)createTimerFd},
-    {"setTimerFdTime", "(IJ)V", (void *)setTimerFdTime},
     {"getDriverNameForInterface", "(Ljava/lang/String;)Ljava/lang/String;",
       (void *)getDriverNameForInterface},
     {"setTunTapCarrierEnabled", "(Ljava/lang/String;IZ)V",

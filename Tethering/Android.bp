@@ -167,6 +167,30 @@ cc_library {
     ldflags: ["-Wl,--exclude-libs=ALL,--error-limit=0"],
 }
 
+cc_library_shared {
+    name: "libcom_android_networkstack_tethering_util_jni_CommonConnectivityJni",
+    srcs: [
+        "jni/commonconnectivity/onload.cpp",
+    ],
+    min_sdk_version: "30",
+    shared_libs: [
+        "liblog",
+        "libnativehelper",
+    ],
+    static_libs: [
+        "libcommonconnectivityjni",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wthread-safety",
+    ],
+    apex_available: [
+        "com.android.tethering",
+    ],
+}
+
 // Common defaults for compiling the actual APK.
 java_defaults {
     name: "TetheringAppDefaults",
