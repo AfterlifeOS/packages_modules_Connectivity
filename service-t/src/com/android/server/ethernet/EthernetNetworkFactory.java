@@ -378,7 +378,7 @@ public class EthernetNetworkFactory {
                 // When the network offer is first registered, onNetworkNeeded is called with all
                 // existing requests.
                 // ConnectivityService filters requests for us based on the NetworkCapabilities
-                // passed in the registerNetworkOffer() call.
+                // passed in the registerOrUpdateNetworkOffer() call.
                 mRequestIds.add(request.requestId);
                 // if the network is already started, this is a no-op.
                 start();
@@ -452,9 +452,8 @@ public class EthernetNetworkFactory {
             mLegacyType = getLegacyType(mCapabilities);
 
             if (mLinkUp) {
-                // registering a new network offer will update the existing one, not install a
-                // new one.
-                registerNetworkOffer();
+                // update the existing network offer with the new capabilities.
+                registerOrUpdateNetworkOffer();
             }
         }
 
@@ -595,7 +594,7 @@ public class EthernetNetworkFactory {
                 unregisterNetworkOfferAndStop();
             } else { // was down, goes up
                 // register network offer
-                registerNetworkOffer();
+                registerOrUpdateNetworkOffer();
             }
 
             return true;
@@ -622,7 +621,8 @@ public class EthernetNetworkFactory {
             mLinkProperties.clear();
         }
 
-        private void registerNetworkOffer() {
+        /** Updates the current NetworkOffer or registers a new one if none exists */
+        private void registerOrUpdateNetworkOffer() {
             // If mNetworkOfferCallback is already set, it should be reused to update the existing
             // offer.
             if (mNetworkOfferCallback == null) {
