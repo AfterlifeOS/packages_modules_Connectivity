@@ -88,6 +88,7 @@ import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
 import java.util.function.IntConsumer
+import kotlin.comparisons.compareBy
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
@@ -585,8 +586,11 @@ class EthernetManagerTest {
         // Register a new listener, it should see state of all existing interfaces immediately.
         val listener2 = EthernetStateListener()
         addInterfaceStateListener(listener2)
-        listener2.expectCallback(iface, STATE_LINK_UP, ROLE_CLIENT)
-        listener2.expectCallback(iface2, STATE_LINK_UP, ROLE_CLIENT)
+        // Note that interfaces are in lexicographical order with restricted interfaces appearing
+        // last. This means that testtap10 is ordered ahead of testtap9.
+        val sortedIfaces = listOf(iface, iface2).sortedWith(compareBy { it.name })
+        listener2.expectCallback(sortedIfaces.elementAt(0), STATE_LINK_UP, ROLE_CLIENT)
+        listener2.expectCallback(sortedIfaces.elementAt(1), STATE_LINK_UP, ROLE_CLIENT)
 
         // Removing interfaces first sends link down, then STATE_ABSENT/ROLE_NONE.
         removeInterface(iface)
