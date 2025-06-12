@@ -171,7 +171,8 @@ public class EthernetTracker {
     // The first interface discovered is set as the mTetheringInterface. It is the interface that is
     // returned when a tethered interface is requested; until then, it remains in client mode. Its
     // current mode is reflected in mTetheringInterfaceMode.
-    private EthernetPort mTetheringInterface;
+    @Nullable private EthernetPort mTetheringInterface;
+    @Nullable private EnumSet<TrackingReason> mTetheringTrackingReason;
     private int mTetheringInterfaceMode = INTERFACE_MODE_CLIENT;
     // Tracks whether clients were notified that the tethered interface is available
     private boolean mTetheredInterfaceWasAvailable = false;
@@ -205,7 +206,7 @@ public class EthernetTracker {
     }
 
     /** Enum used to convey the reason an interface is tracked. */
-    private enum TrackingReason {
+    public enum TrackingReason {
         /** The interface is tracked because it is part of the regex. */
         REGEX,
         /** The interface is tracked because it is an NCM interface. */
@@ -241,11 +242,12 @@ public class EthernetTracker {
             sendNetlinkMessage(buf);
         }
 
-        private void onNewLink(EthernetPort port, boolean linkUp) {
+        private void onNewLink(EthernetPort port, EnumSet<TrackingReason> trackingReason,
+                boolean linkUp) {
             final String ifname = port.getInterfaceName();
             if (!mFactory.hasInterface(ifname) && !ifname.equals(mTetheringInterface)) {
                 Log.i(TAG, "onInterfaceAdded: " + port);
-                maybeTrackInterface(port);
+                maybeTrackInterface(port, trackingReason);
             }
             Log.i(TAG, "interfaceLinkStateChanged: " + port + ", up: " + linkUp);
             updateInterfaceState(port, linkUp);
@@ -273,12 +275,13 @@ public class EthernetTracker {
             final EthernetPort port = new EthernetPort(ifname, mac, ifinfomsg.index);
             // check if the received message applies to an ethernet interface.
             // TODO: start tracking USB NCM interfaces.
-            if (!getTrackingReason(port.getInterfaceName()).contains(TrackingReason.REGEX)) return;
+            final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
+            if (!trackingReason.contains(TrackingReason.REGEX)) return;
 
             switch (msg.getHeader().nlmsg_type) {
                 case NetlinkConstants.RTM_NEWLINK:
                     final boolean linkUp = (ifinfomsg.flags & NetlinkConstants.IFF_LOWER_UP) != 0;
-                    onNewLink(port, linkUp);
+                    onNewLink(port, trackingReason, linkUp);
                     break;
 
                 case NetlinkConstants.RTM_DELLINK:
@@ -628,7 +631,7 @@ public class EthernetTracker {
         mTetheringInterfaceMode = mode;
         if (mTetheringInterface != null) {
             removeInterface(mTetheringInterface);
-            addInterface(mTetheringInterface);
+            addInterface(mTetheringInterface, mTetheringTrackingReason);
             // when this broadcast is sent, any calls to notifyTetheredInterfaceAvailable or
             // notifyTetheredInterfaceUnavailable have already happened
             broadcastInterfaceStateChange(mTetheringInterface.getInterfaceName());
@@ -676,11 +679,12 @@ public class EthernetTracker {
         final String iface = port.getInterfaceName();
         if (mTetheringInterface != null && iface.equals(mTetheringInterface.getInterfaceName())) {
             mTetheringInterface = null;
+            mTetheringTrackingReason = null;
         }
         broadcastInterfaceStateChange(iface);
     }
 
-    private void addInterface(EthernetPort port) {
+    private void addInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
         final String iface = port.getInterfaceName();
         final InterfaceConfigurationParcel config;
         // Bring up the interface so we get link status indications.
@@ -717,7 +721,7 @@ public class EthernetTracker {
 
         IpConfiguration ipConfiguration = getOrCreateIpConfiguration(iface);
         Log.d(TAG, "Tracking interface in client mode: " + iface);
-        mFactory.addInterface(port, ipConfiguration, nc);
+        mFactory.addInterface(port, ipConfiguration, nc, trackingReason);
 
         // Note: if the interface already has link (e.g., if we crashed and got
         // restarted while it was running), we need to fake a link up notification so we
@@ -784,7 +788,7 @@ public class EthernetTracker {
         mTetheredInterfaceWasAvailable = available;
     }
 
-    private void maybeTrackInterface(EthernetPort port) {
+    private void maybeTrackInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
         final String iface = port.getInterfaceName();
         // If we don't already track this interface, and if this interface matches
         // our regex, start tracking it.
@@ -794,12 +798,15 @@ public class EthernetTracker {
         }
         if (DBG) Log.i(TAG, "maybeTrackInterface: " + port);
 
-        // Do not use an interface for tethering if it has configured NetworkCapabilities.
-        if (mTetheringInterface == null && !mNetworkCapabilities.containsKey(iface)) {
+        // Do not use an interface for tethering if it has configured NetworkCapabilities, or if it
+        // was not included in the regex.
+        if (mTetheringInterface == null && !mNetworkCapabilities.containsKey(iface)
+                && trackingReason.contains(TrackingReason.REGEX)) {
             mTetheringInterface = port;
+            mTetheringTrackingReason = trackingReason;
         }
 
-        addInterface(port);
+        addInterface(port, trackingReason);
 
         broadcastInterfaceStateChange(iface);
     }

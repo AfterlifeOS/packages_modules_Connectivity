@@ -50,9 +50,11 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.net.module.util.InterfaceParams;
 import com.android.server.connectivity.ConnectivityResources;
+import com.android.server.ethernet.EthernetTracker.TrackingReason;
 
 import java.io.FileDescriptor;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -159,7 +161,7 @@ public class EthernetNetworkFactory {
 
     /** Add an interface to the factory. */
     public void addInterface(EthernetPort port, IpConfiguration ipConfig,
-            NetworkCapabilities capabilities) {
+            NetworkCapabilities capabilities, EnumSet<TrackingReason> trackingReason) {
         final String ifaceName = port.getInterfaceName();
         final String hwAddress = port.getMacAddress().toString();
 
@@ -177,7 +179,7 @@ public class EthernetNetworkFactory {
         }
 
         final NetworkInterfaceState iface = new NetworkInterfaceState(
-                port, mHandler, mContext, ipConfig, nc, mProvider, mDeps);
+                port, trackingReason, mHandler, mContext, ipConfig, nc, mProvider, mDeps);
         mTrackingInterfaces.put(ifaceName, iface);
     }
 
@@ -259,6 +261,7 @@ public class EthernetNetworkFactory {
     @VisibleForTesting
     static class NetworkInterfaceState {
         private final EthernetPort mPort;
+        private final EnumSet<TrackingReason> mTrackingReason;
         private final Handler mHandler;
         private final Context mContext;
         private final NetworkProvider mNetworkProvider;
@@ -401,10 +404,12 @@ public class EthernetNetworkFactory {
             }
         }
 
-        NetworkInterfaceState(EthernetPort port, Handler handler, Context context,
-                @NonNull IpConfiguration ipConfig, @NonNull NetworkCapabilities capabilities,
-                NetworkProvider networkProvider, Dependencies deps) {
+        NetworkInterfaceState(EthernetPort port, EnumSet<TrackingReason> trackingReason,
+                Handler handler, Context context, IpConfiguration ipConfig,
+                NetworkCapabilities capabilities, NetworkProvider networkProvider,
+                Dependencies deps) {
             mPort = port;
+            mTrackingReason = trackingReason;
             mIpConfig = Objects.requireNonNull(ipConfig);
             mCapabilities = Objects.requireNonNull(capabilities);
             mLegacyType = getLegacyType(mCapabilities);
