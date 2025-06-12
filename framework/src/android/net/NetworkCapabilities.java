@@ -1291,6 +1291,7 @@ public final class NetworkCapabilities implements Parcelable {
     private long mTransportTypes;
 
     /** @hide */
+    // LINT.IfChange
     @Retention(RetentionPolicy.SOURCE)
     @IntDef(prefix = { "TRANSPORT_" }, value = {
             TRANSPORT_CELLULAR,
@@ -1306,6 +1307,7 @@ public final class NetworkCapabilities implements Parcelable {
             TRANSPORT_SATELLITE,
     })
     public @interface Transport { }
+    // LINT.ThenChange(../../../../framework-t/src/android/net/NetworkTemplate.java)
 
     /**
      * Indicates this network uses a Cellular transport.
