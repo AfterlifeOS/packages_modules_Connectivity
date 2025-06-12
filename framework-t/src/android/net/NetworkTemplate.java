@@ -24,6 +24,17 @@ import static android.net.ConnectivityManager.TYPE_PROXY;
 import static android.net.ConnectivityManager.TYPE_WIFI;
 import static android.net.ConnectivityManager.TYPE_WIFI_P2P;
 import static android.net.ConnectivityManager.TYPE_WIMAX;
+import static android.net.NetworkCapabilities.TRANSPORT_BLUETOOTH;
+import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
+import static android.net.NetworkCapabilities.TRANSPORT_ETHERNET;
+import static android.net.NetworkCapabilities.TRANSPORT_LOWPAN;
+import static android.net.NetworkCapabilities.TRANSPORT_SATELLITE;
+import static android.net.NetworkCapabilities.TRANSPORT_TEST;
+import static android.net.NetworkCapabilities.TRANSPORT_THREAD;
+import static android.net.NetworkCapabilities.TRANSPORT_USB;
+import static android.net.NetworkCapabilities.TRANSPORT_VPN;
+import static android.net.NetworkCapabilities.TRANSPORT_WIFI;
+import static android.net.NetworkCapabilities.TRANSPORT_WIFI_AWARE;
 import static android.net.NetworkIdentity.OEM_NONE;
 import static android.net.NetworkIdentity.OEM_PAID;
 import static android.net.NetworkIdentity.OEM_PRIVATE;
@@ -745,14 +756,34 @@ public final class NetworkTemplate implements Parcelable {
         return mRatType;
     }
 
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(prefix = { "TRANSPORT_" }, value = {
+            TRANSPORT_CELLULAR,
+            TRANSPORT_WIFI,
+            TRANSPORT_BLUETOOTH,
+            TRANSPORT_ETHERNET,
+            TRANSPORT_VPN,
+            TRANSPORT_WIFI_AWARE,
+            TRANSPORT_LOWPAN,
+            TRANSPORT_TEST,
+            TRANSPORT_USB,
+            TRANSPORT_THREAD,
+            TRANSPORT_SATELLITE,
+    })
+    public @interface Transport { }
+
     /**
      * Get the transport type filter of the template.
      *
      * This is only valid when the template is constructed by using
      * {@link NetworkTemplate.Builder}.
+     *
+     * @return The transport type filter.
+     * @throws IllegalStateException if the transport type was not set during template construction.
      */
     @FlaggedApi(Flags.FLAG_NETSTATS_TRANSPORT_TYPE)
-    public int getTransportType() {
+    public @Transport int getTransportType() {
         if (mTransportTypesBits == TRANSPORT_TYPES_ALL) {
             throw new IllegalStateException("Transport was not set");
         }
@@ -1248,10 +1279,12 @@ public final class NetworkTemplate implements Parcelable {
          *
          * @param transportType {@code NetworkCapabilities#TRANSPORT_*} constant.
          * @return This {@code Builder} for chaining.
+         * @throws IllegalArgumentException if the builder was not constructed with the default
+         *                                  constructor {@link Builder#Builder()}.
          */
         @FlaggedApi(Flags.FLAG_NETSTATS_TRANSPORT_TYPE)
         @NonNull
-        public Builder setTransportType(int transportType) {
+        public Builder setTransportType(@Transport int transportType) {
             if (mMatchRule != MATCH_ALL) {
                 throw new IllegalArgumentException("setTransportType is only supported for builder"
                         + " built by default constructor.");
@@ -1338,6 +1371,9 @@ public final class NetworkTemplate implements Parcelable {
          * Builds the instance of the NetworkTemplate.
          *
          * @return the built instance of NetworkTemplate.
+         * @throws IllegalArgumentException if the parameters set in the builder are invalid
+         *                                  (e.g., calling {@link #setTransportType} on a builder
+         *                                  not created with {@link Builder#Builder()}).
          */
         @NonNull
         public NetworkTemplate build() {

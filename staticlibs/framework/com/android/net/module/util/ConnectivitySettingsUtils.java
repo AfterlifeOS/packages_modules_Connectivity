@@ -22,6 +22,10 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.provider.Settings;
 import android.text.TextUtils;
+import android.util.ArrayMap;
+import android.util.Log;
+
+import java.util.Map;
 
 /**
  * Collection of connectivity settings utilities.
@@ -29,6 +33,7 @@ import android.text.TextUtils;
  * @hide
  */
 public class ConnectivitySettingsUtils {
+    public static final String TAG = ConnectivitySettingsUtils.class.getSimpleName();
     public static final int PRIVATE_DNS_MODE_OFF = 1;
     public static final int PRIVATE_DNS_MODE_OPPORTUNISTIC = 2;
     public static final int PRIVATE_DNS_MODE_PROVIDER_HOSTNAME = 3;
@@ -39,6 +44,10 @@ public class ConnectivitySettingsUtils {
     public static final String PRIVATE_DNS_MODE_OPPORTUNISTIC_STRING = "opportunistic";
     public static final String PRIVATE_DNS_MODE_PROVIDER_HOSTNAME_STRING = "hostname";
     public static final String PRIVATE_DNS_SPECIFIER = "private_dns_specifier";
+
+    public static final String NETWORK_AVOID_BAD_WIFI = "network_avoid_bad_wifi";
+    public static final String NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI =
+            "network_carrier_aware_avoid_bad_wifi";
 
     /**
      * Get private DNS mode as string.
@@ -127,5 +136,136 @@ public class ConnectivitySettingsUtils {
      */
     public static void setPrivateDnsHostname(@NonNull Context context, @Nullable String specifier) {
         Settings.Global.putString(context.getContentResolver(), PRIVATE_DNS_SPECIFIER, specifier);
+    }
+
+    /**
+     * Set legacy global avoid bad wifi to {@link Settings}.
+     *
+     * @param context The {@link Context} to set the setting.
+     * @param setting The desired setting value.
+     * "0": Don't avoid bad Wi-Fi.
+     * "1": Avoid bad Wi-Fi.
+     * {@code null}: Ask the user whether to switch away from bad Wi-Fi.
+     * @deprecated Use {@link #setNetworkAvoidBadWifiSetting(Context, String)} instead.
+     */
+    @Deprecated
+    public static void setNetworkLegacyGlobalAvoidBadWifiSetting(
+            @NonNull Context context, @Nullable String setting) {
+        Settings.Global.putString(context.getContentResolver(), NETWORK_AVOID_BAD_WIFI, setting);
+    }
+
+    /**
+     * Get legacy global avoid bad wifi to {@link Settings}.
+     *
+     * @param context The {@link Context} to query the setting.
+     * @return The current setting value, which can be "0", "1", or {@code null}.
+     * Returns {@code null} if the setting is not found.
+     * @deprecated Use {@link #getNetworkAvoidBadWifiSetting(Context)} instead.
+     */
+    @Deprecated
+    @Nullable
+    public static String getNetworkLegacyGlobalAvoidBadWifiSetting(@NonNull Context context) {
+        return Settings.Global.getString(context.getContentResolver(), NETWORK_AVOID_BAD_WIFI);
+    }
+
+    /**
+     * Set the carrier-aware avoid bad wifi to {@link Settings}.
+     *
+     * @param context The {@link Context} to set the setting.
+     * @param setting The desired setting string, formatted as "subId1,value1;subId2,value2".
+     * subId: The carrier subscription ID (integer).
+     * value: "0" to not avoid bad Wi-Fi for this subscription, or "1" to avoid.
+     * {@code null}: Ask the user whether to switch away from bad Wi-Fi.
+     */
+    public static void setNetworkAvoidBadWifiSetting(
+                @NonNull Context context, @Nullable String setting) {
+        Settings.Global.putString(
+                context.getContentResolver(), NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI, setting);
+    }
+
+    /**
+     * Get the raw carrier-aware avoid bad wifi string from {@link Settings}.
+     * @see #convertCarrierAwareSettingsStringToMap(String)
+     *
+     * @param context The {@link Context} to set the setting.
+     * @return The current setting string, formatted as "subId1,value1;subId2,value2",
+     * or {@code null} if the setting is not set.
+     */
+    @Nullable
+    public static String getNetworkAvoidBadWifiSetting(@NonNull Context context) {
+        return Settings.Global.getString(
+            context.getContentResolver(), NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI);
+    }
+
+    /**
+     * Parses the carrier-aware Wi-Fi avoid bad wifi setting string into a map.
+     *
+     * @param setting The setting string, typically retrieved from
+     * {@link #getNetworkAvoidBadWifiSetting(Context)}.
+     * Expected format is "subId1,value1;subId2,value2".
+     * @return A {@link Map} where keys are carrier subscription IDs ({@link Integer})
+     * and values are booleans indicating whether to avoid bad Wi-Fi ({@code true} for avoid,
+     * {@code false} for not avoid).
+     * Returns an empty map if the input setting is null or invalid.
+     */
+    @NonNull
+    public static Map<Integer, Boolean> convertCarrierAwareSettingsStringToMap(
+            @Nullable String setting) {
+        final ArrayMap<Integer, Boolean> settingMap = new ArrayMap<>();
+        if (setting == null) {
+            return settingMap;
+        }
+
+        for (String entry: setting.split(";")) {
+            final String[] parts = entry.split(",");
+            if (parts.length != 2) {
+                Log.e(TAG, "invalid setting string: " + entry);
+                continue;
+            }
+
+            try {
+                int subId = Integer.parseInt(parts[0].trim());
+                boolean value = Integer.parseInt(parts[1].trim()) != 0;
+                settingMap.put(subId, value);
+            } catch (NumberFormatException e) {
+                Log.e(TAG, "invalid setting string " + entry);
+            }
+        }
+
+        return settingMap;
+    }
+
+    /**
+     * Converts a map of carrier subscription IDs to Wi-Fi avoidance preferences into a string.
+     *
+     * @param context The application context.
+     * @param settingMap A {@link Map} where keys are carrier subscription IDs ({@link Integer})
+     * and values are booleans indicating whether to avoid bad Wi-Fi ({@code true} for avoid,
+     * {@code false} for not avoid).
+     * This map will be converted into a "subId,value;subId2,value2" string format.
+     * @return A string representing the carrier-aware Wi-Fi avoidance settings,
+     * or {@code null} if the provided {@code settingMap} is empty.
+     * The format is "subId1,value1;subId2,value2".
+     */
+    @Nullable
+    public static String convertCarrierAwareSettingsMapToString(
+            @NonNull Context context, @NonNull Map<Integer, Boolean> settingMap) {
+        if (settingMap.isEmpty()) return null;
+
+        final StringBuilder sb = new StringBuilder();
+        int index = 0;
+
+        for (Map.Entry<Integer, Boolean> entry: settingMap.entrySet()) {
+            final String valueStr = entry.getValue() ? "1" : "0";
+            sb.append(entry.getKey())
+                    .append(",")
+                    .append(valueStr);
+            if (index < settingMap.size() - 1) {
+                sb.append(";");
+            }
+            index++;
+        }
+
+        return sb.toString();
     }
 }

@@ -21,6 +21,23 @@ package {
 }
 
 aconfig_declarations {
+    name: "tethering.beta.test.flags",
+    package: "com.android.tethering.beta.test",
+    container: "com.android.tethering",
+    srcs: ["mainline_beta_end_to_end_test.aconfig"],
+}
+
+java_aconfig_library {
+    name: "com.android.tethering.beta.test.flags-aconfig-java",
+    aconfig_declarations: "tethering.beta.test.flags",
+    defaults: ["framework-minus-apex-aconfig-java-defaults"],
+    min_sdk_version: "30",
+    apex_available: [
+        "com.android.tethering",
+    ],
+}
+
+aconfig_declarations {
     name: "com.android.net.flags-aconfig",
     package: "com.android.net.flags",
     exportable: true,
