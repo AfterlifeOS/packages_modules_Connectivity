@@ -131,6 +131,7 @@ private const val DEFAULT_NO_EVENT_TIMEOUT = 200L // ms
  *   override fun onFirstAction(data: String) = history.add(FirstAction(data))
  *   override fun onSecondAction(value: Int) = history.add(SecondAction(value))
  *
+ *   // ---- Bridge to TestableCallback, do not modify (implements standard behavior) ----
  *   // Proxy methods: These make it simpler to call expect/assertNo, avoiding 'expect<_, T>'
  *   // They simply forward the call to the embedded internalEventTracker.
  *   inline fun <reified T : Event> expect(
@@ -150,6 +151,7 @@ private const val DEFAULT_NO_EVENT_TIMEOUT = 200L // ms
  *     errorMsg: String? = null,
  *     noinline predicate: (T) -> Boolean = { true }
  *   ) = assertNo<_, T>(timeoutMs, errorMsg, predicate)
+ *   // ---- End of bridge section ----
  * }
  * ```
  * HINT : if the proxy methods above give an error ("Type checking has run into a recursive
@@ -173,7 +175,6 @@ private const val DEFAULT_NO_EVENT_TIMEOUT = 200L // ms
  * that calls the 2-type argument version instructing the compiler to infer the first argument
  * (`expect<_, T>` infers `_`). This lets you write `expect<MySpecificEvent>()`.
  */
-
 /**
  * An interface for classes on which the expect* and assertNo* family of methods can be called.
  */
