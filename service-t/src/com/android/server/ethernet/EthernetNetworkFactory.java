@@ -332,6 +332,18 @@ public class EthernetNetworkFactory {
                     ConnectivityManager.TYPE_NONE);
         }
 
+        // TODO: Create a state machine to simplify this logic and also support tethering mode.
+        /** Tracks what type of network is currently being provided for this interface */
+        private enum Mode {
+            /** Indicates that no network of any type has been created for this interface */
+            NONE,
+            /** Indicates that a global network (i.e. with internet capability) is being provided */
+            GLOBAL,
+            /** Indicates that a local-only network is being provided */
+            LOCAL,
+        }
+        private Mode mMode = Mode.NONE;
+
         private class EthernetIpClientCallback extends IpClientCallbacks {
             private final ConditionVariable mIpClientStartCv = new ConditionVariable(false);
             private final ConditionVariable mIpClientShutdownCv = new ConditionVariable(false);
@@ -391,9 +403,56 @@ public class EthernetNetworkFactory {
             }
         }
 
-        private class EthernetNetworkOfferCallback implements NetworkProvider.NetworkOfferCallback {
-            private final Set<Integer> mRequestIds = new ArraySet<>();
+        private final RequestTracker mRequestTracker = new RequestTracker();
+        private static class RequestTracker {
+            private final Set<Integer> mGlobalRequests = new ArraySet<>();
+            private final Set<Integer> mLocalRequests = new ArraySet<>();
 
+            /** Reflects whether the global or local NetworkOffer was requested. */
+            public enum RequestType {
+                LOCAL,
+                GLOBAL,
+            }
+
+            private Set<Integer> getRequestSet(RequestType type) {
+                return (type == RequestType.GLOBAL) ? mGlobalRequests : mLocalRequests;
+            }
+
+            public void addRequest(NetworkRequest request, RequestType type) {
+                getRequestSet(type).add(request.requestId);
+            }
+
+            public void removeRequest(NetworkRequest request, RequestType type) {
+                if (!getRequestSet(type).remove(request.requestId)) {
+                    // This can only happen if onNetworkNeeded was not called for a request or if
+                    // the requestId changed. Both should *never* happen.
+                    Log.wtf(TAG, "removeRequest called for unknown request");
+                }
+            }
+
+            public void clear() {
+                mGlobalRequests.clear();
+                mLocalRequests.clear();
+            }
+
+            public Mode getNetworkNeededMode() {
+                // Local requests take precedence.
+                if (!mLocalRequests.isEmpty()) return Mode.LOCAL;
+                if (!mGlobalRequests.isEmpty()) return Mode.GLOBAL;
+                return Mode.NONE;
+            }
+        }
+
+        private void onRequestTrackerUpdate() {
+            final Mode newMode = mRequestTracker.getNetworkNeededMode();
+            if (mMode == newMode) return;
+
+            // If the interface is already stopped, stop() is a noop.
+            stop();
+            start(newMode);
+        }
+
+        private class EthernetNetworkOfferCallback implements NetworkProvider.NetworkOfferCallback {
             private boolean isStale() {
                 return this != mNetworkOfferCallback;
             }
@@ -407,9 +466,8 @@ public class EthernetNetworkFactory {
                 // existing requests.
                 // ConnectivityService filters requests for us based on the NetworkCapabilities
                 // passed in the maybeRegisterOrUpdateNetworkOffer() call.
-                mRequestIds.add(request.requestId);
-                // if the network is already started, this is a no-op.
-                start();
+                mRequestTracker.addRequest(request, RequestTracker.RequestType.GLOBAL);
+                onRequestTrackerUpdate();
             }
 
             @Override
@@ -417,15 +475,8 @@ public class EthernetNetworkFactory {
                 if (isStale()) return;
                 if (DBG) Log.d(TAG, String.format("%s: onNetworkUnneeded: %s", mPort, request));
 
-                if (!mRequestIds.remove(request.requestId)) {
-                    // This can only happen if onNetworkNeeded was not called for a request or if
-                    // the requestId changed. Both should *never* happen.
-                    Log.wtf(TAG, "onNetworkUnneeded called for unknown request");
-                }
-                if (mRequestIds.isEmpty()) {
-                    // not currently serving any requests, stop the network.
-                    stop();
-                }
+                mRequestTracker.removeRequest(request, RequestTracker.RequestType.GLOBAL);
+                onRequestTrackerUpdate();
             }
         }
 
@@ -529,7 +580,12 @@ public class EthernetNetworkFactory {
             return !mCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
         }
 
-        private void start() {
+        private void start(Mode mode) {
+            // Ensure stop() is called an all associated resources are cleaned up before starting in
+            // a (potentially) different mode.
+            if (mMode != Mode.NONE) throw new IllegalStateException("Forgot to call stop()");
+            mMode = mode;
+
             if (mIpClient != null) {
                 if (DBG) Log.d(TAG, "IpClient already started");
                 return;
@@ -665,6 +721,7 @@ public class EthernetNetworkFactory {
             }
 
             mIpClientCallback = null;
+            mMode = Mode.NONE;
 
             mLinkProperties.clear();
         }
@@ -715,6 +772,7 @@ public class EthernetNetworkFactory {
             }
 
             stop();
+            mRequestTracker.clear();
         }
 
         private static ProvisioningConfiguration createProvisioningConfiguration(
@@ -731,16 +789,16 @@ public class EthernetNetworkFactory {
 
         void maybeRestart() {
             if (mIpClient == null) {
-                // If maybeRestart() is called from a provisioning failure, it is
-                // possible that link disappeared in the meantime. In that
-                // case, stop() has already been called and IpClient should not
-                // get restarted to prevent a provisioning failure loop.
                 Log.i(TAG, String.format("maybeRestart() called on stopped interface %s", mPort));
                 return;
             }
             if (DBG) Log.d(TAG, "Restart IpClient on: " + mPort);
             stop();
-            start();
+            // Do not change the current mode when restarting the interface.
+            // mIpClient.startProvisioning() in start() will yield back to the handler, so even if
+            // the network does not provide global connectivity, a request for local connectivity
+            // will break the restart loop.
+            start(mMode);
         }
 
         @Override
