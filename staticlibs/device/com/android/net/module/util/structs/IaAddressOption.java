@@ -75,7 +75,7 @@ public class IaAddressOption extends Struct {
     /**
      * Build an IA Address option from the required specific parameters.
      */
-    public static ByteBuffer build(final short length, final long id, final Inet6Address address,
+    public static ByteBuffer build(final short length, final Inet6Address address,
             final long preferred, final long valid) {
         final IaAddressOption option = new IaAddressOption((short) DHCP6_OPTION_IA_ADDR,
                 length /* 24 + IAaddr-options length */, address, preferred, valid);
