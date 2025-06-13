@@ -356,7 +356,6 @@ public class EthernetNetworkFactory {
                         // At the time IpClient is stopped, an IpClient event may have already been
                         // posted on the handler and is awaiting execution. Once that event is
                         // executed, the associated callback object may not be valid anymore.
-                        Log.i(TAG, "Ignoring stale IpClientCallbacks " + this);
                         return;
                     }
                     r.run();
