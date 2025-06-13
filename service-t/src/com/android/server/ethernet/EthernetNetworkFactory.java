@@ -618,8 +618,10 @@ public class EthernetNetworkFactory {
 
         /** Updates the current NetworkOffer or registers a new one if none exists */
         private void registerOrUpdateNetworkOffer() {
-            // If mNetworkOfferCallback is already set, it should be reused to update the existing
-            // offer.
+            // Only register "global" offer if the interface is in the regex.
+            if (!mTrackingReason.contains(TrackingReason.REGEX)) return;
+
+            // Calling registerNetworkOffer with a previously registered offer updates it.
             if (mNetworkOfferCallback == null) {
                 mNetworkOfferCallback = new EthernetNetworkOfferCallback();
             }
@@ -629,10 +631,13 @@ public class EthernetNetworkFactory {
         }
 
         private void unregisterNetworkOfferAndStop() {
-            mNetworkProvider.unregisterNetworkOffer(mNetworkOfferCallback);
-            // Setting mNetworkOfferCallback to null allows the callback object to be identified
-            // as stale.
-            mNetworkOfferCallback = null;
+            if (mNetworkOfferCallback != null) {
+                mNetworkProvider.unregisterNetworkOffer(mNetworkOfferCallback);
+                // Setting mNetworkOfferCallback to null allows the callback object to be identified
+                // as stale.
+                mNetworkOfferCallback = null;
+            }
+
             stop();
         }
 
