@@ -23,7 +23,6 @@ import android.net.ConnectivityManager.MULTIPATH_PREFERENCE_HANDOVER
 import android.net.ConnectivityManager.MULTIPATH_PREFERENCE_PERFORMANCE
 import android.net.ConnectivityManager.MULTIPATH_PREFERENCE_RELIABILITY
 import android.net.ConnectivitySettingsManager.NETWORK_AVOID_BAD_WIFI
-import android.net.ConnectivitySettingsManager.NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI
 import android.net.ConnectivitySettingsManager.NETWORK_METERED_MULTIPATH_PREFERENCE
 import android.net.platform.flags.Flags.FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG
 import android.os.Build
@@ -279,81 +278,6 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
     @DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
     fun testOnActiveDataSubscriptionIdChangedFromCarrierConfig() {
         runOnActiveDataSubscriptionIdChanged()
-    }
-
-    @Test
-    @FeatureFlag(name = FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG, true)
-    @DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
-    fun testAvoidBadWifiWithGlobalSetting() {
-        val activeSubId = 1000
-        // Mock the initial NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI setting to false
-        Settings.Global.putString(resolver, NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI, "$activeSubId,0")
-        // Mock the initial carrier configuration to return true
-        trackerDependencies.setAvoidBadWifiCarrierConfigForSubId(activeSubId, true)
-
-        val listenerCaptor = ArgumentCaptor.forClass(
-            ActiveDataSubscriptionIdListener::class.java
-        )
-        verify(telephonyManager, times(1))
-            .registerTelephonyCallback(any(), listenerCaptor.capture())
-        val listener = listenerCaptor.value
-        csLooper.dispatchAll()
-
-        // Simulate a change in the active data subscription ID to activeSubId.
-        listener.onActiveDataSubscriptionIdChanged(activeSubId)
-
-        // Assert that the tracker's avoidBadWifi flag is false based on global setting
-        assertFalse(tracker.avoidBadWifi)
-        assertTrue(tracker.activelyPreferBadWifi)
-
-        // Mock the NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI setting to true
-        Settings.Global.putString(resolver, NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI, "$activeSubId,1")
-        // Mock the initial carrier configuration to return false
-        trackerDependencies.setAvoidBadWifiCarrierConfigForSubId(activeSubId, false)
-
-        // Assert that the tracker's avoidBadWifi flag is true based on carrier aware setting
-        assertTrue(tracker.updateAvoidBadWifi())
-        assertTrue(tracker.avoidBadWifi)
-        assertTrue(tracker.activelyPreferBadWifi)
-
-        val testSubId = 1001
-        // Mock the NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI setting to multiple carrier setting
-        Settings.Global.putString(
-            resolver,
-            NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI,
-            "$activeSubId, 0;$testSubId, 1"
-        )
-
-        // Assert that the tracker's avoidBadWifi flag is false based on carrier aware setting
-        assertTrue(tracker.updateAvoidBadWifi())
-        assertFalse(tracker.avoidBadWifi)
-        assertTrue(tracker.activelyPreferBadWifi)
-
-        // Simulate a change in the active data subscription ID to testSubId.
-        listener.onActiveDataSubscriptionIdChanged(testSubId)
-
-        // Assert that the tracker's avoidBadWifi flag is true based on carrier aware setting
-        assertTrue(tracker.avoidBadWifi)
-        assertTrue(tracker.activelyPreferBadWifi)
-
-        // Unset NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI setting,
-        // it check NETWORK_AVOID_BAD_WIFI setting for backward compatible
-        Settings.Global.putString(resolver, NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI, null)
-        // Mock the NETWORK_AVOID_BAD_WIFI setting to setting
-        Settings.Global.putString(resolver, NETWORK_AVOID_BAD_WIFI, "0")
-
-        // Assert that the tracker's avoidBadWifi flag is true based on setting
-        assertTrue(tracker.updateAvoidBadWifi())
-        assertFalse(tracker.avoidBadWifi)
-        assertTrue(tracker.activelyPreferBadWifi)
-
-        // Mock the NETWORK_AVOID_BAD_WIFI setting to setting
-        Settings.Global.putString(resolver, NETWORK_AVOID_BAD_WIFI, "1")
-
-        // Assert that the tracker's avoidBadWifi flag is true based on setting
-        assertTrue(tracker.updateAvoidBadWifi())
-        assertTrue(tracker.avoidBadWifi)
-        assertTrue(tracker.activelyPreferBadWifi)
     }
 
     @Test
