@@ -260,6 +260,8 @@ public class EthernetNetworkFactory {
 
     @VisibleForTesting
     static class NetworkInterfaceState {
+        private static final NetworkScore NETWORK_SCORE = new NetworkScore.Builder().build();
+
         private final EthernetPort mPort;
         private final EnumSet<TrackingReason> mTrackingReason;
         private final Handler mHandler;
@@ -436,10 +438,6 @@ public class EthernetNetworkFactory {
             // Should never happen as transport is always one of ETHERNET or a valid override
             throw new ConfigurationException("Network Capabilities do not have an associated "
                     + "transport type.");
-        }
-
-        private static NetworkScore getNetworkScore() {
-            return new NetworkScore.Builder().build();
         }
 
         private void setCapabilities(@NonNull final NetworkCapabilities capabilities) {
@@ -625,7 +623,7 @@ public class EthernetNetworkFactory {
             if (mNetworkOfferCallback == null) {
                 mNetworkOfferCallback = new EthernetNetworkOfferCallback();
             }
-            mNetworkProvider.registerNetworkOffer(getNetworkScore(),
+            mNetworkProvider.registerNetworkOffer(NETWORK_SCORE,
                     new NetworkCapabilities(mCapabilities), cmd -> mHandler.post(cmd),
                     mNetworkOfferCallback);
         }
