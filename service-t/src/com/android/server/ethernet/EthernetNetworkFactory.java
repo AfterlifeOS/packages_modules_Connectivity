@@ -273,7 +273,6 @@ public class EthernetNetworkFactory {
         private boolean mLinkUp;
         private int mLegacyType;
         private LinkProperties mLinkProperties = new LinkProperties();
-        private final Set<Integer> mRequestIds = new ArraySet<>();
 
         private volatile @Nullable IpClientManager mIpClient;
         private NetworkCapabilities mCapabilities;
@@ -363,6 +362,8 @@ public class EthernetNetworkFactory {
         }
 
         private class EthernetNetworkOfferCallback implements NetworkProvider.NetworkOfferCallback {
+            private final Set<Integer> mRequestIds = new ArraySet<>();
+
             private boolean isStale() {
                 return this != mNetworkOfferCallback;
             }
@@ -639,7 +640,6 @@ public class EthernetNetworkFactory {
             // as stale.
             mNetworkOfferCallback = null;
             stop();
-            mRequestIds.clear();
         }
 
         private static ProvisioningConfiguration createProvisioningConfiguration(
