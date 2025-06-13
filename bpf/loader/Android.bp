@@ -38,7 +38,10 @@ cc_binary {
         integer_overflow: true,
     },
 
-    header_libs: ["bpf_headers"],
+    header_libs: [
+        "bpf_headers",
+        "bpf_prog_mainline_headers",
+    ],
     shared_libs: [
         "libbase",
         "liblog",
