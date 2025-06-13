@@ -614,11 +614,6 @@ public class EthernetNetworkFactory {
         }
 
         private void handleOnProvisioningSuccess(@NonNull final LinkProperties linkProperties) {
-            if (mNetworkAgent != null) {
-                Log.e(TAG, "Already have a NetworkAgent - aborting new request");
-                stop();
-                return;
-            }
             mLinkProperties = linkProperties;
 
             // Create our NetworkAgent.
