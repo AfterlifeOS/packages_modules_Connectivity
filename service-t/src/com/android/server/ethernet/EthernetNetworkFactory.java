@@ -16,6 +16,15 @@
 
 package com.android.server.ethernet;
 
+import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_BANDWIDTH_CONSTRAINED;
+import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_CONGESTED;
+import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED;
+import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING;
+import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED;
+import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VCN_MANAGED;
+import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VPN;
+import static android.net.NetworkCapabilities.TRANSPORT_USB;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
@@ -261,6 +270,25 @@ public class EthernetNetworkFactory {
     @VisibleForTesting
     static class NetworkInterfaceState {
         private static final NetworkScore NETWORK_SCORE = new NetworkScore.Builder().build();
+        /**
+         * Capabilities used for local-only connectivity on NCM interfaces.
+         *
+         * Note that because a request for such a network takes precedent over any "global" network
+         * requests (and therefore breaks global connectivity on these interfaces), the network is
+         * marked restricted. Requestors need to be careful to always release the NetworkRequest
+         * after they are done using this network.
+         **/
+        private static final NetworkCapabilities LOCAL_NCM_CAPABILITIES =
+                NetworkCapabilities.Builder.withoutDefaultCapabilities()
+                        .addTransportType(TRANSPORT_USB)
+                        .addCapability(NET_CAPABILITY_NOT_BANDWIDTH_CONSTRAINED)
+                        .addCapability(NET_CAPABILITY_NOT_CONGESTED)
+                        .addCapability(NET_CAPABILITY_NOT_METERED)
+                        .addCapability(NET_CAPABILITY_NOT_ROAMING)
+                        .addCapability(NET_CAPABILITY_NOT_SUSPENDED)
+                        .addCapability(NET_CAPABILITY_NOT_VCN_MANAGED)
+                        .addCapability(NET_CAPABILITY_NOT_VPN)
+                        .build();
 
         private final EthernetPort mPort;
         private final EnumSet<TrackingReason> mTrackingReason;
@@ -268,7 +296,8 @@ public class EthernetNetworkFactory {
         private final Context mContext;
         private final NetworkProvider mNetworkProvider;
         private final Dependencies mDeps;
-        private NetworkProvider.NetworkOfferCallback mNetworkOfferCallback;
+        @Nullable private NetworkProvider.NetworkOfferCallback mNetworkOfferCallback;
+        @Nullable private NetworkProvider.NetworkOfferCallback mLocalNetworkOfferCallback;
 
         private static String sTcpBufferSizes = null;  // Lazy initialized.
 
@@ -401,6 +430,31 @@ public class EthernetNetworkFactory {
             }
         }
 
+        /**
+         * Special NetworkOffer used to provide IPv6 link-local only network connectivity on an NCM
+         * interface.
+         *
+         * Requests for this offer take precedence over requests for the "global" offer above (see
+         * {@link EthernetNetworkOfferCallback}).
+         */
+        private class LocalNetworkOfferCallback implements NetworkProvider.NetworkOfferCallback {
+            private boolean isStale() {
+                return this != mLocalNetworkOfferCallback;
+            }
+
+            @Override
+            public void onNetworkNeeded(NetworkRequest request) {
+                if (isStale()) return;
+                // TODO: implement.
+            }
+
+            @Override
+            public void onNetworkUnneeded(NetworkRequest request) {
+                if (isStale()) return;
+                // TODO: implement.
+            }
+        }
+
         NetworkInterfaceState(EthernetPort port, EnumSet<TrackingReason> trackingReason,
                 Handler handler, Context context, IpConfiguration ipConfig,
                 NetworkCapabilities capabilities, NetworkProvider networkProvider,
@@ -445,7 +499,8 @@ public class EthernetNetworkFactory {
             mLegacyType = getLegacyType(mCapabilities);
 
             if (mLinkUp) {
-                // update the existing network offer with the new capabilities.
+                // update the existing network offer with the new capabilities. Note that this only
+                // affects the global network offer.
                 registerOrUpdateNetworkOffer();
             }
         }
@@ -586,7 +641,8 @@ public class EthernetNetworkFactory {
                 // retract network offer and stop IpClient.
                 unregisterNetworkOfferAndStop();
             } else { // was down, goes up
-                // register network offer
+                // register network offers
+                maybeRegisterLocalNetworkOffer();
                 registerOrUpdateNetworkOffer();
             }
 
@@ -614,6 +670,26 @@ public class EthernetNetworkFactory {
             mLinkProperties.clear();
         }
 
+        /** Registers a local network offer iff this interface is an NCM interface. */
+        private void maybeRegisterLocalNetworkOffer() {
+            if (!mTrackingReason.contains(TrackingReason.NCM)) return;
+
+            if (mLocalNetworkOfferCallback != null) {
+                throw new IllegalStateException("Local network offer cannot be updated");
+            }
+
+            // Independent of the global offer's capabilities, NCM always uses a set of default
+            // capabilities.
+            // TODO: consider using the configured values if the NCM interface is also included
+            // in the regex. In the future, this may make it possible to condense the two offers
+            // to one. Currently, this cannot be done, because IpClient in its current state
+            // needs to know whether to attempt global provisioning when it is started.
+            mLocalNetworkOfferCallback = new LocalNetworkOfferCallback();
+            mNetworkProvider.registerNetworkOffer(NETWORK_SCORE,
+                    new NetworkCapabilities(LOCAL_NCM_CAPABILITIES), cmd -> mHandler.post(cmd),
+                    mLocalNetworkOfferCallback);
+        }
+
         /** Updates the current NetworkOffer or registers a new one if none exists */
         private void registerOrUpdateNetworkOffer() {
             // Only register "global" offer if the interface is in the regex.
@@ -631,9 +707,12 @@ public class EthernetNetworkFactory {
         private void unregisterNetworkOfferAndStop() {
             if (mNetworkOfferCallback != null) {
                 mNetworkProvider.unregisterNetworkOffer(mNetworkOfferCallback);
-                // Setting mNetworkOfferCallback to null allows the callback object to be identified
-                // as stale.
                 mNetworkOfferCallback = null;
+            }
+
+            if (mLocalNetworkOfferCallback != null) {
+                mNetworkProvider.unregisterNetworkOffer(mLocalNetworkOfferCallback);
+                mLocalNetworkOfferCallback = null;
             }
 
             stop();
