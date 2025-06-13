@@ -471,7 +471,7 @@ public class EthernetNetworkFactory {
             maybeRestart();
         }
 
-        boolean isRestricted() {
+        public boolean isRestricted() {
             return !mCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
         }
 
