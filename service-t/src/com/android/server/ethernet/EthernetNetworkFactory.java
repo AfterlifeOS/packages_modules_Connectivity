@@ -370,12 +370,9 @@ public class EthernetNetworkFactory {
 
             @Override
             public void onNetworkNeeded(@NonNull NetworkRequest request) {
-                if (isStale()) {
-                    return;
-                }
-                if (DBG) {
-                    Log.d(TAG, String.format("%s: onNetworkNeeded: %s", mPort, request));
-                }
+                if (isStale()) return;
+                if (DBG) Log.d(TAG, String.format("%s: onNetworkNeeded: %s", mPort, request));
+
                 // When the network offer is first registered, onNetworkNeeded is called with all
                 // existing requests.
                 // ConnectivityService filters requests for us based on the NetworkCapabilities
@@ -387,12 +384,9 @@ public class EthernetNetworkFactory {
 
             @Override
             public void onNetworkUnneeded(@NonNull NetworkRequest request) {
-                if (isStale()) {
-                    return;
-                }
-                if (DBG) {
-                    Log.d(TAG, String.format("%s: onNetworkUnneeded: %s", mPort, request));
-                }
+                if (isStale()) return;
+                if (DBG) Log.d(TAG, String.format("%s: onNetworkUnneeded: %s", mPort, request));
+
                 if (!mRequestIds.remove(request.requestId)) {
                     // This can only happen if onNetworkNeeded was not called for a request or if
                     // the requestId changed. Both should *never* happen.
