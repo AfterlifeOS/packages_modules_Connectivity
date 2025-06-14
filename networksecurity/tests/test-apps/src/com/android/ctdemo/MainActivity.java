@@ -70,7 +70,8 @@ public class MainActivity extends AppCompatActivity {
                     new Runnable() {
                         @Override
                         public void run() {
-                            textView.setText("Failure in " + estimatedTime + " us");
+                            textView.setText(
+                                    "Failure:" + e.getMessage() + " in " + estimatedTime + " us");
                         }
                     });
             return;
@@ -85,9 +86,11 @@ public class MainActivity extends AppCompatActivity {
                     new Runnable() {
                         @Override
                         public void run() {
-                            textView.setText("Failure in " + estimatedTime + " us");
+                            textView.setText(
+                                    "Failure: " + e.getMessage() + " in " + estimatedTime + " us");
                         }
                     });
+            return;
         }
         Trace.endAsyncSection("connectTo", myCookie);
         long estimatedTime = (System.nanoTime() - startTime) / 1000;

@@ -66,29 +66,34 @@ cc_library_headers {
 bpf {
     name: "clatd.o",
     srcs: ["clatd.c"],
+    include_dirs: ["packages/modules/Connectivity/bpf/headers/include"],
     sub_dir: "mainline",
 }
 
 bpf {
     name: "dscpPolicy.o",
     srcs: ["dscpPolicy.c"],
+    include_dirs: ["packages/modules/Connectivity/bpf/headers/include"],
     sub_dir: "mainline",
 }
 
 bpf {
     name: "netd.o",
     srcs: ["netd.c"],
+    include_dirs: ["packages/modules/Connectivity/bpf/headers/include"],
     sub_dir: "mainline",
 }
 
 bpf {
     name: "offload.o",
     srcs: ["offload.c"],
+    include_dirs: ["packages/modules/Connectivity/bpf/headers/include"],
     sub_dir: "mainline",
 }
 
 bpf {
     name: "test.o",
     srcs: ["test.c"],
+    include_dirs: ["packages/modules/Connectivity/bpf/headers/include"],
     sub_dir: "mainline",
 }
