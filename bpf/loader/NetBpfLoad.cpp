@@ -59,6 +59,7 @@
 #include <android-base/unique_fd.h>
 #include <android/api-level.h>
 
+#define BPF_SUPPORT_CMD_FIXUP
 #include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
 #include "bpf_map_def.h"
@@ -1871,7 +1872,11 @@ static int doLoad(char** argv, char * const envp[]) {
             // which causes bpfGetNextMapId to behave as bpfGetNextProgId,
             // and thus it should return 0 with errno == ENOENT.
             ALOGE("bpfGetNextMapId(final %d) returned %d errno %d", mapId, next, errno);
-            return 1;
+            if (next || errno != ENOENT) return 1;
+            if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 1;
+            // implies Android S with 4.14 or 4.19 kernel
+            ALOGW("Enabling bpfCmdFixupIsNeeded.");
+            bpfCmdFixupIsNeeded = true;
         }
     } else {  // implies S/T with 4.9 kernel
         // nothing we can do.
