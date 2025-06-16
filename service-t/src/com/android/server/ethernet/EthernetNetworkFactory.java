@@ -610,7 +610,13 @@ public class EthernetNetworkFactory {
                 mIpClient.setTcpBufferSizes(sTcpBufferSizes);
             }
 
-            mIpClient.startProvisioning(createProvisioningConfiguration(mIpConfig));
+            final ProvisioningConfiguration.Builder config = new ProvisioningConfiguration.Builder()
+                    .withProvisioningTimeoutMs(0);
+            // TODO: add ProvisioningConfiguration.Builder#withIpConfiguration
+            if (mIpConfig.getIpAssignment() == IpAssignment.STATIC) {
+                config.withStaticConfiguration(mIpConfig.getStaticIpConfiguration());
+            }
+            mIpClient.startProvisioning(config.build());
         }
 
         private void handleOnProvisioningSuccess(@NonNull final LinkProperties linkProperties) {
@@ -768,18 +774,6 @@ public class EthernetNetworkFactory {
 
             stop();
             mRequestTracker.clear();
-        }
-
-        private static ProvisioningConfiguration createProvisioningConfiguration(
-                @NonNull final IpConfiguration config) {
-            if (config.getIpAssignment() == IpAssignment.STATIC) {
-                return new ProvisioningConfiguration.Builder()
-                        .withStaticConfiguration(config.getStaticIpConfiguration())
-                        .build();
-            }
-            return new ProvisioningConfiguration.Builder()
-                        .withProvisioningTimeoutMs(0)
-                        .build();
         }
 
         void maybeRestart() {
