@@ -146,13 +146,15 @@ private const val DEFAULT_NO_EVENT_TIMEOUT = 200L // ms
  *   ) = eventuallyExpect<_, T>(timeoutMs, errorMsg, predicate)
  *
  *   inline fun <reified T : Event> assertNo(
- *     timeoutMs: Long = defaultTimeoutMs,
+ *     timeoutMs: Long = defaultNoEventTimeoutMs,
  *     errorMsg: String? = null,
  *     noinline predicate: (T) -> Boolean = { true }
  *   ) = assertNo<_, T>(timeoutMs, errorMsg, predicate)
  * }
  * ```
- *
+ * HINT : if the proxy methods above give an error ("Type checking has run into a recursive
+ * problem" or "None of the following functions can be called with the arguments supplied"),
+ * you need to add the three imports (see at the top of the example above).
  *
  * ### Explanation of proxy methods (for the curious)
  *
@@ -242,7 +244,7 @@ inline fun <E : Any, reified T : E> Expectable<E>.eventuallyExpect(
 ) = eventuallyExpect(T::class, timeoutMs, errorMsg, predicate)
 
 inline fun <E : Any, reified T : E> Expectable<E>.assertNo(
-    timeoutMs: Long = defaultTimeoutMs,
+    timeoutMs: Long = defaultNoEventTimeoutMs,
     errorMsg: String? = null,
     noinline predicate: (T) -> Boolean = { true }
 ) = assertNo(T::class, timeoutMs, errorMsg, predicate)
@@ -270,15 +272,23 @@ open class TestableCallback<E : Any>(
     ): T {
         val event = history.poll(timeoutMs)
         if (null == event) {
+            val lastReceivedCallback = history.lastOrNull()
+            val lastCallbackMsg = if (null == lastReceivedCallback) {
+                "To callback received since filed"
+            } else {
+                "Last received callback was $lastReceivedCallback"
+            }
             failWithErrorReason(
                 errorMsg,
-                "Did not receive ${type.simpleName} after ${timeoutMs}ms"
+                "Did not receive ${type.simpleName} after ${timeoutMs}ms. " +
+                        lastCallbackMsg
             )
         }
         if (!type.isInstance(event)) {
             failWithErrorReason(
                 errorMsg,
-                "Expected callback ${type.simpleName}, got $event"
+                "Expected callback ${type.simpleName}, got $event. Latest callbacks :\n" +
+                        history.prettyPrintBacktrace(before = 3)
             )
         }
         event as T
@@ -351,7 +361,7 @@ open class TestableCallback<E : Any>(
     ) = eventuallyExpect<_, T>(timeoutMs, errorMsg, predicate)
 
     inline fun <reified T : E> assertNo(
-        timeoutMs: Long = defaultTimeoutMs,
+        timeoutMs: Long = defaultNoEventTimeoutMs,
         errorMsg: String? = null,
         noinline predicate: (T) -> Boolean = { true }
     ) = assertNo<_, T>(timeoutMs, errorMsg, predicate)

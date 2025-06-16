@@ -23,6 +23,7 @@ import static android.net.NetworkCapabilities.TRANSPORT_LOWPAN;
 import static android.net.NetworkCapabilities.TRANSPORT_VPN;
 import static android.net.NetworkCapabilities.TRANSPORT_WIFI_AWARE;
 import static android.net.TestNetworkManager.TEST_TAP_PREFIX;
+import static android.system.OsConstants.ENOTSUP;
 
 import static com.android.internal.annotations.VisibleForTesting.Visibility.PACKAGE;
 import static com.android.net.module.util.netlink.NetlinkConstants.IFF_UP;
@@ -47,6 +48,7 @@ import android.os.ConditionVariable;
 import android.os.Handler;
 import android.os.RemoteCallbackList;
 import android.os.RemoteException;
+import android.system.ErrnoException;
 import android.system.Os;
 import android.system.OsConstants;
 import android.text.TextUtils;
@@ -58,6 +60,7 @@ import com.android.internal.util.IndentingPrintWriter;
 import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.HandlerUtils;
 import com.android.net.module.util.NetdUtils;
+import com.android.net.module.util.ServiceConnectivityJni;
 import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.ip.NetlinkMonitor;
 import com.android.net.module.util.netlink.NetlinkConstants;
@@ -75,6 +78,7 @@ import java.net.SocketException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.List;
@@ -107,6 +111,12 @@ public class EthernetTracker {
 
     private static final Pattern TEST_IFACE_REGEXP = Pattern.compile(TEST_TAP_PREFIX + "\\d+");
 
+    /** Pattern that identifies possible NCM host interfaces. */
+    private static final Pattern NCM_HOST_REGEXP = Pattern.compile("(usb|eth)\\d+");
+
+    /** The driver name used to identify NCM host interfaces; see drivers/net/usb/cdc_ncm.c */
+    private static final String NCM_HOST_DRIVER_NAME = "cdc_ncm";
+
     // TODO: consider using SharedLog consistently across ethernet service.
     private static final SharedLog sLog = new SharedLog(TAG);
 
@@ -128,8 +138,8 @@ public class EthernetTracker {
 
     /**
      * Interface names we track. This is a product-dependent regular expression.
-     * Use shouldTrackInterface to check if a interface name is a valid ethernet interface (this
-     * includes test interfaces if setIncludeTestInterfaces is set to true).
+     * Use getTrackingReason() to check if a interface name is a valid ethernet interface (this
+     * includes test interfaces if setIncludeTestInterfaces is set to true) and should be tracked.
      */
     private final Pattern mIfaceMatch;
 
@@ -161,7 +171,8 @@ public class EthernetTracker {
     // The first interface discovered is set as the mTetheringInterface. It is the interface that is
     // returned when a tethered interface is requested; until then, it remains in client mode. Its
     // current mode is reflected in mTetheringInterfaceMode.
-    private EthernetPort mTetheringInterface;
+    @Nullable private EthernetPort mTetheringInterface;
+    @Nullable private EnumSet<TrackingReason> mTetheringTrackingReason;
     private int mTetheringInterfaceMode = INTERFACE_MODE_CLIENT;
     // Tracks whether clients were notified that the tethered interface is available
     private boolean mTetheredInterfaceWasAvailable = false;
@@ -194,6 +205,14 @@ public class EthernetTracker {
         }
     }
 
+    /** Enum used to convey the reason an interface is tracked. */
+    public enum TrackingReason {
+        /** The interface is tracked because it is part of the regex. */
+        REGEX,
+        /** The interface is tracked because it is an NCM interface. */
+        NCM,
+    }
+
     private class EthernetNetlinkMonitor extends NetlinkMonitor {
         EthernetNetlinkMonitor(Handler handler) {
             super(handler, sLog, EthernetNetlinkMonitor.class.getSimpleName(),
@@ -223,11 +242,12 @@ public class EthernetTracker {
             sendNetlinkMessage(buf);
         }
 
-        private void onNewLink(EthernetPort port, boolean linkUp) {
+        private void onNewLink(EthernetPort port, EnumSet<TrackingReason> trackingReason,
+                boolean linkUp) {
             final String ifname = port.getInterfaceName();
             if (!mFactory.hasInterface(ifname) && !ifname.equals(mTetheringInterface)) {
                 Log.i(TAG, "onInterfaceAdded: " + port);
-                maybeTrackInterface(port);
+                maybeTrackInterface(port, trackingReason);
             }
             Log.i(TAG, "interfaceLinkStateChanged: " + port + ", up: " + linkUp);
             updateInterfaceState(port, linkUp);
@@ -254,12 +274,14 @@ public class EthernetTracker {
             final String ifname = msg.getInterfaceName();
             final EthernetPort port = new EthernetPort(ifname, mac, ifinfomsg.index);
             // check if the received message applies to an ethernet interface.
-            if (!shouldTrackInterface(port.getInterfaceName())) return;
+            // TODO: start tracking USB NCM interfaces.
+            final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
+            if (!trackingReason.contains(TrackingReason.REGEX)) return;
 
             switch (msg.getHeader().nlmsg_type) {
                 case NetlinkConstants.RTM_NEWLINK:
                     final boolean linkUp = (ifinfomsg.flags & NetlinkConstants.IFF_LOWER_UP) != 0;
-                    onNewLink(port, linkUp);
+                    onNewLink(port, trackingReason, linkUp);
                     break;
 
                 case NetlinkConstants.RTM_DELLINK:
@@ -477,9 +499,8 @@ public class EthernetTracker {
             return interfaceList;
         }
 
-        // There is a possible race with setIncludeTestInterfaces() which can affect
-        // shouldTrackInterface (it returns true for test interfaces if setIncludeTestInterfaces
-        // is set to true).
+        // There is a possible race with setIncludeTestInterfaces() which affects
+        // getTrackingReason().
         // setIncludeTestInterfaces() is only used in tests, and since getEthernetInterfaceList()
         // does not run on the handler thread, the behavior around setIncludeTestInterfaces() is
         // indeterminate either way. This can easily be circumvented by waiting on a callback from
@@ -487,7 +508,9 @@ public class EthernetTracker {
         // In production code, this has no effect.
         while (ifaces.hasMoreElements()) {
             NetworkInterface iface = ifaces.nextElement();
-            if (shouldTrackInterface(iface.getName())) interfaceList.add(iface.getName());
+            if (getTrackingReason(iface.getName()).contains(TrackingReason.REGEX)) {
+                interfaceList.add(iface.getName());
+            }
         }
         return interfaceList;
     }
@@ -532,7 +555,7 @@ public class EthernetTracker {
                 // remove all test interfaces
                 for (EthernetPort port : getAllEthernetPorts()) {
                     final String iface = port.getInterfaceName();
-                    if (shouldTrackInterface(iface)) continue;
+                    if (getTrackingReason(iface).contains(TrackingReason.REGEX)) continue;
                     stopTrackingInterface(port);
                 }
             }
@@ -608,7 +631,7 @@ public class EthernetTracker {
         mTetheringInterfaceMode = mode;
         if (mTetheringInterface != null) {
             removeInterface(mTetheringInterface);
-            addInterface(mTetheringInterface);
+            addInterface(mTetheringInterface, mTetheringTrackingReason);
             // when this broadcast is sent, any calls to notifyTetheredInterfaceAvailable or
             // notifyTetheredInterfaceUnavailable have already happened
             broadcastInterfaceStateChange(mTetheringInterface.getInterfaceName());
@@ -656,11 +679,12 @@ public class EthernetTracker {
         final String iface = port.getInterfaceName();
         if (mTetheringInterface != null && iface.equals(mTetheringInterface.getInterfaceName())) {
             mTetheringInterface = null;
+            mTetheringTrackingReason = null;
         }
         broadcastInterfaceStateChange(iface);
     }
 
-    private void addInterface(EthernetPort port) {
+    private void addInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
         final String iface = port.getInterfaceName();
         final InterfaceConfigurationParcel config;
         // Bring up the interface so we get link status indications.
@@ -697,7 +721,7 @@ public class EthernetTracker {
 
         IpConfiguration ipConfiguration = getOrCreateIpConfiguration(iface);
         Log.d(TAG, "Tracking interface in client mode: " + iface);
-        mFactory.addInterface(port, ipConfiguration, nc);
+        mFactory.addInterface(port, ipConfiguration, nc, trackingReason);
 
         // Note: if the interface already has link (e.g., if we crashed and got
         // restarted while it was running), we need to fake a link up notification so we
@@ -764,7 +788,7 @@ public class EthernetTracker {
         mTetheredInterfaceWasAvailable = available;
     }
 
-    private void maybeTrackInterface(EthernetPort port) {
+    private void maybeTrackInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
         final String iface = port.getInterfaceName();
         // If we don't already track this interface, and if this interface matches
         // our regex, start tracking it.
@@ -774,12 +798,15 @@ public class EthernetTracker {
         }
         if (DBG) Log.i(TAG, "maybeTrackInterface: " + port);
 
-        // Do not use an interface for tethering if it has configured NetworkCapabilities.
-        if (mTetheringInterface == null && !mNetworkCapabilities.containsKey(iface)) {
+        // Do not use an interface for tethering if it has configured NetworkCapabilities, or if it
+        // was not included in the regex.
+        if (mTetheringInterface == null && !mNetworkCapabilities.containsKey(iface)
+                && trackingReason.contains(TrackingReason.REGEX)) {
             mTetheringInterface = port;
+            mTetheringTrackingReason = trackingReason;
         }
 
-        addInterface(port);
+        addInterface(port, trackingReason);
 
         broadcastInterfaceStateChange(iface);
     }
@@ -828,8 +855,35 @@ public class EthernetTracker {
         return ret;
     }
 
-    private boolean shouldTrackInterface(String iface) {
-        return mIfaceMatch.matcher(iface).matches() || isValidTestInterface(iface);
+    /**
+     * Returns the reason for tracking an interface.
+     *
+     * If the returned EnumSet is empty, the interface is not tracked.
+     */
+    private EnumSet<TrackingReason> getTrackingReason(String iface) {
+        final EnumSet<TrackingReason> reasons = EnumSet.noneOf(TrackingReason.class);
+        if (mIfaceMatch.matcher(iface).matches() || isValidTestInterface(iface)) {
+            reasons.add(TrackingReason.REGEX);
+        }
+
+        // Host-side NCM interfaces are guaranteed to be named either usb%d or eth%d.
+        // Since this function is run against every interface that appears on the system, skip
+        // invoking the ethtool API if the name does match this pattern.
+        if (!NCM_HOST_REGEXP.matcher(iface).matches()) return reasons;
+
+        String driverName = null;
+        try {
+            // Note that this operation is race-y because it relies on the interface name.
+            // TODO: figure out whether udev/ueventd can fix this.
+            driverName = ServiceConnectivityJni.getDriverNameForInterface(iface);
+        } catch (ErrnoException e) {
+            if (e.errno != ENOTSUP) Log.w(TAG, "Failed to get driver name for " + iface, e);
+        }
+
+        if (NCM_HOST_DRIVER_NAME.equals(driverName)) {
+            reasons.add(TrackingReason.NCM);
+        }
+        return reasons;
     }
 
     /**
