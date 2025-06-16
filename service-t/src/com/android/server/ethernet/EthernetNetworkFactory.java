@@ -251,9 +251,21 @@ public class EthernetNetworkFactory {
         return iface.updateLinkState(up);
     }
 
-    @VisibleForTesting
-    protected boolean hasInterface(String ifaceName) {
+    /**
+     * Returns true if this interface is currently tracked by this factory.
+     *
+     * Use {@link #getTrackingReason(String)} to distinguish between interfaces that are tracked by
+     * the regex and local-only NCM interfaces.
+     */
+    public boolean hasInterface(String ifaceName) {
         return mTrackingInterfaces.containsKey(ifaceName);
+    }
+
+    /** Returns the TrackingReason or an empty EnumSet if the interface does not exist */
+    public EnumSet<TrackingReason> getTrackingReason(String ifname) {
+        final NetworkInterfaceState iface = mTrackingInterfaces.get(ifname);
+        if (iface == null) return EnumSet.noneOf(TrackingReason.class);
+        return iface.getTrackingReason();
     }
 
     @VisibleForTesting(visibility = VisibleForTesting.Visibility.PACKAGE)
@@ -525,6 +537,11 @@ public class EthernetNetworkFactory {
         /** Returns the EthernetPort object */
         public EthernetPort getPort() {
             return mPort;
+        }
+
+        /** Returns the TrackingReason */
+        public EnumSet<TrackingReason> getTrackingReason() {
+            return mTrackingReason;
         }
 
         /**
