@@ -279,7 +279,7 @@ open class TestableNetworkCallback private constructor(
     ) = eventuallyExpect<_, T>(timeoutMs, errorMsg, predicate)
 
     inline fun <reified T : Event> assertNo(
-        timeoutMs: Long = defaultTimeoutMs,
+        timeoutMs: Long = defaultNoEventTimeoutMs,
         errorMsg: String? = null,
         noinline predicate: (T) -> Boolean = { true }
     ) = assertNo<_, T>(timeoutMs, errorMsg, predicate)
