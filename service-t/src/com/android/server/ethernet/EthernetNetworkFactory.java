@@ -788,12 +788,15 @@ public class EthernetNetworkFactory {
                 return;
             }
             if (DBG) Log.d(TAG, "Restart IpClient on: " + mPort);
+
+            // Calling stop() resets the mode.
+            final Mode previousMode = mMode;
             stop();
             // Do not change the current mode when restarting the interface.
             // mIpClient.startProvisioning() in start() will yield back to the handler, so even if
             // the network does not provide global connectivity, a request for local connectivity
             // will break the restart loop.
-            start(mMode);
+            start(previousMode);
         }
 
         @Override
