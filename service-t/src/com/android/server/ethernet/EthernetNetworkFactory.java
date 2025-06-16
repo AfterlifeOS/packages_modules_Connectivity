@@ -586,6 +586,7 @@ public class EthernetNetworkFactory {
             // Ensure stop() is called an all associated resources are cleaned up before starting in
             // a (potentially) different mode.
             if (mMode != Mode.NONE) throw new IllegalStateException("Forgot to call stop()");
+            if (mode == Mode.NONE) throw new IllegalArgumentException("Can't use Mode.NONE");
             mMode = mode;
 
             if (mIpClient != null) {
