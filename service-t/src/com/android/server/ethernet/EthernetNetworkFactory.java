@@ -260,6 +260,8 @@ public class EthernetNetworkFactory {
 
     @VisibleForTesting
     static class NetworkInterfaceState {
+        private static final NetworkScore NETWORK_SCORE = new NetworkScore.Builder().build();
+
         private final EthernetPort mPort;
         private final EnumSet<TrackingReason> mTrackingReason;
         private final Handler mHandler;
@@ -438,10 +440,6 @@ public class EthernetNetworkFactory {
                     + "transport type.");
         }
 
-        private static NetworkScore getNetworkScore() {
-            return new NetworkScore.Builder().build();
-        }
-
         private void setCapabilities(@NonNull final NetworkCapabilities capabilities) {
             mCapabilities = new NetworkCapabilities(capabilities);
             mLegacyType = getLegacyType(mCapabilities);
@@ -473,7 +471,7 @@ public class EthernetNetworkFactory {
             maybeRestart();
         }
 
-        boolean isRestricted() {
+        public boolean isRestricted() {
             return !mCapabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
         }
 
@@ -618,21 +616,26 @@ public class EthernetNetworkFactory {
 
         /** Updates the current NetworkOffer or registers a new one if none exists */
         private void registerOrUpdateNetworkOffer() {
-            // If mNetworkOfferCallback is already set, it should be reused to update the existing
-            // offer.
+            // Only register "global" offer if the interface is in the regex.
+            if (!mTrackingReason.contains(TrackingReason.REGEX)) return;
+
+            // Calling registerNetworkOffer with a previously registered offer updates it.
             if (mNetworkOfferCallback == null) {
                 mNetworkOfferCallback = new EthernetNetworkOfferCallback();
             }
-            mNetworkProvider.registerNetworkOffer(getNetworkScore(),
+            mNetworkProvider.registerNetworkOffer(NETWORK_SCORE,
                     new NetworkCapabilities(mCapabilities), cmd -> mHandler.post(cmd),
                     mNetworkOfferCallback);
         }
 
         private void unregisterNetworkOfferAndStop() {
-            mNetworkProvider.unregisterNetworkOffer(mNetworkOfferCallback);
-            // Setting mNetworkOfferCallback to null allows the callback object to be identified
-            // as stale.
-            mNetworkOfferCallback = null;
+            if (mNetworkOfferCallback != null) {
+                mNetworkProvider.unregisterNetworkOffer(mNetworkOfferCallback);
+                // Setting mNetworkOfferCallback to null allows the callback object to be identified
+                // as stale.
+                mNetworkOfferCallback = null;
+            }
+
             stop();
         }
 
