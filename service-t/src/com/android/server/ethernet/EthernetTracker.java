@@ -876,8 +876,15 @@ public class EthernetTracker {
      */
     private EnumSet<TrackingReason> getTrackingReason(String iface) {
         final EnumSet<TrackingReason> reasons = EnumSet.noneOf(TrackingReason.class);
-        if (mIfaceMatch.matcher(iface).matches() || isValidTestInterface(iface)) {
+        if (mIfaceMatch.matcher(iface).matches()) {
             reasons.add(TrackingReason.REGEX);
+        }
+
+        // TODO: find a way to conditionally deduce REGEX and NCM TrackingReasons for test
+        // interfaces.
+        if (isValidTestInterface(iface)) {
+            reasons.add(TrackingReason.REGEX);
+            reasons.add(TrackingReason.NCM);
         }
 
         // Host-side NCM interfaces are guaranteed to be named either usb%d or eth%d.
