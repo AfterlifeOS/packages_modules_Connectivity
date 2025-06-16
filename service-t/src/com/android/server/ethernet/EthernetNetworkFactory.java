@@ -356,7 +356,6 @@ public class EthernetNetworkFactory {
                         // At the time IpClient is stopped, an IpClient event may have already been
                         // posted on the handler and is awaiting execution. Once that event is
                         // executed, the associated callback object may not be valid anymore.
-                        Log.i(TAG, "Ignoring stale IpClientCallbacks " + this);
                         return;
                     }
                     r.run();
@@ -407,7 +406,7 @@ public class EthernetNetworkFactory {
                 // When the network offer is first registered, onNetworkNeeded is called with all
                 // existing requests.
                 // ConnectivityService filters requests for us based on the NetworkCapabilities
-                // passed in the registerOrUpdateNetworkOffer() call.
+                // passed in the maybeRegisterOrUpdateNetworkOffer() call.
                 mRequestIds.add(request.requestId);
                 // if the network is already started, this is a no-op.
                 start();
@@ -501,7 +500,7 @@ public class EthernetNetworkFactory {
             if (mLinkUp) {
                 // update the existing network offer with the new capabilities. Note that this only
                 // affects the global network offer.
-                registerOrUpdateNetworkOffer();
+                maybeRegisterOrUpdateNetworkOffer();
             }
         }
 
@@ -643,7 +642,7 @@ public class EthernetNetworkFactory {
             } else { // was down, goes up
                 // register network offers
                 maybeRegisterLocalNetworkOffer();
-                registerOrUpdateNetworkOffer();
+                maybeRegisterOrUpdateNetworkOffer();
             }
 
             return true;
@@ -690,8 +689,8 @@ public class EthernetNetworkFactory {
                     mLocalNetworkOfferCallback);
         }
 
-        /** Updates the current NetworkOffer or registers a new one if none exists */
-        private void registerOrUpdateNetworkOffer() {
+        /** Iff the regex includes this interface, registers or updates the global NetworkOffer. */
+        private void maybeRegisterOrUpdateNetworkOffer() {
             // Only register "global" offer if the interface is in the regex.
             if (!mTrackingReason.contains(TrackingReason.REGEX)) return;
 
