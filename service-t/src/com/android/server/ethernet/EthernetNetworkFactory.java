@@ -598,24 +598,35 @@ public class EthernetNetworkFactory {
             mDeps.makeIpClient(mContext, mPort.getInterfaceName(), mIpClientCallback);
             mIpClientCallback.awaitIpClientStart();
 
-            if (mIpConfig.getProxySettings() == ProxySettings.STATIC
-                    || mIpConfig.getProxySettings() == ProxySettings.PAC) {
-                mIpClient.setHttpProxy(mIpConfig.getHttpProxy());
-            }
+            // Ethernet-specific settings are only applied in global mode.
+            if (mMode == Mode.GLOBAL) {
+                if (mIpConfig.getProxySettings() == ProxySettings.STATIC
+                        || mIpConfig.getProxySettings() == ProxySettings.PAC) {
+                    mIpClient.setHttpProxy(mIpConfig.getHttpProxy());
+                }
 
-            if (sTcpBufferSizes == null) {
-                sTcpBufferSizes = mDeps.getTcpBufferSizesFromResource(mContext);
-            }
-            if (!TextUtils.isEmpty(sTcpBufferSizes)) {
-                mIpClient.setTcpBufferSizes(sTcpBufferSizes);
+                if (sTcpBufferSizes == null) {
+                    sTcpBufferSizes = mDeps.getTcpBufferSizesFromResource(mContext);
+                }
+                if (!TextUtils.isEmpty(sTcpBufferSizes)) {
+                    mIpClient.setTcpBufferSizes(sTcpBufferSizes);
+                }
             }
 
             final ProvisioningConfiguration.Builder config = new ProvisioningConfiguration.Builder()
                     .withProvisioningTimeoutMs(0);
-            // TODO: add ProvisioningConfiguration.Builder#withIpConfiguration
-            if (mIpConfig.getIpAssignment() == IpAssignment.STATIC) {
+
+            if (mMode == Mode.GLOBAL && mIpConfig.getIpAssignment() == IpAssignment.STATIC) {
+                // TODO: add ProvisioningConfiguration.Builder#withIpConfiguration
                 config.withStaticConfiguration(mIpConfig.getStaticIpConfiguration());
             }
+
+            // Local mode is IPv6 link-local only.
+            if (mMode == Mode.LOCAL) {
+                config.withoutIPv4();
+                config.withIpv6LinkLocalOnly();
+            }
+
             mIpClient.startProvisioning(config.build());
         }
 
