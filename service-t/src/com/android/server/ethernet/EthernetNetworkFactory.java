@@ -50,9 +50,11 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.net.module.util.InterfaceParams;
 import com.android.server.connectivity.ConnectivityResources;
+import com.android.server.ethernet.EthernetTracker.TrackingReason;
 
 import java.io.FileDescriptor;
 import java.util.ArrayList;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -159,7 +161,7 @@ public class EthernetNetworkFactory {
 
     /** Add an interface to the factory. */
     public void addInterface(EthernetPort port, IpConfiguration ipConfig,
-            NetworkCapabilities capabilities) {
+            NetworkCapabilities capabilities, EnumSet<TrackingReason> trackingReason) {
         final String ifaceName = port.getInterfaceName();
         final String hwAddress = port.getMacAddress().toString();
 
@@ -177,7 +179,7 @@ public class EthernetNetworkFactory {
         }
 
         final NetworkInterfaceState iface = new NetworkInterfaceState(
-                port, mHandler, mContext, ipConfig, nc, mProvider, mDeps);
+                port, trackingReason, mHandler, mContext, ipConfig, nc, mProvider, mDeps);
         mTrackingInterfaces.put(ifaceName, iface);
     }
 
@@ -259,6 +261,7 @@ public class EthernetNetworkFactory {
     @VisibleForTesting
     static class NetworkInterfaceState {
         private final EthernetPort mPort;
+        private final EnumSet<TrackingReason> mTrackingReason;
         private final Handler mHandler;
         private final Context mContext;
         private final NetworkProvider mNetworkProvider;
@@ -270,7 +273,6 @@ public class EthernetNetworkFactory {
         private boolean mLinkUp;
         private int mLegacyType;
         private LinkProperties mLinkProperties = new LinkProperties();
-        private final Set<Integer> mRequestIds = new ArraySet<>();
 
         private volatile @Nullable IpClientManager mIpClient;
         private NetworkCapabilities mCapabilities;
@@ -360,22 +362,21 @@ public class EthernetNetworkFactory {
         }
 
         private class EthernetNetworkOfferCallback implements NetworkProvider.NetworkOfferCallback {
+            private final Set<Integer> mRequestIds = new ArraySet<>();
+
             private boolean isStale() {
                 return this != mNetworkOfferCallback;
             }
 
             @Override
             public void onNetworkNeeded(@NonNull NetworkRequest request) {
-                if (isStale()) {
-                    return;
-                }
-                if (DBG) {
-                    Log.d(TAG, String.format("%s: onNetworkNeeded: %s", mPort, request));
-                }
+                if (isStale()) return;
+                if (DBG) Log.d(TAG, String.format("%s: onNetworkNeeded: %s", mPort, request));
+
                 // When the network offer is first registered, onNetworkNeeded is called with all
                 // existing requests.
                 // ConnectivityService filters requests for us based on the NetworkCapabilities
-                // passed in the registerNetworkOffer() call.
+                // passed in the registerOrUpdateNetworkOffer() call.
                 mRequestIds.add(request.requestId);
                 // if the network is already started, this is a no-op.
                 start();
@@ -383,12 +384,9 @@ public class EthernetNetworkFactory {
 
             @Override
             public void onNetworkUnneeded(@NonNull NetworkRequest request) {
-                if (isStale()) {
-                    return;
-                }
-                if (DBG) {
-                    Log.d(TAG, String.format("%s: onNetworkUnneeded: %s", mPort, request));
-                }
+                if (isStale()) return;
+                if (DBG) Log.d(TAG, String.format("%s: onNetworkUnneeded: %s", mPort, request));
+
                 if (!mRequestIds.remove(request.requestId)) {
                     // This can only happen if onNetworkNeeded was not called for a request or if
                     // the requestId changed. Both should *never* happen.
@@ -401,10 +399,12 @@ public class EthernetNetworkFactory {
             }
         }
 
-        NetworkInterfaceState(EthernetPort port, Handler handler, Context context,
-                @NonNull IpConfiguration ipConfig, @NonNull NetworkCapabilities capabilities,
-                NetworkProvider networkProvider, Dependencies deps) {
+        NetworkInterfaceState(EthernetPort port, EnumSet<TrackingReason> trackingReason,
+                Handler handler, Context context, IpConfiguration ipConfig,
+                NetworkCapabilities capabilities, NetworkProvider networkProvider,
+                Dependencies deps) {
             mPort = port;
+            mTrackingReason = trackingReason;
             mIpConfig = Objects.requireNonNull(ipConfig);
             mCapabilities = Objects.requireNonNull(capabilities);
             mLegacyType = getLegacyType(mCapabilities);
@@ -447,9 +447,8 @@ public class EthernetNetworkFactory {
             mLegacyType = getLegacyType(mCapabilities);
 
             if (mLinkUp) {
-                // registering a new network offer will update the existing one, not install a
-                // new one.
-                registerNetworkOffer();
+                // update the existing network offer with the new capabilities.
+                registerOrUpdateNetworkOffer();
             }
         }
 
@@ -590,7 +589,7 @@ public class EthernetNetworkFactory {
                 unregisterNetworkOfferAndStop();
             } else { // was down, goes up
                 // register network offer
-                registerNetworkOffer();
+                registerOrUpdateNetworkOffer();
             }
 
             return true;
@@ -617,7 +616,8 @@ public class EthernetNetworkFactory {
             mLinkProperties.clear();
         }
 
-        private void registerNetworkOffer() {
+        /** Updates the current NetworkOffer or registers a new one if none exists */
+        private void registerOrUpdateNetworkOffer() {
             // If mNetworkOfferCallback is already set, it should be reused to update the existing
             // offer.
             if (mNetworkOfferCallback == null) {
@@ -634,7 +634,6 @@ public class EthernetNetworkFactory {
             // as stale.
             mNetworkOfferCallback = null;
             stop();
-            mRequestIds.clear();
         }
 
         private static ProvisioningConfiguration createProvisioningConfiguration(
