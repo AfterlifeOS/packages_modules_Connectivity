@@ -633,14 +633,23 @@ public class EthernetNetworkFactory {
         private void handleOnProvisioningSuccess(@NonNull final LinkProperties linkProperties) {
             mLinkProperties = linkProperties;
 
-            // Create our NetworkAgent.
-            final NetworkAgentConfig config = new NetworkAgentConfig.Builder()
-                    .setLegacyType(mLegacyType)
-                    .setLegacyTypeName(NETWORK_TYPE)
-                    .setLegacyExtraInfo(mPort.getMacAddress().toString())
-                    .build();
+            final NetworkAgentConfig networkAgentConfig;
+            final NetworkCapabilities capabilities;
+            if (mMode == Mode.GLOBAL) {
+                // Only configure legacy config options for global mode.
+                networkAgentConfig = new NetworkAgentConfig.Builder()
+                        .setLegacyType(mLegacyType)
+                        .setLegacyTypeName(NETWORK_TYPE)
+                        .setLegacyExtraInfo(mPort.getMacAddress().toString())
+                        .build();
+                capabilities = mCapabilities;
+            } else {
+                networkAgentConfig = new NetworkAgentConfig.Builder().build();
+                capabilities = LOCAL_NCM_CAPABILITIES;
+            }
+
             mNetworkAgent = mDeps.makeEthernetNetworkAgent(mContext, mHandler.getLooper(),
-                    mCapabilities, mLinkProperties, config, mNetworkProvider,
+                    capabilities, mLinkProperties, networkAgentConfig, mNetworkProvider,
                     new EthernetNetworkAgent.Callbacks() {
                         @Override
                         public void onNetworkUnwanted() {
