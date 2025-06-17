@@ -321,6 +321,7 @@ public class EthernetNetworkFactory {
         private NetworkCapabilities mCapabilities;
         private @Nullable EthernetIpClientCallback mIpClientCallback;
         private @Nullable EthernetNetworkAgent mNetworkAgent;
+        private @Nullable EthernetNetworkAgent.Callbacks mNetworkAgentCallback;
         private IpConfiguration mIpConfig;
 
         /**
@@ -412,6 +413,18 @@ public class EthernetNetworkFactory {
             public void onQuit() {
                 mIpClient = null;
                 mIpClientShutdownCv.open();
+            }
+        }
+
+        private class EthernetNetworkAgentCallback implements EthernetNetworkAgent.Callbacks {
+            private boolean isStale() {
+                return this != mNetworkAgentCallback;
+            }
+
+            @Override
+            public void onNetworkUnwanted() {
+                if (isStale()) return;
+                stop();
             }
         }
 
@@ -668,22 +681,10 @@ public class EthernetNetworkFactory {
                 capabilities = LOCAL_NCM_CAPABILITIES;
             }
 
+            mNetworkAgentCallback = new EthernetNetworkAgentCallback();
             mNetworkAgent = mDeps.makeEthernetNetworkAgent(mContext, mHandler.getLooper(),
                     capabilities, mLinkProperties, networkAgentConfig, mNetworkProvider,
-                    new EthernetNetworkAgent.Callbacks() {
-                        @Override
-                        public void onNetworkUnwanted() {
-                            // if mNetworkAgent is null, we have already called stop.
-                            if (mNetworkAgent == null) return;
-
-                            if (this == mNetworkAgent.getCallbacks()) {
-                                stop();
-                            } else {
-                                Log.d(TAG, "Ignoring unwanted as we have a more modern " +
-                                        "instance");
-                            }
-                        }
-                    });
+                    mNetworkAgentCallback);
             mNetworkAgent.register();
             mNetworkAgent.markConnected();
         }
@@ -761,6 +762,7 @@ public class EthernetNetworkFactory {
                 mIpClient = null;
             }
 
+            mNetworkAgentCallback = null;
             mIpClientCallback = null;
             mMode = Mode.NONE;
 
