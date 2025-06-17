@@ -449,7 +449,7 @@ public class EthernetNetworkFactory {
 
             // If the interface is already stopped, stop() is a noop.
             stop();
-            start(newMode);
+            if (newMode != Mode.NONE) start(newMode);
         }
 
         private class EthernetNetworkOfferCallback implements NetworkProvider.NetworkOfferCallback {
