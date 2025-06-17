@@ -69,11 +69,11 @@ public class MdnsDiscoveryManagerTests {
     private static final Network NETWORK_2 = Mockito.mock(Network.class);
     private static final int INTERFACE_INDEX_NULL_NETWORK = 123;
     private static final SocketKey SOCKET_KEY_NULL_NETWORK =
-            new SocketKey(null /* network */, INTERFACE_INDEX_NULL_NETWORK);
+            new SocketKey(INTERFACE_INDEX_NULL_NETWORK, "interface");
     private static final SocketKey SOCKET_KEY_NETWORK_1 =
-            new SocketKey(NETWORK_1, 998 /* interfaceIndex */);
+            new SocketKey(NETWORK_1, 998 /* interfaceIndex */, "interface1");
     private static final SocketKey SOCKET_KEY_NETWORK_2 =
-            new SocketKey(NETWORK_2, 997 /* interfaceIndex */);
+            new SocketKey(NETWORK_2, 997 /* interfaceIndex */, "interface2");
     private static final Pair<String, SocketKey> PER_SOCKET_SERVICE_TYPE_1_NULL_NETWORK =
             Pair.create(SERVICE_TYPE_1, SOCKET_KEY_NULL_NETWORK);
     private static final Pair<String, SocketKey> PER_SOCKET_SERVICE_TYPE_2_NULL_NETWORK =
@@ -404,9 +404,10 @@ public class MdnsDiscoveryManagerTests {
 
         final SocketCreationCallback callback = expectSocketCreationCallback(
                 SERVICE_TYPE_1, mockListenerOne, searchOptions);
-        final SocketKey unusedIfaceKey = new SocketKey(null, INTERFACE_INDEX_NULL_NETWORK + 1);
-        final SocketKey matchingIfaceWithNetworkKey =
-                new SocketKey(Mockito.mock(Network.class), INTERFACE_INDEX_NULL_NETWORK);
+        final SocketKey unusedIfaceKey = new SocketKey(
+                INTERFACE_INDEX_NULL_NETWORK + 1,  "interfaceOther");
+        final SocketKey matchingIfaceWithNetworkKey = new SocketKey(
+                Mockito.mock(Network.class), INTERFACE_INDEX_NULL_NETWORK, "interface");
         runOnHandler(() -> {
             callback.onSocketCreated(unusedIfaceKey);
             callback.onSocketCreated(matchingIfaceWithNetworkKey);
