@@ -60,6 +60,7 @@ static const set<string> PLATFORM_ONLY_IN_R = {
 
 // Provided by *current* mainline module for S+ devices
 static const set<string> MAINLINE_FOR_S_PLUS = {
+    TETHERING "map_kernel_bugs",
     TETHERING "map_offload_tether_dev_map",
     TETHERING "map_offload_tether_downstream4_map",
     TETHERING "map_offload_tether_downstream64_map",
