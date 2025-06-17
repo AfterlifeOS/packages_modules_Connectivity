@@ -539,7 +539,8 @@ public class MdnsSocketProvider {
             final List<LinkAddress> addresses = lp.getLinkAddresses();
             final Network network =
                     networkKey == LOCAL_NET ? null : ((NetworkAsKey) networkKey).mNetwork;
-            final SocketKey socketKey = new SocketKey(network, networkInterface.getIndex());
+            final SocketKey socketKey = new SocketKey(
+                    network, networkInterface.getIndex(), networkInterface.getName());
             // TODO: technically transport types are mutable, although generally not in ways that
             // would meaningfully impact the logic using it here. Consider updating logic to
             // support transports being added/removed.

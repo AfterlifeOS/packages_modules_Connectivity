@@ -11830,6 +11830,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
 
         forEachNetworkAgentInfo(nai -> {
+            if (nai.isDestroyed()) return; // return@forEachNetworkAgentInfo
             ArraySet<UidRange> allowedUidRanges = new ArraySet<>();
             for (final UserHandle user : users) {
                 final ArraySet<UidRange> restrictedUidRanges =

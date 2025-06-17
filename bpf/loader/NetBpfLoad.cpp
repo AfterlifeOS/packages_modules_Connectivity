@@ -59,6 +59,7 @@
 #include <android-base/unique_fd.h>
 #include <android/api-level.h>
 
+#define BPF_SUPPORT_CMD_FIXUP
 #include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
 #include "bpf_map_def.h"
@@ -1871,7 +1872,11 @@ static int doLoad(char** argv, char * const envp[]) {
             // which causes bpfGetNextMapId to behave as bpfGetNextProgId,
             // and thus it should return 0 with errno == ENOENT.
             ALOGE("bpfGetNextMapId(final %d) returned %d errno %d", mapId, next, errno);
-            return 1;
+            if (next || errno != ENOENT) return 1;
+            if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 1;
+            // implies Android S with 4.14 or 4.19 kernel
+            ALOGW("Enabling bpfCmdFixupIsNeeded.");
+            bpfCmdFixupIsNeeded = true;
         }
     } else {  // implies S/T with 4.9 kernel
         // nothing we can do.
@@ -1905,13 +1910,30 @@ static int doLoad(char** argv, char * const envp[]) {
         return 2;
     }
 
-    int key = 1;
-    int value = 123;
-    unique_fd map(
-            createMap(BPF_MAP_TYPE_ARRAY, sizeof(key), sizeof(value), 2, 0));
-    if (writeToMapEntry(map, &key, &value, BPF_ANY)) {
-        ALOGE("Critical kernel bug - failure to write into index 1 of 2 element bpf map array.");
-        if (isAtLeastT) return 1;
+    {
+        // Create a trivial bpf map: a two element array [int->int]
+        unique_fd map(createMap(BPF_MAP_TYPE_ARRAY, sizeof(int), sizeof(int), 2, 0));
+
+        int zero = 0;
+        int kernel_bugs = bpfCmdFixupIsNeeded;
+        if (writeToMapEntry(map, &zero, &kernel_bugs, BPF_ANY)) {
+            ALOGE("Failure to write into index 0 of kernel bugs array.");
+            return 1;
+        }
+
+        int one = 1;
+        int value = 123;
+        if (writeToMapEntry(map, &one, &value, BPF_ANY)) {
+            ALOGE("Critical kernel bug - failure to write into index 1 of 2 element bpf map array.");
+            if (isAtLeastT) return 1;
+        }
+
+        int ret = bpfFdPin(map, "/sys/fs/bpf/tethering/map_kernel_bugs");
+        if (ret) {
+            const int err = errno;
+            ALOGE("pin -> %d [%d:%s]", ret, err, strerror(err));
+            return -err;
+        }
     }
 
     // leave a flag that we're done

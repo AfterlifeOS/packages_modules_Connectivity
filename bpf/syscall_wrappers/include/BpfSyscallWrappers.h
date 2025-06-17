@@ -34,18 +34,28 @@ inline uint64_t ptr_to_u64(const void * const x) {
     return (uint64_t)(uintptr_t)x;
 }
 
+#ifdef BPF_SUPPORT_CMD_FIXUP
+static bool bpfCmdFixupIsNeeded = false;
+#else
+static constexpr bool bpfCmdFixupIsNeeded = false;
+#endif
+
+inline long bpfCmdFixup(enum bpf_cmd cmd) {
+    return cmd + (cmd >= BPF_PROG_TEST_RUN && bpfCmdFixupIsNeeded);
+}
+
 /* Note: bpf_attr is a union which might have a much larger size then the anonymous struct portion
  * of it that we are using.  The kernel's bpf() system call will perform a strict check to ensure
  * all unused portions are zero.  It will fail with E2BIG if we don't fully zero bpf_attr.
  */
 
 inline int bpf(enum bpf_cmd cmd, const bpf_attr& attr) {
-    return syscall(__NR_bpf, cmd, &attr, sizeof(attr));
+    return syscall(__NR_bpf, bpfCmdFixup(cmd), &attr, sizeof(attr));
 }
 
 // this version is meant for use with cmd's which mutate the argument
 inline int bpf(enum bpf_cmd cmd, bpf_attr *attr) {
-    return syscall(__NR_bpf, cmd, attr, sizeof(*attr));
+    return syscall(__NR_bpf, bpfCmdFixup(cmd), attr, sizeof(*attr));
 }
 
 inline int createMap(bpf_map_type map_type, uint32_t key_size, uint32_t value_size,

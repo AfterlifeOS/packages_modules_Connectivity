@@ -16,6 +16,7 @@
 
 package com.android.server.connectivity.mdns;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.net.Network;
 
@@ -33,14 +34,21 @@ public class SocketKey {
     @Nullable
     private final Network mNetwork;
     private final int mInterfaceIndex;
+    /**
+     * The interface name is only for offload interface comparison and isn't used for equality or
+     * hashing, which could lead to a behavior change.
+     */
+    @NonNull
+    private final String mInterfaceName;
 
-    SocketKey(int interfaceIndex) {
-        this(null /* network */, interfaceIndex);
+    SocketKey(int interfaceIndex, @NonNull String interfaceName) {
+        this(null /* network */, interfaceIndex, interfaceName);
     }
 
-    SocketKey(@Nullable Network network, int interfaceIndex) {
+    SocketKey(@Nullable Network network, int interfaceIndex, @NonNull String interfaceName) {
         mNetwork = network;
         mInterfaceIndex = interfaceIndex;
+        mInterfaceName = interfaceName;
     }
 
     @Nullable
@@ -50,6 +58,11 @@ public class SocketKey {
 
     public int getInterfaceIndex() {
         return mInterfaceIndex;
+    }
+
+    @NonNull
+    public String getInterfaceName() {
+        return mInterfaceName;
     }
 
     @Override
@@ -68,6 +81,8 @@ public class SocketKey {
 
     @Override
     public String toString() {
-        return "SocketKey{ network=" + mNetwork + " interfaceIndex=" + mInterfaceIndex + " }";
+        return "SocketKey{ network=" + mNetwork
+                + " interfaceIndex=" + mInterfaceIndex
+                + " interfaceName=" + mInterfaceName + " }";
     }
 }
