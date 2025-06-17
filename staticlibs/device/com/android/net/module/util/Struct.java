@@ -123,8 +123,8 @@ public class Struct {
         EUI48,       // IEEE Extended Unique Identifier, a 48-bits long MAC address in network order
         Ipv4Address, // IPv4 address in network order
         Ipv6Address, // IPv6 address in network order
-        IpAddress,   // IP address in network order. IPv4 address is written to byte format as 
-                     // v4-mapped-v6 address. IpAddress should be used over Ipv6Address when 
+        IpAddress,   // IP address in network order. IPv4 address is written to byte format as
+                     // v4-mapped-v6 address. IpAddress should be used over Ipv6Address when
                      // the field wants to contain both v4 and v6 addresses.
     }
 
@@ -552,9 +552,11 @@ public class Struct {
                 output.put(address);
                 break;
             case IpAddress:
-                InetAddress inetAddress = (InetAddress) value;
-                if (inetAddress instanceof Inet4Address) {
+                final InetAddress inetAddress;
+                if (value instanceof Inet4Address) {
                     inetAddress = InetAddressUtils.v4MappedV6Address((Inet4Address) value);
+                } else {
+                    inetAddress = (InetAddress) value;
                 }
                 output.put(inetAddress.getAddress());
                 break;
