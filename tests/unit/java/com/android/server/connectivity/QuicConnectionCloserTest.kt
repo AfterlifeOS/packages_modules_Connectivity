@@ -47,11 +47,14 @@ import org.mockito.Mockito.eq
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
+import org.mockito.Mockito.timeout
 import org.mockito.Mockito.verify
 
 private const val TEST_UID = 1234
 private const val TEST_NETID = 789
 private const val TEST_SOCKET_COOKIE = 12321L
+private const val TIMEOUT_MS = 1000L
+private const val SHORT_TIMEOUT_MS = 100L
 
 // TODO: Use OsConstants.SO_MARK once this API is available
 private const val SO_MARK = 36
@@ -104,14 +107,17 @@ class QuicConnectionCloserTest {
             TEST_SOCKET_COOKIE
     )
 
-    private fun InOrder.assertNoDestroyUdpSocket() = verify(mDeps, never()).destroyUdpSocket(
+    private fun InOrder.assertNoDestroyUdpSocket(timeout: Long = 0L) = verify(
+        mDeps,
+        timeout(timeout).times(0)
+    ).destroyUdpSocket(
             any(),
             any(),
             anyLong()
     )
 
-    private fun InOrder.expectSendQuicConnectionClosePayload() =
-            verify(mDeps).sendQuicConnectionClosePayload(
+    private fun InOrder.expectSendQuicConnectionClosePayload(timeout: Long = 0L) =
+            verify(mDeps, timeout(timeout)).sendQuicConnectionClosePayload(
                     TEST_NETWORK,
                     TEST_SRC_SOCKET_ADDRESS,
                     TEST_DST_SOCKET_ADDRESS,
@@ -207,8 +213,9 @@ class QuicConnectionCloserTest {
 
         val inOrder = inOrder(mDeps)
         // DestroyUdpSocket is not called since the socket is already closed
-        inOrder.assertNoDestroyUdpSocket()
-        inOrder.expectSendQuicConnectionClosePayload()
+        // SkDestroyListenerCallback posts to handler thread, so a short timeout is set.
+        inOrder.assertNoDestroyUdpSocket(SHORT_TIMEOUT_MS)
+        inOrder.expectSendQuicConnectionClosePayload(TIMEOUT_MS)
     }
 
     @Test
@@ -226,7 +233,8 @@ class QuicConnectionCloserTest {
         getSkDestroyListenerCallback().accept(inetDiagMessage)
 
         val inOrder = inOrder(mDeps)
-        inOrder.assertNoDestroyUdpSocket()
+        // SkDestroyListenerCallback posts to handler thread, so a short timeout is set.
+        inOrder.assertNoDestroyUdpSocket(SHORT_TIMEOUT_MS)
         inOrder.assertNoSendQuicConnectionClosePayload()
     }
 }
