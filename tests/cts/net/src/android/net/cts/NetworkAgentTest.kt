@@ -135,6 +135,7 @@ import com.android.testutils.TestableNetworkCallback.Event.Lost
 import com.android.testutils.assertThrows
 import com.android.testutils.com.android.testutils.CarrierConfigRule
 import com.android.testutils.runAsShell
+import com.android.testutils.tryTest
 import com.android.testutils.waitForIdle
 import java.io.Closeable
 import java.io.IOException
@@ -753,82 +754,84 @@ class NetworkAgentTest {
             defaultSubId != SubscriptionManager.INVALID_SUBSCRIPTION_ID,
             "getDefaultSubscriptionId returns INVALID_SUBSCRIPTION_ID"
         )
-        // This process is not the carrier service UID, so allowedUids should be ignored in all
-        // the following cases.
-        doTestAllowedUidsWithSubId(
-            defaultSubId,
-            TRANSPORT_CELLULAR,
-            uid,
-            expectUidsPresent = false
-        )
-        doTestAllowedUidsWithSubId(
-            defaultSubId,
-            TRANSPORT_WIFI,
-            uid,
-            expectUidsPresent = false
-        )
-        doTestAllowedUidsWithSubId(
-            defaultSubId,
-            TRANSPORT_BLUETOOTH,
-            uid,
-            expectUidsPresent = false
-        )
+        tryTest {
+            // This process is not the carrier service UID, so allowedUids should be ignored in all
+            // the following cases.
+            doTestAllowedUidsWithSubId(
+                defaultSubId,
+                TRANSPORT_CELLULAR,
+                uid,
+                    expectUidsPresent = false
+            )
+            doTestAllowedUidsWithSubId(
+                defaultSubId,
+                TRANSPORT_WIFI,
+                uid,
+                    expectUidsPresent = false
+            )
+            doTestAllowedUidsWithSubId(
+                defaultSubId,
+                TRANSPORT_BLUETOOTH,
+                uid,
+                    expectUidsPresent = false
+            )
 
-        // The tools to set the carrier service package override do not exist before U QPR1,
-        // so there is no way to test the rest of this test on < U.
-        if (!carrierConfigRule.isSettingCarrierServicePackageSupported()) return
-        // Acquiring carrier privilege is necessary to override the carrier service package.
-        val defaultSlotIndex = SubscriptionManager.getSlotIndex(defaultSubId)
-        carrierConfigRule.acquireCarrierPrivilege(defaultSubId)
-        carrierConfigRule.setCarrierServicePackageOverride(defaultSubId, servicePackage)
-        val actualServicePackage: String? = runAsShell(READ_PRIVILEGED_PHONE_STATE) {
-            tm.getCarrierServicePackageNameForLogicalSlot(defaultSlotIndex)
-        }
-        assertEquals(servicePackage, actualServicePackage)
+            // The tools to set the carrier service package override do not exist before U QPR1,
+            // so there is no way to test the rest of this test on < U.
+            if (!carrierConfigRule.isSettingCarrierServicePackageSupported()) return@tryTest
+            // Acquiring carrier privilege is necessary to override the carrier service package.
+            val defaultSlotIndex = SubscriptionManager.getSlotIndex(defaultSubId)
+            carrierConfigRule.acquireCarrierPrivilege(defaultSubId)
+            carrierConfigRule.setCarrierServicePackageOverride(defaultSubId, servicePackage)
+            val actualServicePackage: String? = runAsShell(READ_PRIVILEGED_PHONE_STATE) {
+                tm.getCarrierServicePackageNameForLogicalSlot(defaultSlotIndex)
+            }
+            assertEquals(servicePackage, actualServicePackage)
 
-        // Wait for CarrierServiceAuthenticator to have seen the update of the service package
-        val timeout = SystemClock.elapsedRealtime() + DEFAULT_TIMEOUT_MS
-        while (true) {
-            if (SystemClock.elapsedRealtime() > timeout) {
-                fail(
-                    "Couldn't make $servicePackage the service package for $defaultSubId: " +
+            // Wait for CarrierServiceAuthenticator to have seen the update of the service package
+            val timeout = SystemClock.elapsedRealtime() + DEFAULT_TIMEOUT_MS
+            while (true) {
+                if (SystemClock.elapsedRealtime() > timeout) {
+                    fail(
+                        "Couldn't make $servicePackage the service package for $defaultSubId: " +
                             "dumpsys connectivity".execute().split("\n")
-                                .filter { it.contains("Logical slot = $defaultSlotIndex.*") }
-                )
+                                    .filter { it.contains("Logical slot = $defaultSlotIndex.*") }
+                    )
+                }
+                if ("dumpsys connectivity"
+                        .execute()
+                        .split("\n")
+                        .filter { it.contains("Logical slot = $defaultSlotIndex : uid = $uid") }
+                        .isNotEmpty()) {
+                    // Found the configuration
+                    break
+                }
+                Thread.sleep(500)
             }
-            if ("dumpsys connectivity"
-                    .execute()
-                    .split("\n")
-                    .filter { it.contains("Logical slot = $defaultSlotIndex : uid = $uid") }
-                    .isNotEmpty()) {
-                // Found the configuration
-                break
-            }
-            Thread.sleep(500)
-        }
 
-        // Cell and WiFi are allowed to set UIDs, but not Bluetooth or agents with multiple
-        // transports.
-        // TODO(b/315136340): Allow ownerUid to see allowedUids and enable below test case
-        // doTestAllowedUids(defaultSubId, TRANSPORT_CELLULAR, uid, expectUidsPresent = true)
-        if (SdkLevel.isAtLeastV()) {
-            // Cannot be tested before V because WifiInfo.Builder#setSubscriptionId doesn't
-            // exist
+            // Cell and WiFi are allowed to set UIDs, but not Bluetooth or agents with multiple
+            // transports.
             // TODO(b/315136340): Allow ownerUid to see allowedUids and enable below test case
-            // doTestAllowedUids(defaultSubId, TRANSPORT_WIFI, uid, expectUidsPresent = true)
+            // doTestAllowedUids(defaultSubId, TRANSPORT_CELLULAR, uid, expectUidsPresent = true)
+            if (SdkLevel.isAtLeastV()) {
+                // Cannot be tested before V because WifiInfo.Builder#setSubscriptionId doesn't
+                // exist
+                // TODO(b/315136340): Allow ownerUid to see allowedUids and enable below test case
+                // doTestAllowedUids(defaultSubId, TRANSPORT_WIFI, uid, expectUidsPresent = true)
+            }
+            doTestAllowedUidsWithSubId(
+                defaultSubId,
+                TRANSPORT_BLUETOOTH,
+                uid,
+                    expectUidsPresent = false
+            )
+            doTestAllowedUidsWithSubId(
+                defaultSubId,
+                intArrayOf(TRANSPORT_CELLULAR, TRANSPORT_WIFI),
+                    uid,
+                expectUidsPresent = false
+            )
         }
-        doTestAllowedUidsWithSubId(
-            defaultSubId,
-            TRANSPORT_BLUETOOTH,
-            uid,
-            expectUidsPresent = false
-        )
-        doTestAllowedUidsWithSubId(
-            defaultSubId,
-            intArrayOf(TRANSPORT_CELLULAR, TRANSPORT_WIFI),
-            uid,
-            expectUidsPresent = false
-        )
     }
 
     @Test
