@@ -288,6 +288,9 @@ public class EthernetTracker {
                     onDelLink(port);
                     break;
 
+                case NetlinkConstants.NLMSG_DONE:
+                    // do nothing.
+                    break;
                 default:
                     Log.e(TAG, "Unknown rtnetlink link msg type: " + msg);
                     break;
