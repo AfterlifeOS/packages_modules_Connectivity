@@ -449,7 +449,7 @@ public class EthernetNetworkFactory {
 
             // If the interface is already stopped, stop() is a noop.
             stop();
-            start(newMode);
+            if (newMode != Mode.NONE) start(newMode);
         }
 
         private class EthernetNetworkOfferCallback implements NetworkProvider.NetworkOfferCallback {
@@ -598,32 +598,58 @@ public class EthernetNetworkFactory {
             mDeps.makeIpClient(mContext, mPort.getInterfaceName(), mIpClientCallback);
             mIpClientCallback.awaitIpClientStart();
 
-            if (mIpConfig.getProxySettings() == ProxySettings.STATIC
-                    || mIpConfig.getProxySettings() == ProxySettings.PAC) {
-                mIpClient.setHttpProxy(mIpConfig.getHttpProxy());
+            // Ethernet-specific settings are only applied in global mode.
+            if (mMode == Mode.GLOBAL) {
+                if (mIpConfig.getProxySettings() == ProxySettings.STATIC
+                        || mIpConfig.getProxySettings() == ProxySettings.PAC) {
+                    mIpClient.setHttpProxy(mIpConfig.getHttpProxy());
+                }
+
+                if (sTcpBufferSizes == null) {
+                    sTcpBufferSizes = mDeps.getTcpBufferSizesFromResource(mContext);
+                }
+                if (!TextUtils.isEmpty(sTcpBufferSizes)) {
+                    mIpClient.setTcpBufferSizes(sTcpBufferSizes);
+                }
             }
 
-            if (sTcpBufferSizes == null) {
-                sTcpBufferSizes = mDeps.getTcpBufferSizesFromResource(mContext);
-            }
-            if (!TextUtils.isEmpty(sTcpBufferSizes)) {
-                mIpClient.setTcpBufferSizes(sTcpBufferSizes);
+            final ProvisioningConfiguration.Builder config = new ProvisioningConfiguration.Builder()
+                    .withProvisioningTimeoutMs(0);
+
+            if (mMode == Mode.GLOBAL && mIpConfig.getIpAssignment() == IpAssignment.STATIC) {
+                // TODO: add ProvisioningConfiguration.Builder#withIpConfiguration
+                config.withStaticConfiguration(mIpConfig.getStaticIpConfiguration());
             }
 
-            mIpClient.startProvisioning(createProvisioningConfiguration(mIpConfig));
+            // Local mode is IPv6 link-local only.
+            if (mMode == Mode.LOCAL) {
+                config.withoutIPv4();
+                config.withIpv6LinkLocalOnly();
+            }
+
+            mIpClient.startProvisioning(config.build());
         }
 
         private void handleOnProvisioningSuccess(@NonNull final LinkProperties linkProperties) {
             mLinkProperties = linkProperties;
 
-            // Create our NetworkAgent.
-            final NetworkAgentConfig config = new NetworkAgentConfig.Builder()
-                    .setLegacyType(mLegacyType)
-                    .setLegacyTypeName(NETWORK_TYPE)
-                    .setLegacyExtraInfo(mPort.getMacAddress().toString())
-                    .build();
+            final NetworkAgentConfig networkAgentConfig;
+            final NetworkCapabilities capabilities;
+            if (mMode == Mode.GLOBAL) {
+                // Only configure legacy config options for global mode.
+                networkAgentConfig = new NetworkAgentConfig.Builder()
+                        .setLegacyType(mLegacyType)
+                        .setLegacyTypeName(NETWORK_TYPE)
+                        .setLegacyExtraInfo(mPort.getMacAddress().toString())
+                        .build();
+                capabilities = mCapabilities;
+            } else {
+                networkAgentConfig = new NetworkAgentConfig.Builder().build();
+                capabilities = LOCAL_NCM_CAPABILITIES;
+            }
+
             mNetworkAgent = mDeps.makeEthernetNetworkAgent(mContext, mHandler.getLooper(),
-                    mCapabilities, mLinkProperties, config, mNetworkProvider,
+                    capabilities, mLinkProperties, networkAgentConfig, mNetworkProvider,
                     new EthernetNetworkAgent.Callbacks() {
                         @Override
                         public void onNetworkUnwanted() {
@@ -770,30 +796,21 @@ public class EthernetNetworkFactory {
             mRequestTracker.clear();
         }
 
-        private static ProvisioningConfiguration createProvisioningConfiguration(
-                @NonNull final IpConfiguration config) {
-            if (config.getIpAssignment() == IpAssignment.STATIC) {
-                return new ProvisioningConfiguration.Builder()
-                        .withStaticConfiguration(config.getStaticIpConfiguration())
-                        .build();
-            }
-            return new ProvisioningConfiguration.Builder()
-                        .withProvisioningTimeoutMs(0)
-                        .build();
-        }
-
         void maybeRestart() {
             if (mIpClient == null) {
                 Log.i(TAG, String.format("maybeRestart() called on stopped interface %s", mPort));
                 return;
             }
             if (DBG) Log.d(TAG, "Restart IpClient on: " + mPort);
+
+            // Calling stop() resets the mode.
+            final Mode previousMode = mMode;
             stop();
             // Do not change the current mode when restarting the interface.
             // mIpClient.startProvisioning() in start() will yield back to the handler, so even if
             // the network does not provide global connectivity, a request for local connectivity
             // will break the restart loop.
-            start(mMode);
+            start(previousMode);
         }
 
         @Override
