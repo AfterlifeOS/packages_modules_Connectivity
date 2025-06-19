@@ -254,7 +254,7 @@ public class EthernetTracker {
                 // TODO: start tracking USB NCM interfaces.
                 final String ifname = port.getInterfaceName();
                 final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
-                if (!trackingReason.contains(TrackingReason.REGEX)) return;
+                if (trackingReason.isEmpty()) return;
 
                 Log.i(TAG, "onInterfaceAdded: " + port + " for reason: " + trackingReason);
                 maybeTrackInterface(port, trackingReason);
@@ -876,8 +876,15 @@ public class EthernetTracker {
      */
     private EnumSet<TrackingReason> getTrackingReason(String iface) {
         final EnumSet<TrackingReason> reasons = EnumSet.noneOf(TrackingReason.class);
-        if (mIfaceMatch.matcher(iface).matches() || isValidTestInterface(iface)) {
+        if (mIfaceMatch.matcher(iface).matches()) {
             reasons.add(TrackingReason.REGEX);
+        }
+
+        // TODO: find a way to conditionally deduce REGEX and NCM TrackingReasons for test
+        // interfaces.
+        if (isValidTestInterface(iface)) {
+            reasons.add(TrackingReason.REGEX);
+            reasons.add(TrackingReason.NCM);
         }
 
         // Host-side NCM interfaces are guaranteed to be named either usb%d or eth%d.
