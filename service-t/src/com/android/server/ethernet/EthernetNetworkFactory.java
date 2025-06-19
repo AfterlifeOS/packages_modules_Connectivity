@@ -495,13 +495,15 @@ public class EthernetNetworkFactory {
             @Override
             public void onNetworkNeeded(NetworkRequest request) {
                 if (isStale()) return;
-                // TODO: implement.
+                mRequestTracker.addRequest(request, RequestTracker.RequestType.LOCAL);
+                onRequestTrackerUpdate();
             }
 
             @Override
             public void onNetworkUnneeded(NetworkRequest request) {
                 if (isStale()) return;
-                // TODO: implement.
+                mRequestTracker.removeRequest(request, RequestTracker.RequestType.LOCAL);
+                onRequestTrackerUpdate();
             }
         }
 
