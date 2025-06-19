@@ -37,7 +37,6 @@ import android.telephony.TelephonyManager
 import android.test.mock.MockContentResolver
 import androidx.test.filters.SmallTest
 import com.android.connectivity.resources.R
-import com.android.internal.os.BackgroundThread
 import com.android.internal.util.test.FakeSettingsProvider
 import com.android.modules.utils.build.SdkLevel
 import com.android.server.connectivity.MultinetworkPolicyTracker.ActiveDataSubscriptionIdListener
@@ -45,7 +44,6 @@ import com.android.testutils.DevSdkIgnoreRule
 import com.android.testutils.DevSdkIgnoreRunner
 import com.android.testutils.com.android.testutils.SetFeatureFlagsRule
 import com.android.testutils.com.android.testutils.SetFeatureFlagsRule.FeatureFlag
-import com.android.testutils.postAndWait
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -84,27 +82,6 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         @Parameterized.Parameters
         @JvmStatic
         fun data() = listOf(false, true)
-    }
-
-    // This wrapper class prevents JUnit from attempting to load unsupported system classes
-    // that are present in the System Test (S/T) image, which would otherwise cause test failures.
-    private class CarrierConfigChangeRunner(
-        val csLooper: TestLooper,
-        val bgHandler: Handler,
-        val listener: CarrierConfigManager.CarrierConfigChangeListener
-    ) {
-
-        fun runCarrierConfigChangeOnBackgroundThread(subId: Int) {
-            bgHandler.postAndWait {
-                    listener.onCarrierConfigChanged(
-                        0, /* logicalSlotIndex */
-                        subId, /* subscriptionId */
-                        0, /* carrierId */
-                        0 /* specificCarrierId */
-                    )
-                }
-                csLooper.dispatchNext()
-        }
     }
 
     private val featureFlags = HashSet<String>()
@@ -157,7 +134,6 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
     }
     private val csLooper = TestLooper()
     private val handler = Handler(csLooper.looper)
-    private val bgHandler = BackgroundThread.getHandler()
     private val trackerDependencies =
         MultinetworkPolicyTrackerTestDependencies(resources)
 
@@ -226,7 +202,6 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         doReturn(carrierConfigManager).`when`(context)
             .getSystemService(CarrierConfigManager::class.java)
 
-        trackerDependencies.setBackgroundThreadHandler(bgHandler)
         tracker = MultinetworkPolicyTracker(
             context,
             handler,
@@ -416,10 +391,14 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         // dispatch for the first carrier config initialization on the handler thread
         csLooper.dispatchAll()
 
-        val runner = CarrierConfigChangeRunner(csLooper, bgHandler, carrierConfiglistener)
         // Simulate a carrier configuration change for the initial activeSubId (1000),
         // with avoid bad Wi-Fi set to false.
-        runner.runCarrierConfigChangeOnBackgroundThread(activeSubId)
+        carrierConfiglistener.onCarrierConfigChanged(
+            0, /* logicalSlotIndex */
+            activeSubId, /* subscriptionId */
+            0, /* carrierId */
+            0 /* specificCarrierId */
+        )
 
         // Assert that the tracker's avoidBadWifi flag is false after the carrier config change.
         assertFalse(tracker.avoidBadWifi)
@@ -429,7 +408,12 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         trackerDependencies.setAvoidBadWifiCarrierConfigForSubId(activeSubId, true)
         // Simulate another carrier configuration change for the same activeSubId (1000),
         // now with avoid bad Wi-Fi set to true.
-        runner.runCarrierConfigChangeOnBackgroundThread(activeSubId)
+        carrierConfiglistener.onCarrierConfigChanged(
+            0, /* logicalSlotIndex */
+            activeSubId, /* subscriptionId */
+            0, /* carrierId */
+            0 /* specificCarrierId */
+        )
 
         // Assert that the tracker's avoidBadWifi flag is now true.
         assertTrue(tracker.avoidBadWifi)
@@ -439,7 +423,12 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         // Mock the carrier configuration to return false
         trackerDependencies.setAvoidBadWifiCarrierConfigForSubId(changedActiveSubId, false)
         // Simulate a carrier configuration change for a different subscription ID.
-        runner.runCarrierConfigChangeOnBackgroundThread(changedActiveSubId)
+        carrierConfiglistener.onCarrierConfigChanged(
+            0, /* logicalSlotIndex */
+            changedActiveSubId, /* subscriptionId */
+            0, /* carrierId */
+            0 /* specificCarrierId */
+        )
 
         // Assert that the tracker's avoidBadWifi flag remains true,
         // because the config change was for a non-active subscription.
