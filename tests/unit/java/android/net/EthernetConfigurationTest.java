@@ -101,21 +101,38 @@ public class EthernetConfigurationTest {
         EthernetConfiguration config = new EthernetConfiguration.Builder()
                         .setIpConfiguration(mIpConfiguration1)
                         .setNetworkCapabilities(mNetworkCapabilities)
+                        .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                         .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                         .build();
         assertIpConfigurationEqual(config.getIpConfiguration(), mIpConfiguration1);
         assertNetworkCapabilitiesEqual(config.getNetworkCapabilities(), mNetworkCapabilities);
+        assertEquals(config.getMeteredOverride(),
+                EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED);
         assertEquals(config.getPersistence(), EthernetConfiguration.PERSISTENCE_NOT_PERSISTED);
     }
     @Test
     public void testBuilderPersisted() {
         EthernetConfiguration config = new EthernetConfiguration.Builder()
                 .setIpConfiguration(mIpConfiguration1)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_IS_PERSISTED)
                 .build();
         assertIpConfigurationEqual(config.getIpConfiguration(), mIpConfiguration1);
         assertNetworkCapabilitiesEqual(config.getNetworkCapabilities(), null);
+        assertEquals(config.getMeteredOverride(),
+                EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED);
         assertEquals(config.getPersistence(), EthernetConfiguration.PERSISTENCE_IS_PERSISTED);
+    }
+
+    @Test
+    public void testConstructorMeteredOverrideNotSet() {
+        EthernetConfiguration config = new EthernetConfiguration.Builder()
+                .setIpConfiguration(mIpConfiguration1)
+                .setNetworkCapabilities(mNetworkCapabilities)
+                .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
+                .build();
+        assertEquals(config.getMeteredOverride(),
+                EthernetConfiguration.METERED_OVERRIDE_NONE);
     }
 
     @Test
@@ -123,6 +140,7 @@ public class EthernetConfigurationTest {
         EthernetConfiguration config = new EthernetConfiguration.Builder()
                         .setIpConfiguration(mIpConfiguration1)
                         .setNetworkCapabilities(mNetworkCapabilities)
+                        .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                         .build();
         assertEquals(config.getPersistence(), EthernetConfiguration.PERSISTENCE_NOT_PERSISTED);
     }
@@ -132,6 +150,7 @@ public class EthernetConfigurationTest {
         EthernetConfiguration config = new EthernetConfiguration.Builder()
                 .setIpConfiguration(null)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                 .build();
         assertNull(config.getIpConfiguration());
@@ -144,6 +163,7 @@ public class EthernetConfigurationTest {
                 () -> new EthernetConfiguration.Builder()
                         .setIpConfiguration(mIpConfiguration1)
                         .setNetworkCapabilities(mNetworkCapabilities)
+                        .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                         .setPersistence(EthernetConfiguration.PERSISTENCE_IS_PERSISTED)
                         .build());
     }
@@ -154,6 +174,7 @@ public class EthernetConfigurationTest {
                         + "both null, cannot construct an empty EthernetConfiguration.",
                 IllegalArgumentException.class,
                 () -> new EthernetConfiguration.Builder()
+                        .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                         .setPersistence(EthernetConfiguration.PERSISTENCE_IS_PERSISTED)
                         .build());
     }
@@ -163,6 +184,7 @@ public class EthernetConfigurationTest {
         EthernetConfiguration config = new EthernetConfiguration.Builder()
                         .setIpConfiguration(mIpConfiguration1)
                         .setNetworkCapabilities(mNetworkCapabilities)
+                        .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                         .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                         .build();
         int hash1 = config.hashCode();
@@ -175,11 +197,13 @@ public class EthernetConfigurationTest {
         EthernetConfiguration config1 = new EthernetConfiguration.Builder()
                 .setIpConfiguration(mIpConfiguration1)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                 .build();
         EthernetConfiguration config2 = new EthernetConfiguration.Builder()
                 .setIpConfiguration(mIpConfiguration2)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                 .build();
         int hash1 = config1.hashCode();
@@ -192,11 +216,13 @@ public class EthernetConfigurationTest {
         EthernetConfiguration config1 = new EthernetConfiguration.Builder()
                 .setIpConfiguration(mIpConfiguration1)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                 .build();
         EthernetConfiguration config2 = new EthernetConfiguration.Builder()
                 .setIpConfiguration(mIpConfiguration1)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                 .build();
         int hash1 = config1.hashCode();
@@ -209,6 +235,7 @@ public class EthernetConfigurationTest {
         EthernetConfiguration config = new EthernetConfiguration.Builder()
                 .setIpConfiguration(mIpConfiguration1)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                 .build();
         String expect;
@@ -222,7 +249,7 @@ public class EthernetConfigurationTest {
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: NOT_RESTRICTED"
                     + "&TRUSTED&NOT_VPN&NOT_BANDWIDTH_CONSTRAINED UnderlyingNetworks: Null]"
-                    + ", Is persisted: 0";
+                    + ", Metered override: 1, Is persisted: 0";
         } else {
             expect = "IP configurations: IP assignment: STATIC\n"
                     + "Static configuration: IP address 192.168.1.100/25 Gateway 192.168.1.1 "
@@ -230,7 +257,8 @@ public class EthernetConfigurationTest {
                     + "Proxy settings: PAC\n"
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: NOT_RESTRICTED"
-                    + "&TRUSTED&NOT_VPN UnderlyingNetworks: Null], Is persisted: 0";
+                    + "&TRUSTED&NOT_VPN UnderlyingNetworks: Null], Metered override: 1, Is "
+                    + "persisted: 0";
         }
         assertEquals(config.toString(), expect);
     }
@@ -240,6 +268,7 @@ public class EthernetConfigurationTest {
         EthernetConfiguration config = new EthernetConfiguration.Builder()
                 .setIpConfiguration(mIpConfiguration1)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED)
                 .build();
         assertParcelingIsLossless(config);

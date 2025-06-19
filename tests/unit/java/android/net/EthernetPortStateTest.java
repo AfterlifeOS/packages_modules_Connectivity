@@ -86,9 +86,11 @@ public class EthernetPortStateTest {
                 .build();
         mConfig1 = new EthernetConfiguration.Builder().setIpConfiguration(ipConfig1)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED).build();
         mConfig2 = new EthernetConfiguration.Builder().setIpConfiguration(ipConfig2)
                 .setNetworkCapabilities(mNetworkCapabilities)
+                .setMeteredOverride(EthernetConfiguration.METERED_OVERRIDE_FORCE_METERED)
                 .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED).build();
 
         mEthernetPortState1 = new EthernetPortState(
@@ -225,7 +227,7 @@ public class EthernetPortStateTest {
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: "
                     + "NOT_RESTRICTED&TRUSTED&NOT_VPN&NOT_BANDWIDTH_CONSTRAINED "
-                    + "UnderlyingNetworks: Null], Is persisted: 0,"
+                    + "UnderlyingNetworks: Null], Metered override: 1, Is persisted: 0,"
                     + " Interface name:eth0, MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
         } else {
             expect = "Role:1, State:2, Configurations: IP configurations: "
@@ -236,7 +238,7 @@ public class EthernetPortStateTest {
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: "
                     + "NOT_RESTRICTED&TRUSTED&NOT_VPN UnderlyingNetworks: Nu"
-                    + "ll], Is persisted: 0, Interface name:eth0, "
+                    + "ll], Metered override: 1, Is persisted: 0, Interface name:eth0, "
                     + "MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
         }
         assertEquals(mEthernetPortState1.toString(), expect);
