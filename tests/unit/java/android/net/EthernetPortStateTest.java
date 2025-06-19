@@ -40,7 +40,7 @@ import java.util.ArrayList;
 @SmallTest
 @IgnoreUpTo(Build.VERSION_CODES.S_V2)
 @RunWith(DevSdkIgnoreRunner.class)
-public class EthernetPortInfoTest {
+public class EthernetPortStateTest {
     private final String mTestInterfaceName1 = "eth0";
     private final MacAddress mTestMacAddress1 = MacAddress.fromString("0A:1B:2C:3D:4E:5F");
     private final int mTestInterfaceIndex1 = 1;
@@ -52,8 +52,8 @@ public class EthernetPortInfoTest {
     private EthernetConfiguration mConfig1;
     private EthernetConfiguration mConfig2;
     private NetworkCapabilities mNetworkCapabilities;
-    private EthernetPortInfo mEthernetPortInfo1;
-    private EthernetPortInfo mEthernetPortInfo2;
+    private EthernetPortState mEthernetPortState1;
+    private EthernetPortState mEthernetPortState2;
 
     @Before
     public void setUp() {
@@ -87,17 +87,17 @@ public class EthernetPortInfoTest {
         mConfig1 = new EthernetConfiguration(ipConfig1, mNetworkCapabilities);
         mConfig2 = new EthernetConfiguration(ipConfig2, mNetworkCapabilities);
 
-        mEthernetPortInfo1 = new EthernetPortInfo(
+        mEthernetPortState1 = new EthernetPortState(
                 mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
                 EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP);
-        mEthernetPortInfo2 = new EthernetPortInfo(
+        mEthernetPortState2 = new EthernetPortState(
                 mTestInterfaceName2, mTestMacAddress2, mTestInterfaceIndex2, mConfig2,
                 EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP);
     }
 
     @Test
     public void testConstructor() {
-        EthernetPortInfo portInfo = new EthernetPortInfo(
+        EthernetPortState portInfo = new EthernetPortState(
                 mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
                 EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP);
         assertEquals(portInfo.getInterfaceName(), mTestInterfaceName1);
@@ -115,7 +115,7 @@ public class EthernetPortInfoTest {
         assertThrows("All of interface name, MAC address and interface"
                         + " index need to be valid.",
                 IllegalArgumentException.class,
-                () -> new EthernetPortInfo(
+                () -> new EthernetPortState(
                         null, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
                         EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP));
     }
@@ -125,7 +125,7 @@ public class EthernetPortInfoTest {
         assertThrows("All of interface name, MAC address and interface"
                         + " index need to be valid.",
                 IllegalArgumentException.class,
-                () -> new EthernetPortInfo(
+                () -> new EthernetPortState(
                         "", mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
                         EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP));
     }
@@ -135,7 +135,7 @@ public class EthernetPortInfoTest {
         assertThrows("All of interface name, MAC address and interface"
                         + " index need to be valid.",
                 IllegalArgumentException.class,
-                () -> new EthernetPortInfo(
+                () -> new EthernetPortState(
                         mTestInterfaceName1, null, mTestInterfaceIndex1, mConfig1,
                         EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP));
     }
@@ -145,7 +145,7 @@ public class EthernetPortInfoTest {
         assertThrows("All of interface name, MAC address and interface"
                         + " index need to be valid.",
                 IllegalArgumentException.class,
-                () -> new EthernetPortInfo(
+                () -> new EthernetPortState(
                         mTestInterfaceName1, mTestMacAddress1, 0, mConfig1,
                         EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP));
     }
@@ -153,7 +153,7 @@ public class EthernetPortInfoTest {
     @Test
     public void testConstructorWithNullConfig() {
         assertThrows(NullPointerException.class,
-                () -> new EthernetPortInfo(
+                () -> new EthernetPortState(
                         mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, null,
                         EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP));
     }
@@ -164,7 +164,7 @@ public class EthernetPortInfoTest {
                         + "{EthernetManager.ROLE_SERVER, EthernetManager.ROLE_CLIENT, "
                         + "EthernetManager.ROLE_NONE}.",
                 IllegalArgumentException.class,
-                () -> new EthernetPortInfo(
+                () -> new EthernetPortState(
                         mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
                         -1, EthernetManager.STATE_LINK_UP));
     }
@@ -175,31 +175,31 @@ public class EthernetPortInfoTest {
                         + "{EthernetManager.STATE_ABSENT, EthernetManager.STATE_LINK_DOWN, "
                         + "EthernetManager.STATE_LINK_UP}.",
                 IllegalArgumentException.class,
-                () -> new EthernetPortInfo(
+                () -> new EthernetPortState(
                 mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
                 EthernetManager.ROLE_CLIENT, -1));
     }
 
     @Test
     public void testHashCodeConsistency() {
-        int hash1 = mEthernetPortInfo1.hashCode();
-        int hash2 = mEthernetPortInfo1.hashCode();
+        int hash1 = mEthernetPortState1.hashCode();
+        int hash2 = mEthernetPortState1.hashCode();
         assertEquals(hash1, hash2);
     }
 
     @Test
     public void testHashCodeOfDifferentConfig() {
-        int hash1 = mEthernetPortInfo1.hashCode();
-        int hash2 = mEthernetPortInfo2.hashCode();
+        int hash1 = mEthernetPortState1.hashCode();
+        int hash2 = mEthernetPortState2.hashCode();
         assertNotEquals(hash1, hash2);
     }
 
     @Test
     public void testHashCodeOfTheSameConfig() {
-        EthernetPortInfo portInfo1 = new EthernetPortInfo(
+        EthernetPortState portInfo1 = new EthernetPortState(
                 mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
                 EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP);
-        EthernetPortInfo portInfo2 = new EthernetPortInfo(
+        EthernetPortState portInfo2 = new EthernetPortState(
                 mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
                 EthernetManager.ROLE_CLIENT, EthernetManager.STATE_LINK_UP);
         int hash1 = portInfo1.hashCode();
@@ -235,11 +235,11 @@ public class EthernetPortInfoTest {
                     + "ll], Interface name:eth0, MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
 
         }
-        assertEquals(mEthernetPortInfo1.toString(), expect);
+        assertEquals(mEthernetPortState1.toString(), expect);
     }
 
     @Test
     public void testParcel() {
-        assertParcelingIsLossless(mEthernetPortInfo1);
+        assertParcelingIsLossless(mEthernetPortState1);
     }
 }

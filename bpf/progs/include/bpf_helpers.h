@@ -6,46 +6,6 @@
 
 #include "bpf_map_def.h"
 
-/******************************************************************************
- * WARNING: CHANGES TO THIS FILE OUTSIDE OF AOSP/MAIN ARE LIKELY TO BREAK     *
- * DEVICE COMPATIBILITY WITH MAINLINE MODULES SHIPPING EBPF CODE.             *
- *                                                                            *
- * THIS WILL LIKELY RESULT IN BRICKED DEVICES AT SOME ARBITRARY FUTURE TIME   *
- *                                                                            *
- * THAT GOES ESPECIALLY FOR THE 'SECTION' 'LICENSE' AND 'CRITICAL' MACROS     *
- *                                                                            *
- * We strongly suggest that if you need changes to bpfloader functionality    *
- * you get your changes reviewed and accepted into aosp/master.               *
- *                                                                            *
- ******************************************************************************/
-
-// The actual versions of the bpfloader that shipped in various Android releases
-
-// Android P/Q/R: BpfLoader was initially part of netd,
-// this was later split out into a standalone binary, but was unversioned.
-
-// Android S / 12 (api level 31) - added 'tethering' mainline eBPF support
-#define BPFLOADER_S_VERSION 2u
-
-// Android T / 13 (api level 33) - support for shared/selinux_context/pindir
-#define BPFLOADER_T_VERSION 19u
-
-// BpfLoader v0.25+ support obj@ver.o files
-#define BPFLOADER_OBJ_AT_VER_VERSION 25u
-
-// Bpfloader v0.33+ supports {map,prog}.ignore_on_{eng,user,userdebug}
-#define BPFLOADER_IGNORED_ON_VERSION 33u
-
-// Android U / 14 (api level 34) - various new program types added
-#define BPFLOADER_U_VERSION 38u
-
-// Android U QPR2 / 14 (api level 34) - platform only
-// (note: the platform bpfloader in V isn't really versioned at all,
-//  as there is no need as it can only load objects compiled at the
-//  same time as itself and the rest of the platform)
-#define BPFLOADER_U_QPR2_VERSION 41u
-#define BPFLOADER_PLATFORM_VERSION BPFLOADER_U_QPR2_VERSION
-
 // Android Mainline BpfLoader when running on Android S (sdk=31)
 // Note: this value (and the following +1u's) are hardcoded in NetBpfLoad.cpp
 #define BPFLOADER_MAINLINE_S_VERSION 42u
@@ -86,7 +46,7 @@
  * In which case it's just best to use the default.
  */
 #ifndef BPFLOADER_MIN_VER
-#define BPFLOADER_MIN_VER BPFLOADER_PLATFORM_VERSION  // inclusive, ie. >=
+#define BPFLOADER_MIN_VER NEED_TO_DEFINE_BPFLOADER_MIN_VER  // inclusive, ie. >=
 #endif
 
 #ifndef BPFLOADER_MAX_VER
@@ -114,25 +74,13 @@
  *
  * If missing, bpfloader_{min/max}_ver default to 0/0x10000 ie. [v0.0, v1.0),
  * while size_of_bpf_{map/prog}_def default to 32/20 which are the v0.0 sizes.
- *
- * This macro also disables loading BTF map debug information, as versions
- * of the platform bpfloader that support BTF require fork-exec of btfloader
- * which causes a regression in boot time.
  */
 #define LICENSE(NAME)                                                                              \
     unsigned int _bpfloader_min_ver SECTION("bpfloader_min_ver") = BPFLOADER_MIN_VER;              \
     unsigned int _bpfloader_max_ver SECTION("bpfloader_max_ver") = BPFLOADER_MAX_VER;              \
     size_t _size_of_bpf_map_def SECTION("size_of_bpf_map_def") = sizeof(struct bpf_map_def);       \
     size_t _size_of_bpf_prog_def SECTION("size_of_bpf_prog_def") = sizeof(struct bpf_prog_def);    \
-    unsigned _btf_min_bpfloader_ver SECTION("btf_min_bpfloader_ver") = BPFLOADER_MAINLINE_S_VERSION; \
-    unsigned _btf_user_min_bpfloader_ver SECTION("btf_user_min_bpfloader_ver") = 0xFFFFFFFFu;      \
     char _license[] SECTION("license") = (NAME)
-
-/* flag the resulting bpf .o file as critical to system functionality,
- * loading all kernel version appropriate programs in it must succeed
- * for bpfloader success
- */
-#define CRITICAL(REASON) char _critical[] SECTION("critical") = (REASON)
 
 // Helpers for writing kernel version specific bpf programs
 

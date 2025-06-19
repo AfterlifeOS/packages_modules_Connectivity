@@ -25,23 +25,6 @@
 // Pull in AID_* constants from //system/core/libcutils/include/private/android_filesystem_config.h
 #include <cutils/android_filesystem_config.h>
 
-/******************************************************************************
- *                                                                            *
- *                          ! ! ! W A R N I N G ! ! !                         *
- *                                                                            *
- * CHANGES TO THESE STRUCTURE DEFINITIONS OUTSIDE OF AOSP/MAIN *WILL* BREAK   *
- * MAINLINE MODULE COMPATIBILITY                                              *
- *                                                                            *
- * AND THUS MAY RESULT IN YOUR DEVICE BRICKING AT SOME ARBITRARY POINT IN     *
- * THE FUTURE                                                                 *
- *                                                                            *
- * (and even in aosp/master you may only append new fields at the very end,   *
- *  you may *never* delete fields, change their types, ordering, insert in    *
- *  the middle, etc.  If a mainline module using the old definition has       *
- *  already shipped (which happens roughly monthly), then it's set in stone)  *
- *                                                                            *
- ******************************************************************************/
-
 /*
  * The bpf_{map,prog}_def structures are compiled for different architectures.
  * Once by the BPF compiler for the BPF architecture, and once by a C++
@@ -50,8 +33,8 @@
  * For things to work, their layout must be the same between the two.
  * The BPF architecture is platform independent ('64-bit LSB bpf').
  * So this effectively means these structures must be the same layout
- * on 5 architectures, all of them little endian:
- *   64-bit BPF, x86_64, arm  and  32-bit x86 and arm
+ * on 6 architectures, all of them little endian:
+ *   64-bit BPF, x86_64, arm, riscv  and  32-bit x86 and arm
  *
  * As such for any types we use inside of these structs we must make sure that
  * the size and alignment are the same, so the same amount of padding is used.
@@ -127,10 +110,6 @@ struct optional_bool { bool optional; };
 
 // Length of strings (incl. selinux_context and pin_subdir)
 // in the bpf_map_def and bpf_prog_def structs.
-//
-// WARNING: YOU CANNOT *EVER* CHANGE THESE
-// as this would affect the structure size in backwards incompatible ways
-// and break mainline module loading on older Android T devices
 #define BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE 32
 #define BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE 32
 
@@ -161,21 +140,14 @@ struct bpf_map_def {
     unsigned int gid;   // gid_t
     unsigned int mode;  // mode_t
 
-    // The following fields were added in version 0.1
-    unsigned int bpfloader_min_ver;  // if missing, defaults to 0, ie. v0.0
-    unsigned int bpfloader_max_ver;  // if missing, defaults to 0x10000, ie. v1.0
+    unsigned int bpfloader_min_ver;
+    unsigned int bpfloader_max_ver;
 
-    // The following fields were added in version 0.2 (S)
     // kernelVersion() must be >= min_kver and < max_kver
     unsigned int min_kver;
     unsigned int max_kver;
 
-    // The following fields were added in version 0.18 (T)
-    //
     // These are fixed length strings, padded with null bytes
-    //
-    // Warning: supported values depend on .o location
-    // (additionally a newer Android OS and/or bpfloader may support more values)
     //
     // overrides default selinux context (which is based on pin subdir)
     char selinux_context[BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE];
@@ -190,10 +162,8 @@ struct bpf_map_def {
     unsigned int uid;   // uid_t
 };
 
-_Static_assert(sizeof(((struct bpf_map_def *)0)->selinux_context) == 32, "must be 32 bytes");
-_Static_assert(sizeof(((struct bpf_map_def *)0)->pin_subdir) == 32, "must be 32 bytes");
-
 // This needs to be updated whenever the above structure definition is expanded.
+// These asserts are here to make sure we have cross-6-arch consistency.
 _Static_assert(sizeof(struct bpf_map_def) == 120, "sizeof struct bpf_map_def != 120");
 _Static_assert(__alignof__(struct bpf_map_def) == 4, "__alignof__ struct bpf_map_def != 4");
 _Static_assert(_Alignof(struct bpf_map_def) == 4, "_Alignof struct bpf_map_def != 4");
@@ -210,19 +180,15 @@ struct bpf_prog_def {
 
     char pad0[3];  // manually pad up to 4 byte alignment, may be used for extensions in the future
 
-    // The following fields were added in version 0.1
-    unsigned int bpfloader_min_ver;  // if missing, defaults to 0, ie. v0.0
-    unsigned int bpfloader_max_ver;  // if missing, defaults to 0x10000, ie. v1.0
+    unsigned int bpfloader_min_ver;
+    unsigned int bpfloader_max_ver;
 
-    // The following fields were added in version 0.18, see description up above in bpf_map_def
     char selinux_context[BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE];
     char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
 };
 
-_Static_assert(sizeof(((struct bpf_prog_def *)0)->selinux_context) == 32, "must be 32 bytes");
-_Static_assert(sizeof(((struct bpf_prog_def *)0)->pin_subdir) == 32, "must be 32 bytes");
-
 // This needs to be updated whenever the above structure definition is expanded.
+// These asserts are here to make sure we have cross-6-arch consistency.
 _Static_assert(sizeof(struct bpf_prog_def) == 92, "sizeof struct bpf_prog_def != 92");
 _Static_assert(__alignof__(struct bpf_prog_def) == 4, "__alignof__ struct bpf_prog_def != 4");
 _Static_assert(_Alignof(struct bpf_prog_def) == 4, "_Alignof struct bpf_prog_def != 4");

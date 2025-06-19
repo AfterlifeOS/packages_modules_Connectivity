@@ -52,7 +52,6 @@ import android.util.Log;
 import com.android.connectivity.resources.R;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.modules.utils.BackgroundThread;
 import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.DeviceConfigUtils;
 import com.android.net.module.util.HandlerUtils;
@@ -91,7 +90,7 @@ public class MultinetworkPolicyTracker {
         @Override
         public void onCarrierConfigChanged(
                     int slotIndex, int subId, int carrierId, int specificCarrierId) {
-            updateAvoidBadWifiFromCarrierConfigBackground(subId);
+            updateAvoidBadWifiFromCarrierConfigOnHandler(subId);
         }
     }
 
@@ -212,10 +211,6 @@ public class MultinetworkPolicyTracker {
             return Flags.avoidBadWifiFromCarrierConfig();
         }
 
-        protected Handler getBackgroundThreadHandler() {
-            return BackgroundThread.getHandler();
-        }
-
     }
     private final Dependencies mDeps;
 
@@ -324,13 +319,12 @@ public class MultinetworkPolicyTracker {
 
         if (mCarrierConfigManager != null) {
             mCarrierConfigManager.registerCarrierConfigChangeListener(
-                    BackgroundThread.getExecutor(), mCarrierConfigChangeListener
+                    handlerExecutor, mCarrierConfigChangeListener
             );
 
             // This ensures the latest carrier configuration is read.
             final int subId = mActiveSubId;
-            mDeps.getBackgroundThreadHandler().post(() ->
-                    updateAvoidBadWifiFromCarrierConfigBackground(subId));
+            mHandler.post(() -> updateAvoidBadWifiFromCarrierConfigOnHandler(subId));
         } else {
             mDeps.addOnDevicePropertiesChangedListener(handlerExecutor,
                 properties -> reevaluateInternal());
@@ -499,8 +493,8 @@ public class MultinetworkPolicyTracker {
      * Must be called on the background thread, because it makes an IPC to the phone process.
      * It must not be called on the CS handler thread.
      */
-    private void updateAvoidBadWifiFromCarrierConfigBackground(int subId) {
-        HandlerUtils.ensureRunningOnHandlerThread(mDeps.getBackgroundThreadHandler());
+    private void updateAvoidBadWifiFromCarrierConfigOnHandler(int subId) {
+        HandlerUtils.ensureRunningOnHandlerThread(mHandler);
 
         if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) {
             return;
@@ -510,7 +504,7 @@ public class MultinetworkPolicyTracker {
         // only when system has FEATURE_TELEPHONY_SUBSCRIPTION
         final boolean config =
                 mDeps.readAvoidBadWifiFromCarrierConfig(mCarrierConfigManager, subId);
-        mHandler.post(() -> updateAvoidBadWifiFromCarrierConfig(subId, config));
+        updateAvoidBadWifiFromCarrierConfig(subId, config);
     }
 
     /**

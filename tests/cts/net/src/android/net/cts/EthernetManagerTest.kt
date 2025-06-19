@@ -47,6 +47,7 @@ import android.net.NetworkCapabilities.NET_CAPABILITY_TEMPORARILY_NOT_METERED
 import android.net.NetworkCapabilities.NET_CAPABILITY_TRUSTED
 import android.net.NetworkCapabilities.TRANSPORT_ETHERNET
 import android.net.NetworkCapabilities.TRANSPORT_TEST
+import android.net.NetworkCapabilities.TRANSPORT_USB
 import android.net.NetworkRequest
 import android.net.StaticIpConfiguration
 import android.net.TestNetworkInterface
@@ -118,6 +119,11 @@ private val ETH_REQUEST: NetworkRequest = NetworkRequest.Builder()
         .addTransportType(TRANSPORT_TEST)
         .addTransportType(TRANSPORT_ETHERNET)
         .removeCapability(NET_CAPABILITY_TRUSTED)
+        .build()
+private val LOCAL_REQUEST: NetworkRequest = NetworkRequest.Builder()
+        .addTransportType(TRANSPORT_USB)
+        .removeCapability(NET_CAPABILITY_TRUSTED)
+        .removeCapability(NET_CAPABILITY_NOT_RESTRICTED)
         .build()
 private val TEST_CAPS = NetworkCapabilities.Builder(ETH_REQUEST.networkCapabilities)
         .addCapability(NET_CAPABILITY_TEMPORARILY_NOT_METERED)
@@ -1156,5 +1162,22 @@ class EthernetManagerTest {
         assertThat(ifaces).contains(iface2.name)
 
         removeInterface(iface2)
+    }
+
+    @Test
+    fun testLocalNcmNetwork() {
+        val iface = createInterface()
+
+        val cb = requestNetwork(ETH_REQUEST)
+        cb.expect<Available>()
+
+        // A local network request replaces the global network.
+        val cb2 = runAsShell(CONNECTIVITY_USE_RESTRICTED_NETWORKS) { requestNetwork(LOCAL_REQUEST) }
+        cb.eventuallyExpect<Lost>()
+        cb2.expect<Available>()
+
+        // The global network will come back up once the local request disappears.
+        releaseRequest(cb2)
+        cb.expect<Available>()
     }
 }

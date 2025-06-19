@@ -242,11 +242,21 @@ public class EthernetTracker {
             sendNetlinkMessage(buf);
         }
 
-        private void onNewLink(EthernetPort port, EnumSet<TrackingReason> trackingReason,
-                boolean linkUp) {
+        private boolean isInterfaceTracked(EthernetPort port) {
             final String ifname = port.getInterfaceName();
-            if (!mFactory.hasInterface(ifname) && !ifname.equals(mTetheringInterface)) {
-                Log.i(TAG, "onInterfaceAdded: " + port);
+            if (mFactory.hasInterface(ifname)) return true;
+            if (mTetheringInterface != null && mTetheringInterface.matches(ifname)) return true;
+            return false;
+        }
+
+        private void onNewLink(EthernetPort port, boolean linkUp) {
+            if (!isInterfaceTracked(port)) {
+                // TODO: start tracking USB NCM interfaces.
+                final String ifname = port.getInterfaceName();
+                final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
+                if (trackingReason.isEmpty()) return;
+
+                Log.i(TAG, "onInterfaceAdded: " + port + " for reason: " + trackingReason);
                 maybeTrackInterface(port, trackingReason);
             }
             Log.i(TAG, "interfaceLinkStateChanged: " + port + ", up: " + linkUp);
@@ -254,6 +264,7 @@ public class EthernetTracker {
         }
 
         private void onDelLink(EthernetPort port) {
+            if (!isInterfaceTracked(port)) return;
             Log.i(TAG, "onInterfaceRemoved: " + port);
             stopTrackingInterface(port);
         }
@@ -271,23 +282,26 @@ public class EthernetTracker {
             final MacAddress mac = msg.getHardwareAddress();
             if (mac == null) return;
 
+            // Note that #onNewLink() and #onDelLink() filter out non-ethernet interfaces by calling
+            // either #getTrackingReason (for newly tracked interfaces) or #isInterfaceTracked (for
+            // existing interfaces). Up until then, this code runs for every network interface on
+            // the system.
             final String ifname = msg.getInterfaceName();
             final EthernetPort port = new EthernetPort(ifname, mac, ifinfomsg.index);
-            // check if the received message applies to an ethernet interface.
-            // TODO: start tracking USB NCM interfaces.
-            final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
-            if (!trackingReason.contains(TrackingReason.REGEX)) return;
 
             switch (msg.getHeader().nlmsg_type) {
                 case NetlinkConstants.RTM_NEWLINK:
                     final boolean linkUp = (ifinfomsg.flags & NetlinkConstants.IFF_LOWER_UP) != 0;
-                    onNewLink(port, trackingReason, linkUp);
+                    onNewLink(port, linkUp);
                     break;
 
                 case NetlinkConstants.RTM_DELLINK:
                     onDelLink(port);
                     break;
 
+                case NetlinkConstants.NLMSG_DONE:
+                    // do nothing.
+                    break;
                 default:
                     Log.e(TAG, "Unknown rtnetlink link msg type: " + msg);
                     break;
@@ -471,9 +485,9 @@ public class EthernetTracker {
         return mIpConfigurations.get(iface);
     }
 
-    @VisibleForTesting(visibility = PACKAGE)
-    protected boolean isTrackingInterface(String iface) {
-        return mFactory.hasInterface(iface);
+    /** Returns true if this interface is being tracked by the regex. */
+    public boolean isTrackingInterfaceByRegex(String iface) {
+        return mFactory.getTrackingReason(iface).contains(TrackingReason.REGEX);
     }
 
     /** Returns an unordered(!) list of tracked EthernetPort objects. */
@@ -862,8 +876,15 @@ public class EthernetTracker {
      */
     private EnumSet<TrackingReason> getTrackingReason(String iface) {
         final EnumSet<TrackingReason> reasons = EnumSet.noneOf(TrackingReason.class);
-        if (mIfaceMatch.matcher(iface).matches() || isValidTestInterface(iface)) {
+        if (mIfaceMatch.matcher(iface).matches()) {
             reasons.add(TrackingReason.REGEX);
+        }
+
+        // TODO: find a way to conditionally deduce REGEX and NCM TrackingReasons for test
+        // interfaces.
+        if (isValidTestInterface(iface)) {
+            reasons.add(TrackingReason.REGEX);
+            reasons.add(TrackingReason.NCM);
         }
 
         // Host-side NCM interfaces are guaranteed to be named either usb%d or eth%d.

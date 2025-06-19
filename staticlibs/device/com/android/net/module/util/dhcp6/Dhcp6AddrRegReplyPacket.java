@@ -26,45 +26,46 @@ import java.net.Inet6Address;
 import java.nio.ByteBuffer;
 
 /**
- * DHCPv6 ADDR-REG-INFORM packet class, a client sends an an ADDR-REG-INFORM message to register
- * an IPv6 address is in use to DHCPv6 addr-reg server.
+ * DHCPv6 ADDR-REG-REPLY packet class, a server acknowledges receipt of a valid ADDR-REG-INFORM
+ * message by sending a ADDR-REG-REPLY message back.
  *
- * https://www.rfc-editor.org/rfc/rfc9686.html#section-4.2
+ * https://www.rfc-editor.org/rfc/rfc9686#section-4.3
  */
-public class Dhcp6AddrRegInformPacket extends Dhcp6Packet {
+public class Dhcp6AddrRegReplyPacket extends Dhcp6Packet {
     @NonNull
     public final Inet6Address mIaAddress;
     public final long mPreferred;
     public final long mValid;
 
     /**
-     * Generates a ADDR-REG-INFORM packet with the specified parameters.
+     * Generates a ADDR-REG-REPLY packet with the specified parameters.
      */
-    Dhcp6AddrRegInformPacket(int transId, int elapsedTime, @NonNull final byte[] clientDuid,
-            @NonNull final Inet6Address iaAddress, long preferred, long valid) {
-        super(transId, elapsedTime, clientDuid, null /* serverDuid */, null /* iapd */);
+    Dhcp6AddrRegReplyPacket(int transId, @NonNull final byte[] clientDuid,
+            @NonNull final byte[] serverDuid, @NonNull final Inet6Address iaAddress,
+            long preferred, long valid) {
+        super(transId, 0 /* elapsedTime */, clientDuid, serverDuid, null /* iapd */);
         mIaAddress = iaAddress;
         mPreferred = preferred;
         mValid = valid;
     }
 
     /**
-     * Return the DHCPv6 ADDR_REG_INFORM message type (36).
+     * Return the DHCPv6 ADDR_REG_REPLY message type (37).
      */
     public byte getMessageType() {
-        return DHCP6_MESSAGE_TYPE_ADDR_REG_INFORM;
+        return DHCP6_MESSAGE_TYPE_ADDR_REG_REPLY;
     }
 
     /**
-     * Build a DHCPv6 ADDR-REG-INFORM message with the specific parameters.
+     * Build a DHCPv6 ADDR-REG-REPLY message with the specific parameters.
      */
     public ByteBuffer buildPacket() {
         final ByteBuffer packet = ByteBuffer.allocate(DHCP_MAX_LENGTH);
-        final int msgTypeAndTransId = (DHCP6_MESSAGE_TYPE_ADDR_REG_INFORM << 24) | mTransId;
+        final int msgTypeAndTransId = (DHCP6_MESSAGE_TYPE_ADDR_REG_REPLY << 24) | mTransId;
         packet.putInt(msgTypeAndTransId);
 
         addTlv(packet, DHCP6_CLIENT_IDENTIFIER, mClientDuid);
-        addTlv(packet, DHCP6_ELAPSED_TIME, (short) (mElapsedTime & 0xFFFF));
+        addTlv(packet, DHCP6_SERVER_IDENTIFIER, mServerDuid);
         final ByteBuffer iaAddressOption = IaAddressOption.build(
                 (short) IaAddressOption.LENGTH, mIaAddress, mPreferred, mValid);
         addTlv(packet, iaAddressOption);
