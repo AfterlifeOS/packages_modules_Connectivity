@@ -251,9 +251,21 @@ public class EthernetNetworkFactory {
         return iface.updateLinkState(up);
     }
 
-    @VisibleForTesting
-    protected boolean hasInterface(String ifaceName) {
+    /**
+     * Returns true if this interface is currently tracked by this factory.
+     *
+     * Use {@link #getTrackingReason(String)} to distinguish between interfaces that are tracked by
+     * the regex and local-only NCM interfaces.
+     */
+    public boolean hasInterface(String ifaceName) {
         return mTrackingInterfaces.containsKey(ifaceName);
+    }
+
+    /** Returns the TrackingReason or an empty EnumSet if the interface does not exist */
+    public EnumSet<TrackingReason> getTrackingReason(String ifname) {
+        final NetworkInterfaceState iface = mTrackingInterfaces.get(ifname);
+        if (iface == null) return EnumSet.noneOf(TrackingReason.class);
+        return iface.getTrackingReason();
     }
 
     @VisibleForTesting(visibility = VisibleForTesting.Visibility.PACKAGE)
@@ -527,6 +539,11 @@ public class EthernetNetworkFactory {
             return mPort;
         }
 
+        /** Returns the TrackingReason */
+        public EnumSet<TrackingReason> getTrackingReason() {
+            return mTrackingReason;
+        }
+
         /**
          * Determines the legacy transport type from a NetworkCapabilities transport type. Defaults
          * to legacy TYPE_NONE if there is no known conversion
@@ -586,6 +603,7 @@ public class EthernetNetworkFactory {
             // Ensure stop() is called an all associated resources are cleaned up before starting in
             // a (potentially) different mode.
             if (mMode != Mode.NONE) throw new IllegalStateException("Forgot to call stop()");
+            if (mode == Mode.NONE) throw new IllegalArgumentException("Can't use Mode.NONE");
             mMode = mode;
 
             if (mIpClient != null) {

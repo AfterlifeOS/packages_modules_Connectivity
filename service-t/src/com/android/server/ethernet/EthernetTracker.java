@@ -288,6 +288,9 @@ public class EthernetTracker {
                     onDelLink(port);
                     break;
 
+                case NetlinkConstants.NLMSG_DONE:
+                    // do nothing.
+                    break;
                 default:
                     Log.e(TAG, "Unknown rtnetlink link msg type: " + msg);
                     break;
@@ -471,9 +474,9 @@ public class EthernetTracker {
         return mIpConfigurations.get(iface);
     }
 
-    @VisibleForTesting(visibility = PACKAGE)
-    protected boolean isTrackingInterface(String iface) {
-        return mFactory.hasInterface(iface);
+    /** Returns true if this interface is being tracked by the regex. */
+    public boolean isTrackingInterfaceByRegex(String iface) {
+        return mFactory.getTrackingReason(iface).contains(TrackingReason.REGEX);
     }
 
     /** Returns an unordered(!) list of tracked EthernetPort objects. */
