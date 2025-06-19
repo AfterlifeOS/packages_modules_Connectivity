@@ -124,16 +124,6 @@ struct optional_bool { bool optional; };
 #define MANDATORY ((struct optional_bool){ .optional = false })
 #define OPTIONAL ((struct optional_bool){ .optional = true })
 
-// (deprecated) for both maps and programs:
-struct ignore_on_eng_bool { };
-#define LOAD_ON_ENG ((struct ignore_on_eng_bool){ })
-
-struct ignore_on_user_bool { };
-#define LOAD_ON_USER ((struct ignore_on_user_bool){ })
-
-struct ignore_on_userdebug_bool { };
-#define LOAD_ON_USERDEBUG ((struct ignore_on_userdebug_bool){ })
-
 
 // Length of strings (incl. selinux_context and pin_subdir)
 // in the bpf_map_def and bpf_prog_def structs.
