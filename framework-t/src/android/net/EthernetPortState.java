@@ -27,10 +27,10 @@ import java.util.Objects;
 
 /**
  * A class representing information of an ethernet interface.
- * EthernetPortInfo is mainly used in network callbacks.
+ * EthernetPortState is mainly used in network callbacks.
  * @hide
  */
-public final class EthernetPortInfo implements Parcelable {
+public final class EthernetPortState implements Parcelable {
     // Role of this ethernet interface, one of {@link EthernetManager.ROLE_SERVER},
     // {@link EthernetManager.ROLE_CLIENT}, or {@link EthernetManager.ROLE_NONE}.
     @Role
@@ -53,7 +53,7 @@ public final class EthernetPortInfo implements Parcelable {
     // Interface index of this ethernet interface.
     private final int mInterfaceIndex;
 
-    public EthernetPortInfo(String interfaceName, MacAddress macAddress,
+    public EthernetPortState(String interfaceName, MacAddress macAddress,
             int interfaceIndex, EthernetConfiguration config, @Role int role,
             @InterfaceState int state) {
         if (role != EthernetManager.ROLE_CLIENT && role != EthernetManager.ROLE_SERVER
@@ -160,11 +160,11 @@ public final class EthernetPortInfo implements Parcelable {
             return true;
         }
 
-        if (!(o instanceof EthernetPortInfo)) {
+        if (!(o instanceof EthernetPortState)) {
             return false;
         }
 
-        final EthernetPortInfo other = (EthernetPortInfo) o;
+        final EthernetPortState other = (EthernetPortState) o;
         return (this.mRole == other.mRole)
                 && (this.mState == other.mState)
                 && Objects.equals(this.mConfig, other.mConfig)
@@ -185,10 +185,10 @@ public final class EthernetPortInfo implements Parcelable {
     }
 
     /** Implement the Parcelable interface */
-    public static final Creator<EthernetPortInfo> CREATOR =
-            new Creator<EthernetPortInfo>() {
+    public static final Creator<EthernetPortState> CREATOR =
+            new Creator<EthernetPortState>() {
                 @Override
-                public EthernetPortInfo createFromParcel(Parcel in) {
+                public EthernetPortState createFromParcel(Parcel in) {
                     int role = in.readInt();
                     int state = in.readInt();
                     EthernetConfiguration config = in.readParcelable(
@@ -197,13 +197,13 @@ public final class EthernetPortInfo implements Parcelable {
                     MacAddress hwaddr = in.readParcelable(
                             MacAddress.class.getClassLoader());
                     int index = in.readInt();
-                    return new EthernetPortInfo(
+                    return new EthernetPortState(
                             ifname, hwaddr, index, config, role, state);
                 }
 
                 @Override
-                public EthernetPortInfo[] newArray(int size) {
-                    return new EthernetPortInfo[size];
+                public EthernetPortState[] newArray(int size) {
+                    return new EthernetPortState[size];
                 }
             };
 
