@@ -72,6 +72,7 @@ java_library {
         // service-connectivity-pre-jarjar), and in the case of code that is already in
         // framework-connectivity, the classes would be included in the apex twice.
         "modules-utils-statemachine",
+        "service-connectivity-tiramisu-protos",
     ],
     apex_available: [
         "com.android.tethering",
@@ -89,6 +90,24 @@ java_library {
     ],
     lint: {
         baseline_filename: "lint-baseline.xml",
+    },
+}
+
+java_library {
+    name: "service-connectivity-tiramisu-protos",
+    sdk_version: "core_current",
+    proto: {
+        type: "lite",
+    },
+    srcs: [
+        "src/proto/*.proto",
+    ],
+    static_libs: ["libprotobuf-java-lite"],
+    apex_available: [
+        "com.android.tethering",
+    ],
+    lint: {
+        strict_updatability_linting: true,
     },
 }
 
