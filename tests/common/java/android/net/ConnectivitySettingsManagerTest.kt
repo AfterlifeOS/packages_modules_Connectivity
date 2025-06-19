@@ -16,6 +16,7 @@
 
 package android.net
 
+import android.content.pm.PackageManager
 import android.net.ConnectivitySettingsManager.CAPTIVE_PORTAL_MODE
 import android.net.ConnectivitySettingsManager.CAPTIVE_PORTAL_MODE_AVOID
 import android.net.ConnectivitySettingsManager.CAPTIVE_PORTAL_MODE_IGNORE
@@ -91,6 +92,7 @@ import junit.framework.Assert.assertEquals
 import junit.framework.Assert.assertFalse
 import junit.framework.Assert.assertTrue
 import kotlin.test.assertFailsWith
+import org.junit.Assume.assumeTrue
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -581,6 +583,11 @@ class ConnectivitySettingsManagerTest {
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
     fun testGetNetworkAvoidBadWifiWithCarrierConfig() {
+        assumeTrue(
+            "skip test if device does not support telephony subscription feature",
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_SUBSCRIPTION)
+        )
+
         val orgCarrierAwareSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
         val orgSetting = getNetworkLegacyGlobalAvoidBadWifiSetting(context)
         try {
@@ -645,6 +652,10 @@ class ConnectivitySettingsManagerTest {
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
     fun testShouldShowAvoidBadWifiToggleWithCarrierConfig() {
+        assumeTrue(
+            "skip test if device does not support telephony subscription feature",
+            context.packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY_SUBSCRIPTION)
+        )
         val orgCarrierAwareSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
         val orgSetting = getNetworkLegacyGlobalAvoidBadWifiSetting(context)
         try {
