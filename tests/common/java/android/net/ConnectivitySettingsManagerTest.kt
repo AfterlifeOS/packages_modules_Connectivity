@@ -29,7 +29,6 @@ import android.net.ConnectivitySettingsManager.DNS_RESOLVER_SAMPLE_VALIDITY_SECO
 import android.net.ConnectivitySettingsManager.DNS_RESOLVER_SUCCESS_THRESHOLD_PERCENT
 import android.net.ConnectivitySettingsManager.MOBILE_DATA_ALWAYS_ON
 import android.net.ConnectivitySettingsManager.NETWORK_AVOID_BAD_WIFI
-import android.net.ConnectivitySettingsManager.NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI
 import android.net.ConnectivitySettingsManager.NETWORK_SWITCH_NOTIFICATION_DAILY_LIMIT
 import android.net.ConnectivitySettingsManager.NETWORK_SWITCH_NOTIFICATION_RATE_LIMIT_MILLIS
 import android.net.ConnectivitySettingsManager.PRIVATE_DNS_DEFAULT_MODE
@@ -535,18 +534,34 @@ class ConnectivitySettingsManagerTest {
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
     fun testGetNetworkAvoidBadWifiWithCarrierAwareSettings() {
-        val original = getNetworkAvoidBadWifiSetting(context, defaultSubId)
+        val testSubId = 1000
+        val orgDefaultSubIdSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
+        val orgTestSubIdSetting = getNetworkAvoidBadWifiSetting(context, testSubId)
         try {
+            // initialize NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI to null
+            setNetworkAvoidBadWifiSetting(context, defaultSubId, null)
+            setNetworkLegacyGlobalAvoidBadWifiSetting(context, null)
+
             setNetworkAvoidBadWifiSetting(context, defaultSubId, "0")
             assertFalse(getNetworkAvoidBadWifi(context, defaultSubId))
+            // test the default value for other subId is not affected
+            assertTrue(getNetworkAvoidBadWifi(context, testSubId))
 
             setNetworkAvoidBadWifiSetting(context, defaultSubId, "1")
             assertTrue(getNetworkAvoidBadWifi(context, defaultSubId))
+            // test the default value for other subId is not affected
+            assertTrue(getNetworkAvoidBadWifi(context, testSubId))
         } finally {
             resetSettings(
-                names = arrayOf(NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI),
+                names = arrayOf(
+                    getAvoidBadWifiSettingKey(defaultSubId),
+                    getAvoidBadWifiSettingKey(testSubId)
+                ),
                 type = settingsTypeGlobal,
-                values = arrayOf(original)
+                values = arrayOf(
+                    orgDefaultSubIdSetting,
+                    orgTestSubIdSetting
+                )
             )
         }
     }
@@ -554,14 +569,15 @@ class ConnectivitySettingsManagerTest {
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
     fun testGetNetworkAvoidBadWifiWithSettings() {
-        val orgCarrierAwareSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
-        val orgSetting = getNetworkLegacyGlobalAvoidBadWifiSetting(context)
+        val testSubId = 1000
+        val orgDefaultSubIdSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
+        val orgTestSubIdSetting = getNetworkAvoidBadWifiSetting(context, testSubId)
+        val orgLegacySetting = getNetworkLegacyGlobalAvoidBadWifiSetting(context)
         try {
             // test if NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI is not set,
             // then it check NETWORK_AVOID_BAD_WIFI for backward compatibility.
             setNetworkAvoidBadWifiSetting(context, defaultSubId, null)
 
-            val testSubId = 1000
             setNetworkLegacyGlobalAvoidBadWifiSetting(context, "0")
             assertFalse(getNetworkAvoidBadWifi(context, defaultSubId))
             assertFalse(getNetworkAvoidBadWifi(context, testSubId))
@@ -571,9 +587,17 @@ class ConnectivitySettingsManagerTest {
             assertTrue(getNetworkAvoidBadWifi(context, testSubId))
         } finally {
             resetSettings(
-                names = arrayOf(NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI, NETWORK_AVOID_BAD_WIFI),
+                names = arrayOf(
+                    getAvoidBadWifiSettingKey(defaultSubId),
+                    getAvoidBadWifiSettingKey(testSubId),
+                    NETWORK_AVOID_BAD_WIFI
+                ),
                 type = settingsTypeGlobal,
-                values = arrayOf(orgCarrierAwareSetting, orgSetting)
+                values = arrayOf(
+                    orgDefaultSubIdSetting,
+                    orgTestSubIdSetting,
+                    orgLegacySetting
+                )
             )
         }
     }
@@ -599,9 +623,15 @@ class ConnectivitySettingsManagerTest {
             assertFalse(getNetworkAvoidBadWifi(context, defaultSubId))
         } finally {
             resetSettings(
-                names = arrayOf(NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI, NETWORK_AVOID_BAD_WIFI),
+                names = arrayOf(
+                    getAvoidBadWifiSettingKey(defaultSubId),
+                    NETWORK_AVOID_BAD_WIFI
+                ),
                 type = settingsTypeGlobal,
-                values = arrayOf(orgCarrierAwareSetting, orgSetting)
+                values = arrayOf(
+                    orgCarrierAwareSetting,
+                    orgSetting
+                )
             )
         }
     }
@@ -635,9 +665,15 @@ class ConnectivitySettingsManagerTest {
             assertTrue(shouldShowAvoidBadWifiToggle(context, defaultSubId))
         } finally {
             resetSettings(
-                names = arrayOf(NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI, NETWORK_AVOID_BAD_WIFI),
+                names = arrayOf(
+                    getAvoidBadWifiSettingKey(defaultSubId),
+                    NETWORK_AVOID_BAD_WIFI
+                ),
                 type = settingsTypeGlobal,
-                values = arrayOf(orgCarrierAwareSetting, orgSetting)
+                values = arrayOf(
+                    orgCarrierAwareSetting,
+                    orgSetting
+                )
             )
         }
     }
@@ -684,9 +720,15 @@ class ConnectivitySettingsManagerTest {
             assertTrue(shouldShowAvoidBadWifiToggle(context, defaultSubId))
         } finally {
             resetSettings(
-                names = arrayOf(NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI, NETWORK_AVOID_BAD_WIFI),
+                names = arrayOf(
+                    getAvoidBadWifiSettingKey(defaultSubId),
+                    NETWORK_AVOID_BAD_WIFI
+                ),
                 type = settingsTypeGlobal,
-                values = arrayOf(orgCarrierAwareSetting, orgSetting)
+                values = arrayOf(
+                    orgCarrierAwareSetting,
+                    orgSetting
+                )
             )
         }
     }
