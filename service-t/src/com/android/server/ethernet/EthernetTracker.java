@@ -297,11 +297,9 @@ public class EthernetTracker {
                     final boolean linkUp = (ifinfomsg.flags & NetlinkConstants.IFF_LOWER_UP) != 0;
                     onNewLink(port, linkUp);
                     break;
-
                 case NetlinkConstants.RTM_DELLINK:
                     onDelLink(port);
                     break;
-
                 case NetlinkConstants.NLMSG_DONE:
                     // do nothing.
                     break;
