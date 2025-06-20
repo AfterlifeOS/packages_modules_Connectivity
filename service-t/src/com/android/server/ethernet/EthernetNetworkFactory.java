@@ -820,10 +820,8 @@ public class EthernetNetworkFactory {
         }
 
         void maybeRestart() {
-            if (mIpClient == null) {
-                Log.i(TAG, String.format("maybeRestart() called on stopped interface %s", mPort));
-                return;
-            }
+            // Only restart if the interface is currently running.
+            if (mIpClient == null) return;
             if (DBG) Log.d(TAG, "Restart IpClient on: " + mPort);
 
             // Calling stop() resets the mode.
