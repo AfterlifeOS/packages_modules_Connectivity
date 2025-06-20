@@ -746,6 +746,7 @@ public class EthernetNetworkFactory {
             return true;
         }
 
+        /** Stops serving the network. Safe to call no matter the current state of the interface. */
         private void stop() {
             // Unregister NetworkAgent before stopping IpClient, so destroyNativeNetwork (which
             // deletes routes) hopefully happens before stop() finishes execution. Otherwise, it may
