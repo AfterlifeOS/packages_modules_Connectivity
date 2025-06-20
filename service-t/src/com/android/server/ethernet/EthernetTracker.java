@@ -254,7 +254,6 @@ public class EthernetTracker {
 
         private void onNewLink(EthernetPort port, boolean linkUp) {
             if (!isInterfaceTracked(port)) {
-                // TODO: start tracking USB NCM interfaces.
                 final String ifname = port.getInterfaceName();
                 final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
                 if (trackingReason.isEmpty()) return;
