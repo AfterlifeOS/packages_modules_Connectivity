@@ -647,7 +647,7 @@ public class EthernetNetworkFactory {
             }
 
             final ProvisioningConfiguration.Builder config = new ProvisioningConfiguration.Builder()
-                    .withProvisioningTimeoutMs(0);
+                    .withProvisioningTimeoutMs(0 /* infinite */);
 
             if (mMode == Mode.GLOBAL && mIpConfig.getIpAssignment() == IpAssignment.STATIC) {
                 // TODO: add ProvisioningConfiguration.Builder#withIpConfiguration
