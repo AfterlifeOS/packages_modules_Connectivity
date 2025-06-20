@@ -260,7 +260,7 @@ public class EthernetTracker {
                 if (trackingReason.isEmpty()) return;
 
                 Log.i(TAG, "onInterfaceAdded: " + port + " for reason: " + trackingReason);
-                maybeTrackInterface(port, trackingReason);
+                trackInterface(port, trackingReason);
             }
             Log.i(TAG, "interfaceLinkStateChanged: " + port + ", up: " + linkUp);
             updateInterfaceState(port, linkUp);
@@ -743,7 +743,7 @@ public class EthernetTracker {
         // start configuring it.
         if (NetdUtils.hasFlag(config, INetd.IF_FLAG_RUNNING)) {
             // no need to send an interface state change as this is not a true "state change". The
-            // callers (maybeTrackInterface() and setTetheringInterfaceMode()) already broadcast the
+            // callers (trackInterface() and setTetheringInterfaceMode()) already broadcast the
             // state change.
             mFactory.updateInterfaceLinkState(port, true);
         }
@@ -803,15 +803,9 @@ public class EthernetTracker {
         mTetheredInterfaceWasAvailable = available;
     }
 
-    private void maybeTrackInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
+    private void trackInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
         final String iface = port.getInterfaceName();
-        // If we don't already track this interface, and if this interface matches
-        // our regex, start tracking it.
-        if (mFactory.hasInterface(iface) || (getInterfaceMode(iface) == INTERFACE_MODE_SERVER)) {
-            if (DBG) Log.w(TAG, "Ignoring already-tracked " + port);
-            return;
-        }
-        if (DBG) Log.i(TAG, "maybeTrackInterface: " + port);
+        if (DBG) Log.i(TAG, "trackInterface: " + port);
 
         // Do not use an interface for tethering if it has configured NetworkCapabilities, or if it
         // was not included in the regex.
