@@ -58,6 +58,7 @@ import android.util.Log;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.modules.utils.build.SdkLevel;
+import com.android.net.module.util.DeviceConfigUtils;
 import com.android.net.module.util.HandlerUtils;
 import com.android.net.module.util.NetdUtils;
 import com.android.net.module.util.ServiceConnectivityJni;
@@ -108,6 +109,8 @@ public class EthernetTracker {
 
     private static final String TAG = EthernetTracker.class.getSimpleName();
     private static final boolean DBG = EthernetNetworkFactory.DBG;
+
+    private static final String NCM_ENABLED_FLAG = "ethernet_local_ncm_tracking_enabled_flag";
 
     private static final Pattern TEST_IFACE_REGEXP = Pattern.compile(TEST_TAP_PREFIX + "\\d+");
 
@@ -885,6 +888,11 @@ public class EthernetTracker {
         if (isValidTestInterface(iface)) {
             reasons.add(TrackingReason.REGEX);
             reasons.add(TrackingReason.NCM);
+        }
+
+        // TODO: remove this flag after M-2025-09 release.
+        if (!DeviceConfigUtils.isTetheringFeatureNotChickenedOut(mContext, NCM_ENABLED_FLAG)) {
+            return reasons;
         }
 
         // Host-side NCM interfaces are guaranteed to be named either usb%d or eth%d.
