@@ -249,7 +249,7 @@ public class EthernetConfigurationTest {
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: NOT_RESTRICTED"
                     + "&TRUSTED&NOT_VPN&NOT_BANDWIDTH_CONSTRAINED UnderlyingNetworks: Null]"
-                    + ", Metered override: 1, Is persisted: 0";
+                    + ", Metered override: FORCE_METERED, Is persisted: NOT_PERSISTED";
         } else {
             expect = "IP configurations: IP assignment: STATIC\n"
                     + "Static configuration: IP address 192.168.1.100/25 Gateway 192.168.1.1 "
@@ -257,8 +257,8 @@ public class EthernetConfigurationTest {
                     + "Proxy settings: PAC\n"
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: NOT_RESTRICTED"
-                    + "&TRUSTED&NOT_VPN UnderlyingNetworks: Null], Metered override: 1, Is "
-                    + "persisted: 0";
+                    + "&TRUSTED&NOT_VPN UnderlyingNetworks: Null], Metered override: FORCE_METERED"
+                    + ", Is persisted: NOT_PERSISTED";
         }
         assertEquals(config.toString(), expect);
     }

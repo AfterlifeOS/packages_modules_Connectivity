@@ -227,8 +227,9 @@ public class EthernetPortStateTest {
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: "
                     + "NOT_RESTRICTED&TRUSTED&NOT_VPN&NOT_BANDWIDTH_CONSTRAINED "
-                    + "UnderlyingNetworks: Null], Metered override: 1, Is persisted: 0,"
-                    + " Interface name:eth0, MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
+                    + "UnderlyingNetworks: Null], Metered override: FORCE_METERED, Is persisted:"
+                    + " NOT_PERSISTED, Interface name:eth0, MAC address:0a:1b:2c:3d:4e:5f,"
+                    + " Interface index:1";
         } else {
             expect = "Role:1, State:2, Configurations: IP configurations: "
                     + "IP assignment: STATIC\n"
@@ -238,8 +239,9 @@ public class EthernetPortStateTest {
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: "
                     + "NOT_RESTRICTED&TRUSTED&NOT_VPN UnderlyingNetworks: Nu"
-                    + "ll], Metered override: 1, Is persisted: 0, Interface name:eth0, "
-                    + "MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
+                    + "ll], Metered override: FORCE_METERED, Is persisted: NOT_PERSISTED, "
+                    + "Interface name:eth0, MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
+
         }
         assertEquals(mEthernetPortState1.toString(), expect);
     }

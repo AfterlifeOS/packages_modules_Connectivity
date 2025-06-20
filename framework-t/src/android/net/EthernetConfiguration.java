@@ -160,8 +160,36 @@ public class EthernetConfiguration implements Parcelable {
     public String toString() {
         return "IP configurations: " + mIpConfiguration
                 + "Network capabilities: " + mNetworkCapabilities
-                + ", Metered override: " + mMeteredOverride
-                + ", Is persisted: " + mPersistence;
+                + ", Metered override: " + getMeteredOverrideString()
+                + ", Is persisted: " + getPersistenceString();
+    }
+
+    /** Get metered override configuration in human readable string. */
+    private String getMeteredOverrideString() {
+        switch(mMeteredOverride) {
+            case METERED_OVERRIDE_NONE:
+                return "NONE";
+            case METERED_OVERRIDE_FORCE_METERED:
+                return "FORCE_METERED";
+            case METERED_OVERRIDE_FORCE_UNMETERED:
+                return "FORCE_UNMETERED";
+            default:
+                // We should not reach this branch.
+                return "UNKNOWN";
+        }
+    }
+
+    /** Get persistence configuration in human readable string. */
+    private String getPersistenceString() {
+        switch(mPersistence) {
+            case PERSISTENCE_IS_PERSISTED:
+                return "IS_PERSISTED";
+            case PERSISTENCE_NOT_PERSISTED:
+                return "NOT_PERSISTED";
+            default:
+                // We should not reach this branch.
+                return "UNKNOWN";
+        }
     }
 
     @Override
