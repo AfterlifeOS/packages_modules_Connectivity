@@ -157,7 +157,6 @@ public abstract class Dhcp6Packet {
      * option in the Option Request options that it sends.
      */
     public static final short DHCP6_OPTION_ADDR_REG_ENABLE = 148;
-    public boolean mAddrRegEnable;
 
     /**
      * The transaction identifier used in this particular DHCPv6 negotiation
@@ -636,7 +635,6 @@ public abstract class Dhcp6Packet {
                 (solMaxRt >= 60 && solMaxRt <= 86400)
                         ? OptionalInt.of(solMaxRt * 1000)
                         : OptionalInt.empty();
-        newPacket.mAddrRegEnable = addrRegEnable;
 
         return newPacket;
     }
