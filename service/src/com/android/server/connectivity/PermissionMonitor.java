@@ -30,6 +30,8 @@ import static android.net.connectivity.ConnectivityCompatChanges.RESTRICT_LOCAL_
 import static android.os.Process.INVALID_UID;
 import static android.os.Process.SYSTEM_UID;
 
+import static com.android.net.module.util.CollectionUtils.toIntArray;
+import static com.android.server.ConnectivityStatsLog.CONNECTIVITY_PERMISSION_CHANGE_LISTENER_LATENCY_REPORTED;
 import static com.android.server.connectivity.ConnectivityFlags.USE_BROADCAST_RECEIVE_HELPER_FOR_PERMISSION_MONITOR;
 import static com.android.server.connectivity.NetworkPermissions.PERMISSION_NETWORK;
 import static com.android.server.connectivity.NetworkPermissions.PERMISSION_NONE;
@@ -37,7 +39,6 @@ import static com.android.server.connectivity.NetworkPermissions.PERMISSION_SYST
 import static com.android.server.connectivity.NetworkPermissions.TRAFFIC_PERMISSION_INTERNET;
 import static com.android.server.connectivity.NetworkPermissions.TRAFFIC_PERMISSION_UNINSTALLED;
 import static com.android.server.connectivity.NetworkPermissions.TRAFFIC_PERMISSION_UPDATE_DEVICE_STATS;
-import static com.android.net.module.util.CollectionUtils.toIntArray;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -63,6 +64,7 @@ import android.os.HandlerThread;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
+import android.os.SystemClock;
 import android.os.SystemConfigManager;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -72,6 +74,8 @@ import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
 import android.util.SparseIntArray;
+
+import androidx.annotation.RequiresApi;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -83,12 +87,14 @@ import com.android.net.module.util.SharedLog;
 import com.android.networkstack.apishim.ProcessShimImpl;
 import com.android.networkstack.apishim.common.ProcessShim;
 import com.android.server.BpfNetMaps;
+import com.android.server.ConnectivityStatsLog;
 
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 
 /**
  * A utility class to inform Netd of UID permissions.
@@ -252,6 +258,22 @@ public class PermissionMonitor {
          */
         public boolean isFeatureNotChickenedOut(Context context, String name) {
             return DeviceConfigUtils.isTetheringFeatureNotChickenedOut(context, name);
+        }
+
+        /**
+         * Logs the latency of the PermissionChangeListener#onPermissionsChanged callback.
+         */
+        @RequiresApi(Build.VERSION_CODES.TIRAMISU)
+        public void logPermissionChangeListenerLatency(int durationMicros) {
+            ConnectivityStatsLog.write(CONNECTIVITY_PERMISSION_CHANGE_LISTENER_LATENCY_REPORTED,
+                    durationMicros);
+        }
+
+        /**
+         * @see com.android.tethering.mainline.beta.Flags#lnpDeveloperOptIn()
+         */
+        public boolean isLnpDeveloperOptInEnabled() {
+            return com.android.tethering.mainline.beta.Flags.lnpDeveloperOptIn();
         }
     }
 
@@ -1410,7 +1432,25 @@ public class PermissionMonitor {
     private class PermissionChangeListener implements PackageManager.OnPermissionsChangedListener {
         @Override
         public void onPermissionsChanged(int uid) {
-            setLocalNetworkPermissions(uid, null);
+            long startTimeNanos = SystemClock.elapsedRealtimeNanos();
+            try {
+                setLocalNetworkPermissions(uid, null);
+            } finally {
+                long durationNanos = SystemClock.elapsedRealtimeNanos() - startTimeNanos;
+                int durationMicros = (int) TimeUnit.NANOSECONDS.toMicros(durationNanos);
+                if (DBG) {
+                    Log.d(TAG,
+                            "setLocalNetworkPermissions in onPermissionsChanged took "
+                                    + durationMicros + " microseconds.");
+                }
+                //The ConnectivityStatsLog#write method is only available on Android T
+                //and higher. The surrounding logic in logPermissionChangeListenerLatency
+                //ensures this code path is only executed on compatible platform versions, this
+                //explicit SDK version check is necessary to suppress the NewApi lint warning.
+                if (mDeps.isLnpDeveloperOptInEnabled() && SdkLevel.isAtLeastB()) {
+                    mDeps.logPermissionChangeListenerLatency(durationMicros);
+                }
+            }
         }
     }
 }
