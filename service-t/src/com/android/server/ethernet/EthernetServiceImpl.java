@@ -167,6 +167,7 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
      * Adds a listener.
      * @param listener A {@link IEthernetServiceListener} to add.
      */
+    @Override
     public void addListener(IEthernetServiceListener listener) throws RemoteException {
         Objects.requireNonNull(listener, "listener must not be null");
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
@@ -183,6 +184,7 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
      * Removes a listener.
      * @param listener A {@link IEthernetServiceListener} to remove.
      */
+    @Override
     public void removeListener(IEthernetServiceListener listener) {
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
