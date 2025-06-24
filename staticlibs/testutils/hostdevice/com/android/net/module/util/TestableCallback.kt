@@ -275,7 +275,7 @@ open class TestableCallback<E : Any>(
         if (null == event) {
             val lastReceivedCallback = history.lastOrNull()
             val lastCallbackMsg = if (null == lastReceivedCallback) {
-                "To callback received since filed"
+                "No callback received since filed"
             } else {
                 "Last received callback was $lastReceivedCallback"
             }
