@@ -22,6 +22,7 @@ import android.content.res.Resources
 import android.net.ConnectivityManager.MULTIPATH_PREFERENCE_HANDOVER
 import android.net.ConnectivityManager.MULTIPATH_PREFERENCE_PERFORMANCE
 import android.net.ConnectivityManager.MULTIPATH_PREFERENCE_RELIABILITY
+import android.net.ConnectivitySettingsManager
 import android.net.ConnectivitySettingsManager.NETWORK_AVOID_BAD_WIFI
 import android.net.ConnectivitySettingsManager.NETWORK_METERED_MULTIPATH_PREFERENCE
 import android.net.platform.flags.Flags.FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG
@@ -38,6 +39,7 @@ import androidx.test.filters.SmallTest
 import com.android.connectivity.resources.R
 import com.android.internal.util.test.FakeSettingsProvider
 import com.android.modules.utils.build.SdkLevel
+import com.android.net.module.util.ConnectivitySettingsUtils.getAvoidBadWifiSettingKey
 import com.android.server.connectivity.MultinetworkPolicyTracker.ActiveDataSubscriptionIdListener
 import com.android.testutils.DevSdkIgnoreRule
 import com.android.testutils.DevSdkIgnoreRunner
@@ -59,6 +61,7 @@ import org.mockito.Mockito.any
 import org.mockito.Mockito.doCallRealMethod
 import org.mockito.Mockito.doReturn
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.reset
 import org.mockito.Mockito.times
 import org.mockito.Mockito.verify
 
@@ -131,6 +134,7 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         Settings.Global.putString(resolver, NETWORK_AVOID_BAD_WIFI, "1")
         ConnectivityResources.setResourcesContextForTest(it)
     }
+    private val avoidBadWifiCallback = mock(Runnable::class.java)
     private val csLooper = TestLooper()
     private val handler = Handler(csLooper.looper)
     private val trackerDependencies =
@@ -186,6 +190,30 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         assertEquals(MULTIPATH_PREFERENCE_PERFORMANCE, tracker.meteredMultipathPreference)
     }
 
+    private fun setAvoidBadWifiGlobalSettings(subId: Int, value: String) {
+        trackerDependencies.setAvoidBadWifiCarrierConfigForSubId(subId, !value.equals("0"))
+        val setValue: Int? = when (value) {
+            "0" -> ConnectivitySettingsManager.NETWORK_AVOID_BAD_WIFI_IGNORE
+            "1" -> ConnectivitySettingsManager.NETWORK_AVOID_BAD_WIFI_AVOID
+            null -> ConnectivitySettingsManager.NETWORK_AVOID_BAD_WIFI_PROMPT
+            else -> throw IllegalArgumentException("Invalid avoid bad wifi setting: $value")
+        }
+
+        ConnectivitySettingsManager.setNetworkAvoidBadWifi(context, subId, setValue!!)
+        tracker.reevaluateSettingsChange(
+            Settings.Global.getUriFor(getAvoidBadWifiSettingKey(subId))
+        )
+        // Trigger handler to execute
+        csLooper.dispatchNext()
+    }
+
+    private fun consumeAvoidBadWifiCallback(time: Int = 1) {
+        // Verify that the callback was invoked
+        verify(avoidBadWifiCallback, times(time)).run()
+        // Reset the mock to clear invocation count for the next part of the test
+        reset(avoidBadWifiCallback)
+    }
+
     @Before
     fun setUp() {
         trackerDependencies.setAvoidBadWifiFromCarrierConfigFeature(
@@ -204,16 +232,18 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         tracker = MultinetworkPolicyTracker(
             context,
             handler,
-            null /* avoidBadWifiCallback */,
+            avoidBadWifiCallback,
             trackerDependencies
         )
         tracker.start()
+        csLooper.dispatchAll()
     }
 
     @After
     fun tearDown() {
         ConnectivityResources.setResourcesContextForTest(null)
         trackerDependencies.resetAvoidBadWifiCarrierConfigForSubIdMap()
+        reset(avoidBadWifiCallback)
     }
 
     @Test
@@ -365,5 +395,42 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         // reflecting the carrier config of the new active subscription.
         assertFalse(tracker.avoidBadWifi)
         assertTrue(tracker.activelyPreferBadWifi)
+    }
+
+    @Test
+    @FeatureFlag(name = FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG, true)
+    @DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
+    fun testGlobalSettingChangeTriggersAvoidBadWifiCallback() {
+        val defaultSubId = 1000
+        val listenerCaptor = ArgumentCaptor.forClass(
+            ActiveDataSubscriptionIdListener::class.java
+        )
+
+        verify(telephonyManager, times(1))
+            .registerTelephonyCallback(any(), listenerCaptor.capture())
+        val listener = listenerCaptor.value
+        // Simulate a change in the active data subscription ID to defaultSubId.
+        listener.onActiveDataSubscriptionIdChanged(defaultSubId)
+        assertTrue(tracker.avoidBadWifi)
+
+        setAvoidBadWifiGlobalSettings(defaultSubId, "0")
+        consumeAvoidBadWifiCallback(1)
+        assertFalse(tracker.avoidBadWifi)
+
+        setAvoidBadWifiGlobalSettings(defaultSubId, "1")
+        assertTrue(tracker.avoidBadWifi)
+        consumeAvoidBadWifiCallback(1)
+
+        val testSubId = 2000
+        // Simulate a change in the active data subscription ID to testSubId.
+        listener.onActiveDataSubscriptionIdChanged(testSubId)
+
+        setAvoidBadWifiGlobalSettings(testSubId, "0")
+        assertFalse(tracker.avoidBadWifi)
+        consumeAvoidBadWifiCallback(1)
+
+        setAvoidBadWifiGlobalSettings(testSubId, "1")
+        assertTrue(tracker.avoidBadWifi)
+        consumeAvoidBadWifiCallback(1)
     }
 }
