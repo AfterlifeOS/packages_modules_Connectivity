@@ -18,6 +18,7 @@ package com.android.server.connectivity;
 
 import static android.content.pm.PackageManager.FEATURE_TELEPHONY_SUBSCRIPTION;
 import static android.net.ConnectivitySettingsManager.NETWORK_AVOID_BAD_WIFI;
+import static android.net.ConnectivitySettingsManager.NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI;
 import static android.net.ConnectivitySettingsManager.NETWORK_METERED_MULTIPATH_PREFERENCE;
 
 import android.annotation.IntDef;
@@ -240,6 +241,7 @@ public class MultinetworkPolicyTracker {
         mDeps = deps;
         mSettingsUris = Arrays.asList(
                 Settings.Global.getUriFor(NETWORK_AVOID_BAD_WIFI),
+                Settings.Global.getUriFor(NETWORK_CARRIER_AWARE_AVOID_BAD_WIFI),
                 Settings.Global.getUriFor(NETWORK_METERED_MULTIPATH_PREFERENCE));
         mResolver = mContext.getContentResolver();
         mSettingObserver = new SettingObserver();
@@ -270,7 +272,7 @@ public class MultinetworkPolicyTracker {
     @TargetApi(Build.VERSION_CODES.S)
     public void start() {
         for (Uri uri : mSettingsUris) {
-            mResolver.registerContentObserver(uri, false, mSettingObserver);
+            mResolver.registerContentObserver(uri, true, mSettingObserver);
         }
 
         final IntentFilter intentFilter = new IntentFilter();
@@ -410,6 +412,29 @@ public class MultinetworkPolicyTracker {
     }
 
     /**
+     * Re-evaluates network policies in response to a settings change.
+     *
+     * This method is called when a {@link android.provider.Settings.Global} URI is observed
+     * to have changed.
+     * It checks if the observed {@code uri} starts with any of the URIs registered for observation
+     * in {@link #mSettingsUris}. If a matching prefix is found, it triggers a full re-evaluation
+     * of the network policies by calling {@link #reevaluate()}.
+     * If the {@code uri} does not match any registered prefix, it logs a "wtf" error,
+     * indicating an unexpected observation.
+     */
+    @VisibleForTesting
+    public void reevaluateSettingsChange(Uri uri) {
+        for (Uri uriPrefix : mSettingsUris) {
+            if (uri.toString().startsWith(uriPrefix.toString())) {
+                reevaluate();
+                return;
+            }
+        }
+
+        Log.wtf(TAG, "Unexpected settings observation: " + uri);
+    }
+
+    /**
      * Reevaluate the settings. Must be called on the handler thread.
      */
     private void reevaluateInternal() {
@@ -494,10 +519,7 @@ public class MultinetworkPolicyTracker {
 
         @Override
         public void onChange(boolean selfChange, Uri uri) {
-            if (!mSettingsUris.contains(uri)) {
-                Log.wtf(TAG, "Unexpected settings observation: " + uri);
-            }
-            reevaluate();
+            reevaluateSettingsChange(uri);
         }
     }
 }
