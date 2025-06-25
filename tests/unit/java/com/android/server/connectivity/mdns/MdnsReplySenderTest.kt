@@ -25,6 +25,7 @@ import android.os.Message
 import com.android.net.module.util.SharedLog
 import com.android.server.connectivity.mdns.MdnsConstants.IPV4_SOCKET_ADDR
 import com.android.server.connectivity.mdns.MdnsConstants.IPV6_SOCKET_ADDR
+import com.android.server.connectivity.mdns.MdnsReplySender.MSG_SEND
 import com.android.server.connectivity.mdns.MdnsReplySender.getReplyDestination
 import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo
 import com.android.testutils.DevSdkIgnoreRunner
@@ -352,12 +353,18 @@ class MdnsReplySenderTest {
 
     private fun verifyMessageQueued(
             sender: MdnsReplySender,
-            replies: List<MdnsReplyInfo>
+            replies: List<MdnsReplyInfo>,
+            enableKAS: Boolean = true
     ): Pair<Handler, Message> {
         val handlerCaptor = ArgumentCaptor.forClass(Handler::class.java)
         val messageCaptor = ArgumentCaptor.forClass(Message::class.java)
-        for (reply in replies) {
+        for ((index, reply) in replies.withIndex()) {
             queueReply(sender, reply)
+            verify(deps, times(if (enableKAS) index + 1 else 0)).removeEqualMessages(
+                any(),
+                eq(MSG_SEND),
+                any()
+            )
             verify(deps).sendMessageDelayed(
                 handlerCaptor.capture(),
                 messageCaptor.capture(),
@@ -396,7 +403,7 @@ class MdnsReplySenderTest {
             source,
             emptyList()
         )
-        val (handler, message) = verifyMessageQueued(replySender, listOf(reply))
+        val (handler, message) = verifyMessageQueued(replySender, listOf(reply), enableKAS = false)
         verifyReplySent(handler, message, answers)
     }
 
@@ -438,6 +445,7 @@ class MdnsReplySenderTest {
             answers
         )
         queueReply(replySender, knownAnswersReply)
+        verify(deps, times(2)).removeEqualMessages(any(), eq(MSG_SEND), any())
         verify(deps, times(1)).sendMessageDelayed(any(), any(), anyLong())
     }
 
@@ -517,6 +525,7 @@ class MdnsReplySenderTest {
         )
         queueReply(replySender, secondKnownAnswerReply)
 
+        verify(deps, times(3)).removeEqualMessages(any(), eq(MSG_SEND), any())
         // Verify that no reply is queued, as all answers are known.
         verify(deps, times(2)).sendMessageDelayed(any(), any(), anyLong())
     }
