@@ -65,9 +65,13 @@ import android.net.ConnectivitySettingsManager.setPrivateDnsDefaultMode
 import android.net.ConnectivitySettingsManager.setWifiAlwaysRequested
 import android.net.ConnectivitySettingsManager.setWifiDataActivityTimeout
 import android.net.ConnectivitySettingsManager.shouldShowAvoidBadWifiToggle
+import android.net.platform.flags.Flags
 import android.os.Build
 import android.os.PersistableBundle
 import android.platform.test.annotations.AppModeFull
+import android.platform.test.annotations.RequiresFlagsEnabled
+import android.platform.test.flag.junit.CheckFlagsRule
+import android.platform.test.flag.junit.DeviceFlagsValueProvider
 import android.provider.Settings
 import android.telephony.CarrierConfigManager
 import android.telephony.SubscriptionManager
@@ -199,6 +203,9 @@ class ConnectivitySettingsManagerTest {
 
     @get:Rule
     val ignoreRule = DevSdkIgnoreRule()
+
+    @get:Rule
+    val checkFlagsRule: CheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule()!!
 
     @Test
     fun testMobileDataActivityTimeout() {
@@ -412,6 +419,7 @@ class ConnectivitySettingsManagerTest {
 
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
+    @RequiresFlagsEnabled(Flags.FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG)
     fun testSetNetworkAvoidBadWifiWithSettings() {
         val testSubId = 1000
         val orgDefaultSubIdSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
@@ -535,6 +543,7 @@ class ConnectivitySettingsManagerTest {
 
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
+    @RequiresFlagsEnabled(Flags.FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG)
     fun testGetNetworkAvoidBadWifiWithCarrierAwareSettings() {
         val testSubId = 1000
         val orgDefaultSubIdSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
@@ -570,6 +579,7 @@ class ConnectivitySettingsManagerTest {
 
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
+    @RequiresFlagsEnabled(Flags.FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG)
     fun testGetNetworkAvoidBadWifiWithSettings() {
         val testSubId = 1000
         val orgDefaultSubIdSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
@@ -606,6 +616,7 @@ class ConnectivitySettingsManagerTest {
 
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
+    @RequiresFlagsEnabled(Flags.FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG)
     fun testGetNetworkAvoidBadWifiWithCarrierConfig() {
         assumeTrue(
             "skip test if device does not support telephony subscription feature",
@@ -645,6 +656,7 @@ class ConnectivitySettingsManagerTest {
 
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
+    @RequiresFlagsEnabled(Flags.FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG)
     fun testShouldShowAvoidBadWifiToggleWithSettings() {
         val orgCarrierAwareSetting = getNetworkAvoidBadWifiSetting(context, defaultSubId)
         val orgSetting = getNetworkLegacyGlobalAvoidBadWifiSetting(context)
@@ -687,6 +699,7 @@ class ConnectivitySettingsManagerTest {
 
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
+    @RequiresFlagsEnabled(Flags.FLAG_AVOID_BAD_WIFI_FROM_CARRIER_CONFIG)
     fun testShouldShowAvoidBadWifiToggleWithCarrierConfig() {
         assumeTrue(
             "skip test if device does not support telephony subscription feature",
