@@ -270,13 +270,16 @@ public class NsdService extends INsdManager.Stub {
         final long mOffloadCapabilities;
         final long mOffloadType;
         @NonNull final IOffloadEngine mOffloadEngine;
+        final NsdServiceConnector mConnector;
 
         OffloadEngineInfo(@NonNull IOffloadEngine offloadEngine,
-                @NonNull String interfaceName, long capabilities, long offloadType) {
+                @NonNull String interfaceName, long capabilities, long offloadType,
+                NsdServiceConnector connector) {
             this.mOffloadEngine = offloadEngine;
             this.mInterfaceName = interfaceName;
             this.mOffloadCapabilities = capabilities;
             this.mOffloadType = offloadType;
+            this.mConnector = connector;
         }
     }
 
@@ -1344,6 +1347,12 @@ public class NsdService extends INsdManager.Stub {
                         break;
                     case NsdManager.REGISTER_OFFLOAD_ENGINE:
                         offloadEngineInfo = (OffloadEngineInfo) msg.obj;
+                        clientInfo = mClients.get(offloadEngineInfo.mConnector);
+                        if (clientInfo == null) {
+                            Log.e(TAG, "Unknown connector in calls to register offload engine");
+                            break;
+                        }
+                        clientInfo.markIsOffloadEngine();
                         // TODO: Limits the number of registrations created by a given class.
                         mOffloadEngines.register(offloadEngineInfo.mOffloadEngine,
                                 offloadEngineInfo);
@@ -2461,7 +2470,7 @@ public class NsdService extends INsdManager.Stub {
             mNsdStateMachine.sendMessage(
                     mNsdStateMachine.obtainMessage(NsdManager.REGISTER_OFFLOAD_ENGINE,
                             new OffloadEngineInfo(cb, ifaceName, offloadCapabilities,
-                                    offloadTypes)));
+                                    offloadTypes, this)));
         }
 
         @Override
@@ -2886,6 +2895,7 @@ public class NsdService extends INsdManager.Stub {
         private final SharedLog mClientLogs;
         // Report the nsd metrics data
         private final NetworkNsdReportedMetrics mMetrics;
+        private boolean mIsOffloadEngine = false;
 
         private ClientInfo(INsdManagerCallback cb, int uid, boolean useJavaBackend,
                 SharedLog sharedLog, NetworkNsdReportedMetrics metrics) {
@@ -2904,6 +2914,9 @@ public class NsdService extends INsdManager.Stub {
             sb.append("mResolvedService ").append(mResolvedService).append(", ");
             sb.append("mIsLegacy ").append(mIsPreSClient).append(", ");
             sb.append("mUseJavaBackend ").append(mUseJavaBackend).append(", ");
+            if (mIsOffloadEngine) {
+                sb.append("isOffloadEngine").append(", ");
+            }
             sb.append("mClientRequests:\n");
             for (int i = 0; i < mClientRequests.size(); i++) {
                 int clientRequestId = mClientRequests.keyAt(i);
@@ -2924,6 +2937,10 @@ public class NsdService extends INsdManager.Stub {
 
         private void setPreSClient() {
             mIsPreSClient = true;
+        }
+
+        private void markIsOffloadEngine() {
+            mIsOffloadEngine = true;
         }
 
         private MdnsListener unregisterMdnsListenerFromRequest(ClientRequest request) {
