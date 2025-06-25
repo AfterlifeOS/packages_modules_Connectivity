@@ -45,6 +45,7 @@ java_library {
     static_libs: [
         "androidx.core_core",
         "androidx.test.rules",
+        "flag-junit",
         "junit",
         "mockito-target-minus-junit4",
         "modules-utils-build",
