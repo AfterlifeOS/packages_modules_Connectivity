@@ -40,6 +40,7 @@ import android.util.ArrayMap;
 import androidx.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.modules.utils.build.SdkLevel;
 
 import java.io.PrintWriter;
 import java.net.Inet4Address;
@@ -108,6 +109,15 @@ public class PrivateAddressCoordinator {
         public boolean isFeatureNotChickenedOut(String featureName) {
             return DeviceConfigUtils.isTetheringFeatureNotChickenedOut(mContext, featureName);
         }
+
+        /**
+         * Whether to randomize the tethering prefix for bluetooth as well. Requires T+ because
+         * in S this code is in the platform.
+         */
+        public boolean shouldBluetoothUseRandomAddress() {
+            // TODO: add a mainline beta flag to enable the new behaviour.
+            return SdkLevel.isAtLeastT() && false;
+        }
     }
 
     public PrivateAddressCoordinator(Supplier<Network[]> getAllNetworksSupplier, Context context) {
@@ -122,9 +132,11 @@ public class PrivateAddressCoordinator {
         mGetAllNetworksSupplier = getAllNetworksSupplier;
         mDeps = deps;
         mCachedAddresses = new ArrayMap<AddressKey, LinkAddress>();
-        // Reserved static addresses for bluetooth and wifi p2p.
-        mCachedAddresses.put(new AddressKey(TETHERING_BLUETOOTH, CONNECTIVITY_SCOPE_GLOBAL),
-                new LinkAddress(LEGACY_BLUETOOTH_IFACE_ADDRESS));
+        // Reserved static addresses for BLUETOOTH pre-T and WIFI_P2P.
+        if (!mDeps.shouldBluetoothUseRandomAddress()) {
+            mCachedAddresses.put(new AddressKey(TETHERING_BLUETOOTH, CONNECTIVITY_SCOPE_GLOBAL),
+                    new LinkAddress(LEGACY_BLUETOOTH_IFACE_ADDRESS));
+        }
         mCachedAddresses.put(new AddressKey(TETHERING_WIFI_P2P, CONNECTIVITY_SCOPE_LOCAL),
                 new LinkAddress(LEGACY_WIFI_P2P_IFACE_ADDRESS));
 
