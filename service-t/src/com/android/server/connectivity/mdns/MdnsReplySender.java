@@ -28,6 +28,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.net.module.util.SharedLog;
@@ -55,6 +56,7 @@ import java.util.Set;
 public class MdnsReplySender {
     @VisibleForTesting
     static final int MSG_SEND = 1;
+    private static final String TAG = MdnsReplySender.class.getSimpleName();
     private static final int PACKET_NOT_SENT = 0;
     private static final int PACKET_SENT = 1;
 
@@ -282,7 +284,7 @@ public class MdnsReplySender {
                 return;
             }
 
-            mSharedLog.log("Sending " + replyInfo);
+            Log.i(TAG, "Sending " + replyInfo);
 
             final int flags = 0x8400; // Response, authoritative (rfc6762 18.4)
             final MdnsPacket packet = new MdnsPacket(flags,

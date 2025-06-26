@@ -443,7 +443,7 @@ public class MdnsInterfaceAdvertiser implements MulticastPacketReader.PacketHand
         // conflicting service is still probing and won't reply either.
         final MdnsReplyInfo answers = mRecordRepository.getReply(packet, srcCopy);
         // Dump the query packet.
-        if (DBG || answers != null) {
+        if (DBG && answers != null) {
             mSharedLog.v("Parsed packet with transactionId(" + packet.transactionId + "): "
                     + packet.questions.size() + " questions, "
                     + packet.answers.size() + " answers, "
