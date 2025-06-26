@@ -20,6 +20,7 @@ import static android.net.NetworkCapabilities.TRANSPORT_VPN;
 import static android.net.NetworkCapabilities.TRANSPORT_WIFI;
 import static android.net.TetheringManager.CONNECTIVITY_SCOPE_GLOBAL;
 import static android.net.TetheringManager.CONNECTIVITY_SCOPE_LOCAL;
+import static android.net.TetheringManager.TETHERING_BLUETOOTH;
 import static android.net.TetheringManager.TETHERING_ETHERNET;
 import static android.net.TetheringManager.TETHERING_USB;
 import static android.net.TetheringManager.TETHERING_WIFI;
@@ -75,12 +76,13 @@ public final class PrivateAddressCoordinatorTest {
     @Mock private IpServer mUsbIpServer;
     @Mock private IpServer mEthernetIpServer;
     @Mock private IpServer mWifiP2pIpServer;
+    @Mock private IpServer mBluetoothIpServer;
     @Mock private Context mContext;
     @Mock private ConnectivityManager mConnectivityMgr;
     @Mock private PrivateAddressCoordinator.Dependencies mDeps;
 
     private PrivateAddressCoordinator mPrivateAddressCoordinator;
-    private final LinkAddress mBluetoothAddress = new LinkAddress("192.168.44.1/24");
+    private final LinkAddress mLegacyBluetoothAddress = new LinkAddress("192.168.44.1/24");
     private final LinkAddress mLegacyWifiP2pAddress = new LinkAddress("192.168.49.1/24");
     private final Network mWifiNetwork = new Network(1);
     private final Network mMobileNetwork = new Network(2);
@@ -117,6 +119,7 @@ public final class PrivateAddressCoordinatorTest {
         setUpIpServer(mHotspotIpServer, TETHERING_WIFI);
         setUpIpServer(mLocalHotspotIpServer, TETHERING_WIFI);
         setUpIpServer(mWifiP2pIpServer, TETHERING_WIFI_P2P);
+        setUpIpServer(mBluetoothIpServer, TETHERING_BLUETOOTH);
     }
 
     @Before
@@ -158,7 +161,7 @@ public final class PrivateAddressCoordinatorTest {
 
     @Test
     public void testRequestDownstreamAddressWithoutUsingLastAddress() throws Exception {
-        final IpPrefix bluetoothPrefix = asIpPrefix(mBluetoothAddress);
+        final IpPrefix bluetoothPrefix = asIpPrefix(mLegacyBluetoothAddress);
         final LinkAddress address = requestDownstreamAddress(mHotspotIpServer);
         final IpPrefix hotspotPrefix = asIpPrefix(address);
         assertNotEquals(hotspotPrefix, bluetoothPrefix);
@@ -181,11 +184,11 @@ public final class PrivateAddressCoordinatorTest {
     public void testReservedPrefix() throws Exception {
         // - Test bluetooth prefix is reserved.
         when(mPrivateAddressCoordinator.getRandomInt()).thenReturn(
-                getSubAddress(mBluetoothAddress.getAddress().getAddress()));
+                getSubAddress(mLegacyBluetoothAddress.getAddress().getAddress()));
         final LinkAddress hotspotAddress = requestStickyDownstreamAddress(mHotspotIpServer,
                 CONNECTIVITY_SCOPE_GLOBAL);
         final IpPrefix hotspotPrefix = asIpPrefix(hotspotAddress);
-        assertNotEquals(asIpPrefix(mBluetoothAddress), hotspotPrefix);
+        assertNotEquals(asIpPrefix(mLegacyBluetoothAddress), hotspotPrefix);
         releaseDownstream(mHotspotIpServer);
 
         // - Test previous enabled hotspot prefix(cached prefix) is reserved.
@@ -193,7 +196,7 @@ public final class PrivateAddressCoordinatorTest {
                 getSubAddress(hotspotAddress.getAddress().getAddress()));
         final LinkAddress usbAddress = requestDownstreamAddress(mUsbIpServer);
         final IpPrefix usbPrefix = asIpPrefix(usbAddress);
-        assertNotEquals(asIpPrefix(mBluetoothAddress), usbPrefix);
+        assertNotEquals(asIpPrefix(mLegacyBluetoothAddress), usbPrefix);
         assertNotEquals(hotspotPrefix, usbPrefix);
         releaseDownstream(mUsbIpServer);
 
@@ -203,7 +206,7 @@ public final class PrivateAddressCoordinatorTest {
         final LinkAddress etherAddress = requestDownstreamAddress(mEthernetIpServer);
         final IpPrefix etherPrefix = asIpPrefix(etherAddress);
         assertNotEquals(asIpPrefix(mLegacyWifiP2pAddress), etherPrefix);
-        assertNotEquals(asIpPrefix(mBluetoothAddress), etherPrefix);
+        assertNotEquals(asIpPrefix(mLegacyBluetoothAddress), etherPrefix);
         assertNotEquals(hotspotPrefix, etherPrefix);
         releaseDownstream(mEthernetIpServer);
     }
@@ -345,5 +348,23 @@ public final class PrivateAddressCoordinatorTest {
         assertTrue(address + " is not part of " + prefixBase,
                 prefixBase.containsPrefix(asIpPrefix(address)));
 
+    }
+
+    @Test
+    public void testBluetoothPrefix_legacy() throws Exception {
+        when(mDeps.shouldBluetoothUseRandomAddress()).thenReturn(false);
+        mPrivateAddressCoordinator = makePrivateAddressCoordinator();
+        final LinkAddress bluetoothAddress = requestStickyDownstreamAddress(mBluetoothIpServer,
+                CONNECTIVITY_SCOPE_GLOBAL);
+        assertEquals(mLegacyBluetoothAddress, bluetoothAddress);
+    }
+
+    @Test
+    public void testBluetoothPrefix_randomized() throws Exception {
+        when(mDeps.shouldBluetoothUseRandomAddress()).thenReturn(true);
+        mPrivateAddressCoordinator = makePrivateAddressCoordinator();
+        final LinkAddress bluetoothAddress = requestStickyDownstreamAddress(mBluetoothIpServer,
+                CONNECTIVITY_SCOPE_GLOBAL);
+        assertNotEquals(mLegacyBluetoothAddress, bluetoothAddress);
     }
 }
