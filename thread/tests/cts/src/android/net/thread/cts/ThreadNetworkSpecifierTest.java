@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package android.net.thread;
+package android.net.thread.cts;
 
 import static com.android.net.thread.flags.Flags.FLAG_THREAD_MOBILE_ENABLED;
 import static com.android.testutils.ParcelUtils.assertParcelingIsLossless;
@@ -22,12 +22,17 @@ import static com.android.testutils.ParcelUtils.assertParcelingIsLossless;
 import static com.google.common.io.BaseEncoding.base16;
 import static com.google.common.truth.Truth.assertThat;
 
+import android.net.thread.ActiveOperationalDataset;
+import android.net.thread.ThreadNetworkSpecifier;
 import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 
 import androidx.test.filters.SmallTest;
 
 import com.google.common.testing.EqualsTester;
 
+import org.junit.Rule;
 import org.junit.Test;
 
 /** Tests for {@link ThreadNetworkSpecifier}. */
@@ -77,6 +82,9 @@ public final class ThreadNetworkSpecifierTest {
             ActiveOperationalDataset.fromThreadTlvs(DATASET_TLVS_1);
     private static final ActiveOperationalDataset TEST_DATASET_2 =
             ActiveOperationalDataset.fromThreadTlvs(DATASET_TLVS_2);
+
+    @Rule
+    public final CheckFlagsRule mCheckFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     @Test
     public void parcelable_parcelingIsLossLess() {

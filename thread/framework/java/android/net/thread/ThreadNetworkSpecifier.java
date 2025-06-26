@@ -22,8 +22,12 @@ import static android.net.thread.ActiveOperationalDataset.LENGTH_EXTENDED_PAN_ID
 import static android.net.thread.ActiveOperationalDataset.LENGTH_NETWORK_KEY;
 import static android.net.thread.ActiveOperationalDataset.LENGTH_PSKC;
 
+import static com.android.net.thread.flags.Flags.FLAG_THREAD_MOBILE_ENABLED;
+
+import android.annotation.FlaggedApi;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.SystemApi;
 import android.net.NetworkRequest;
 import android.net.NetworkSpecifier;
 import android.os.Parcel;
@@ -41,6 +45,8 @@ import java.util.Objects;
  *
  * @hide
  */
+@FlaggedApi(FLAG_THREAD_MOBILE_ENABLED)
+@SystemApi
 public final class ThreadNetworkSpecifier extends NetworkSpecifier implements Parcelable {
     // TODO: b/427955643 - use NetworkCapabilities#REDACT_FOR_THREAD_NETWORK_PRIVILEGED
     private static final long REDACT_FOR_THREAD_NETWORK_PRIVILEGED = 1 << 3;
