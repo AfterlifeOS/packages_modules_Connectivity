@@ -65,9 +65,6 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-
 @RunWith(AndroidJUnit4.class)
 @SmallTest
 public final class PrivateAddressCoordinatorTest {
@@ -95,10 +92,10 @@ public final class PrivateAddressCoordinatorTest {
     private final Network mMobileNetwork6 = new Network(8);
     private final Network[] mAllNetworks = {mMobileNetwork, mWifiNetwork, mVpnNetwork,
             mMobileNetwork2, mMobileNetwork3, mMobileNetwork4, mMobileNetwork5, mMobileNetwork6};
-    private final ArrayList<IpPrefix> mTetheringPrefixes = new ArrayList<>(Arrays.asList(
-            new IpPrefix("192.168.0.0/16"),
-            new IpPrefix("172.16.0.0/12"),
-            new IpPrefix("10.0.0.0/8")));
+
+    private PrivateAddressCoordinator makePrivateAddressCoordinator() {
+        return spy(new PrivateAddressCoordinator(mConnectivityMgr::getAllNetworks, mDeps));
+    }
 
     private void setUpIpServer(IpServer ipServer, int interfaceType) throws Exception {
         when(ipServer.interfaceType()).thenReturn(interfaceType);
@@ -130,8 +127,7 @@ public final class PrivateAddressCoordinatorTest {
         when(mContext.getSystemService(ConnectivityManager.class)).thenReturn(mConnectivityMgr);
         when(mConnectivityMgr.getAllNetworks()).thenReturn(mAllNetworks);
         setUpIpServers();
-        mPrivateAddressCoordinator =
-                spy(new PrivateAddressCoordinator(mConnectivityMgr::getAllNetworks, mDeps));
+        mPrivateAddressCoordinator = makePrivateAddressCoordinator();
     }
 
     private LinkAddress requestStickyDownstreamAddress(final IpServer ipServer, int scope)
@@ -298,15 +294,6 @@ public final class PrivateAddressCoordinatorTest {
         return (subnet << 8) + ipv4Address[3];
     }
 
-    private void assertReseveredWifiP2pPrefix() throws Exception {
-        LinkAddress address =
-                requestStickyDownstreamAddress(mHotspotIpServer, CONNECTIVITY_SCOPE_GLOBAL);
-        final IpPrefix hotspotPrefix = asIpPrefix(address);
-        final IpPrefix legacyWifiP2pPrefix = asIpPrefix(mLegacyWifiP2pAddress);
-        assertNotEquals(legacyWifiP2pPrefix, hotspotPrefix);
-        releaseDownstream(mHotspotIpServer);
-    }
-
     @Test
     public void testEnableSapAndLohsConcurrently() throws Exception {
         final LinkAddress hotspotAddress =
@@ -351,8 +338,7 @@ public final class PrivateAddressCoordinatorTest {
 
     private void startedPrefixBaseTest(final String expected, final int randomIntForPrefixBase)
             throws Exception {
-        mPrivateAddressCoordinator =
-                spy(new PrivateAddressCoordinator(mConnectivityMgr::getAllNetworks, mDeps));
+        mPrivateAddressCoordinator = makePrivateAddressCoordinator();
         when(mPrivateAddressCoordinator.getRandomInt()).thenReturn(randomIntForPrefixBase);
         final LinkAddress address = requestDownstreamAddress(mHotspotIpServer);
         final IpPrefix prefixBase = new IpPrefix(expected);
