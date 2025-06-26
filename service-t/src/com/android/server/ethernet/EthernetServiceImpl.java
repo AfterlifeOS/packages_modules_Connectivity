@@ -135,8 +135,6 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
             PermissionUtils.enforceRestrictedNetworkPermission(mContext, TAG);
         }
 
-        // TODO: this does not check proxy settings, gateways, etc.
-        // Fix this by making IpConfiguration a complete representation of static configuration.
         final long ident = Binder.clearCallingIdentity();
         try {
             mTracker.updateIpConfiguration(iface, new IpConfiguration(config));
