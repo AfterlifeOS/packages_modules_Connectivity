@@ -112,6 +112,10 @@ public final class ThreadNetworkSpecifier extends NetworkSpecifier implements Pa
     /** @hide */
     @Override
     public NetworkSpecifier redact(long redactions) {
+        if (mActiveDataset == null) {
+            return new ThreadNetworkSpecifier.Builder(this).build();
+        }
+
         var redactedDatasetBuilder = new ActiveOperationalDataset.Builder(mActiveDataset);
         if ((redactions & REDACT_FOR_THREAD_NETWORK_PRIVILEGED) != 0
                 || (redactions & REDACT_FOR_ACCESS_FINE_LOCATION) != 0) {
