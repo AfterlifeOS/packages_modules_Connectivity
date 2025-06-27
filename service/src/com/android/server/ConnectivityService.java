@@ -2906,7 +2906,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
                     && !result.containsKey(nai.network)) {
                 result.put(
                         nai.network,
-                        createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+                        createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                                 nc, false /* includeLocationSensitiveInfo */,
                                 getCallingPid(), mDeps.getCallingUid(), callingPackageName,
                                 callingAttributionTag));
@@ -2921,7 +2921,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 if (null != nc) {
                     result.put(
                             network,
-                            createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+                            createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                                     nc,
                                     false /* includeLocationSensitiveInfo */,
                                     getCallingPid(), mDeps.getCallingUid(), callingPackageName,
@@ -3129,7 +3129,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
             @Nullable String callingAttributionTag) {
         mAppOpsManager.checkPackage(mDeps.getCallingUid(), callingPackageName);
         enforceAccessPermission();
-        return createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+        return createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                 getNetworkCapabilitiesInternal(network),
                 false /* includeLocationSensitiveInfo */,
                 getCallingPid(), mDeps.getCallingUid(), callingPackageName, callingAttributionTag);
@@ -3145,7 +3145,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (!hasAccessPermission(-1 /* pid */, uid)) {
             return null;
         }
-        return createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+        return createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                 nc, true /* includeLocationSensitiveInfo */, -1 /* callingPid */, uid, packageName,
                 callingAttributionTag);
     }
@@ -3300,7 +3300,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
 
     @VisibleForTesting
     @Nullable
-    NetworkCapabilities createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+    NetworkCapabilities createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
             @Nullable NetworkCapabilities nc, boolean includeLocationSensitiveInfo,
             int callingPid, int callingUid, @NonNull String callingPkgName,
             @Nullable String callingAttributionTag) {
@@ -11819,7 +11819,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         switch (notificationType) {
             case CALLBACK_RESERVED: {
                 final NetworkCapabilities nc =
-                        createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+                        createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                                 nri.getReservedCapabilities(), includeLocationSensitiveInfo,
                                 nri.mPid, nri.mUid, nrForCallback.getRequestorPackageName(),
                                 nri.mCallingAttributionTag);
@@ -11828,7 +11828,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
             }
             case CALLBACK_AVAILABLE: {
                 final NetworkCapabilities nc =
-                        createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+                        createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                                 networkAgent.networkCapabilities, includeLocationSensitiveInfo,
                                 nri.mPid, nri.mUid, nrForCallback.getRequestorPackageName(),
                                 nri.mCallingAttributionTag);
@@ -11845,7 +11845,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 // networkAgent can't be null as it has been accessed a few lines above.
                 putParcelable(
                         bundle,
-                        createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+                        createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                                 networkAgent.networkCapabilities, includeLocationSensitiveInfo,
                                 nri.mPid, nri.mUid, nrForCallback.getRequestorPackageName(),
                                 nri.mCallingAttributionTag));

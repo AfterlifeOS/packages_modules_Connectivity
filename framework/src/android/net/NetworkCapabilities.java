@@ -3566,7 +3566,7 @@ public final class NetworkCapabilities implements Parcelable {
          * mainline version but deployed to older platforms which don't have those two
          * NetworkSpecifier methods.
          * <p>
-         * See {@link #createWithLocationInfoSanitizedIfNecessaryWhenParceled} and {@link
+         * See {@link #createWithSensitiveInfoSanitizedIfNecessaryWhenParceled} and {@link
          * #ensureSufficientPermissionsForRequest} for how this method should be used.
          */
         @Nullable
