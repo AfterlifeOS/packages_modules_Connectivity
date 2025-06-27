@@ -53,7 +53,8 @@ import java.util.Set;
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 public class MdnsReplySender {
-    private static final int MSG_SEND = 1;
+    @VisibleForTesting
+    static final int MSG_SEND = 1;
     private static final int PACKET_NOT_SENT = 0;
     private static final int PACKET_SENT = 1;
 
@@ -96,10 +97,11 @@ public class MdnsReplySender {
         }
 
         /**
-         * @see Handler#removeMessages(int)
+         * @see Handler#removeEqualMessages(int, Object)
          */
-        public void removeMessages(@NonNull Handler handler, int what, @NonNull Object object) {
-            handler.removeMessages(what, object);
+        public void removeEqualMessages(@NonNull Handler handler, int what,
+                @NonNull Object object) {
+            handler.removeEqualMessages(what, object);
         }
 
         /**
@@ -155,7 +157,7 @@ public class MdnsReplySender {
         ensureRunningOnHandlerThread(mHandler);
 
         if (mMdnsFeatureFlags.isKnownAnswerSuppressionEnabled()) {
-            mDependencies.removeMessages(mHandler, MSG_SEND, reply.source);
+            mDependencies.removeEqualMessages(mHandler, MSG_SEND, reply.source);
 
             final MdnsReplyInfo queuingReply = mSrcReplies.remove(reply.source);
             final ArraySet<MdnsRecord> answers = new ArraySet<>();
