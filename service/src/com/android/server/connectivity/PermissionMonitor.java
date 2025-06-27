@@ -530,9 +530,9 @@ public class PermissionMonitor {
         mUsersTrafficPermissions.put(UserHandle.ALL, getSystemTrafficPerm());
 
         if (!mUseBroadcastReceiveHelper) {
-            final List<UserHandle> usrs = mUserManager.getUserHandles(true /* excludeDying */);
+            final List<UserHandle> users = mUserManager.getUserHandles(true /* excludeDying */);
             // Update netd permissions for all users.
-            for (UserHandle user : usrs) {
+            for (UserHandle user : users) {
                 onUserAdded(user);
             }
         }
