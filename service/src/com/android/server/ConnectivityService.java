@@ -3120,8 +3120,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
     private NetworkCapabilities getNetworkCapabilitiesInternal(NetworkAgentInfo nai) {
         if (nai == null) return null;
         synchronized (nai) {
-            return networkCapabilitiesRestrictedForCallerPermissions(
-                    nai.networkCapabilities, Binder.getCallingPid(), mDeps.getCallingUid());
+            return new NetworkCapabilities(nai.networkCapabilities);
         }
     }
 
@@ -3147,8 +3146,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
             return null;
         }
         return createWithLocationInfoSanitizedIfNecessaryWhenParceled(
-                networkCapabilitiesRestrictedForCallerPermissions(nc, -1 /* callerPid */, uid),
-                true /* includeLocationSensitiveInfo */, -1 /* callingPid */, uid, packageName,
+                nc, true /* includeLocationSensitiveInfo */, -1 /* callingPid */, uid, packageName,
                 callingAttributionTag);
     }
 
@@ -3164,35 +3162,6 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 || netOwnerUid == uid
                 || hasAnyPermissionOf(mContext, pid, uid,
                         android.Manifest.permission.NETWORK_FACTORY);
-    }
-
-    @VisibleForTesting
-    NetworkCapabilities networkCapabilitiesRestrictedForCallerPermissions(
-            NetworkCapabilities nc, int callerPid, int callerUid) {
-        // Note : here it would be nice to check ACCESS_NETWORK_STATE and return null, but
-        // this would be expensive (one more permission check every time any NC callback is
-        // sent) and possibly dangerous : apps normally can't lose ACCESS_NETWORK_STATE, if
-        // it happens for some reason (e.g. the package is uninstalled while CS is trying to
-        // send the callback) it would crash the system server with NPE.
-        final NetworkCapabilities newNc = new NetworkCapabilities(nc);
-        if (!hasSettingsPermission(callerPid, callerUid)) {
-            newNc.setUids(null);
-            newNc.setSSID(null);
-        }
-        if (newNc.getNetworkSpecifier() != null) {
-            newNc.setNetworkSpecifier(newNc.getNetworkSpecifier().redact());
-        }
-        if (!hasAnyPermissionOf(mContext, callerPid, callerUid,
-                android.Manifest.permission.NETWORK_STACK,
-                NetworkStack.PERMISSION_MAINLINE_NETWORK_STACK)) {
-            newNc.setAdministratorUids(new int[0]);
-        }
-        if (!canSeeAllowedUids(callerPid, callerUid, newNc.getOwnerUid())) {
-            newNc.setAllowedUids(new ArraySet<>());
-        }
-        redactUnderlyingNetworksForCapabilities(newNc, callerPid, callerUid);
-
-        return newNc;
     }
 
     /**
@@ -3347,6 +3316,32 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 nc.getApplicableRedactions(), redactionPermissionChecker,
                 includeLocationSensitiveInfo);
         final NetworkCapabilities newNc = new NetworkCapabilities(nc, redactions);
+
+        // Note : here it would be nice to check ACCESS_NETWORK_STATE and return null, but
+        // this would be expensive (one more permission check every time any NC callback is
+        // sent) and possibly dangerous : apps normally can't lose ACCESS_NETWORK_STATE, if
+        // it happens for some reason (e.g. the package is uninstalled while CS is trying to
+        // send the callback) it would crash the system server with NPE.
+        if (!hasSettingsPermission(callingPid, callingUid)) {
+            newNc.setUids(null);
+            newNc.setSSID(null);
+        }
+        // The NetworkCapabilities constructor above will only have redacted the
+        // specifier if it implements the getApplicableRedactions method. If it does
+        // not, then redact() must be called.
+        if (newNc.getNetworkSpecifier() != null) {
+            newNc.setNetworkSpecifier(newNc.getNetworkSpecifier().redact());
+        }
+        if (!hasAnyPermissionOf(mContext, callingPid, callingUid,
+                android.Manifest.permission.NETWORK_STACK,
+                NetworkStack.PERMISSION_MAINLINE_NETWORK_STACK)) {
+            newNc.setAdministratorUids(new int[0]);
+        }
+        if (!canSeeAllowedUids(callingPid, callingUid, newNc.getOwnerUid())) {
+            newNc.setAllowedUids(new ArraySet<>());
+        }
+        redactUnderlyingNetworksForCapabilities(newNc, callingPid, callingUid);
+
         // Reset owner uid if not destined for the owner app.
         // TODO : calling UID is redacted because apps should generally not know what UID is
         // bringing up the VPN, but this should not apply to some very privileged apps like settings
@@ -11815,10 +11810,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
             case CALLBACK_RESERVED: {
                 final NetworkCapabilities nc =
                         createWithLocationInfoSanitizedIfNecessaryWhenParceled(
-                                networkCapabilitiesRestrictedForCallerPermissions(
-                                        nri.getReservedCapabilities(), nri.mPid, nri.mUid),
-                                includeLocationSensitiveInfo, nri.mPid, nri.mUid,
-                                nrForCallback.getRequestorPackageName(),
+                                nri.getReservedCapabilities(), includeLocationSensitiveInfo,
+                                nri.mPid, nri.mUid, nrForCallback.getRequestorPackageName(),
                                 nri.mCallingAttributionTag);
                 putParcelable(bundle, nc);
                 break;
@@ -11826,10 +11819,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
             case CALLBACK_AVAILABLE: {
                 final NetworkCapabilities nc =
                         createWithLocationInfoSanitizedIfNecessaryWhenParceled(
-                                networkCapabilitiesRestrictedForCallerPermissions(
-                                        networkAgent.networkCapabilities, nri.mPid, nri.mUid),
-                                includeLocationSensitiveInfo, nri.mPid, nri.mUid,
-                                nrForCallback.getRequestorPackageName(),
+                                networkAgent.networkCapabilities, includeLocationSensitiveInfo,
+                                nri.mPid, nri.mUid, nrForCallback.getRequestorPackageName(),
                                 nri.mCallingAttributionTag);
                 putParcelable(bundle, nc);
                 putParcelable(bundle, linkPropertiesRestrictedForCallerPermissions(
@@ -11842,14 +11833,11 @@ public class ConnectivityService extends IConnectivityManager.Stub
             }
             case CALLBACK_CAP_CHANGED: {
                 // networkAgent can't be null as it has been accessed a few lines above.
-                final NetworkCapabilities netCap =
-                        networkCapabilitiesRestrictedForCallerPermissions(
-                                networkAgent.networkCapabilities, nri.mPid, nri.mUid);
                 putParcelable(
                         bundle,
                         createWithLocationInfoSanitizedIfNecessaryWhenParceled(
-                                netCap, includeLocationSensitiveInfo, nri.mPid, nri.mUid,
-                                nrForCallback.getRequestorPackageName(),
+                                networkAgent.networkCapabilities, includeLocationSensitiveInfo,
+                                nri.mPid, nri.mUid, nrForCallback.getRequestorPackageName(),
                                 nri.mCallingAttributionTag));
                 break;
             }

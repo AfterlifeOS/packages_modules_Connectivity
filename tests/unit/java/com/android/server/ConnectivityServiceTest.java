@@ -17505,8 +17505,9 @@ public class ConnectivityServiceTest {
         nc.setSubscriptionIds(subIds);
 
         final NetworkCapabilities result =
-                mService.networkCapabilitiesRestrictedForCallerPermissions(
-                        nc, Process.myPid(), Process.myUid());
+                mService.createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+                        nc, false /* includeLocationSensitiveInfo */, Process.myPid(),
+                        Process.myUid(), mContext.getPackageName(), getAttributionTag());
         assertEquals(subIds, result.getSubscriptionIds());
     }
 
