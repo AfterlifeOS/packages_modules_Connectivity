@@ -1462,7 +1462,7 @@ public class PermissionMonitorTest {
                         }
                     }
                     return true;
-                }), any(), any());
+                }), eq(NETWORK_STACK), any());
         final BroadcastReceiver originalReceiver = receiverCaptor.getValue();
         return new BroadcastReceiver() {
             @Override

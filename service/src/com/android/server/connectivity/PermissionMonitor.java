@@ -489,7 +489,7 @@ public class PermissionMonitor {
             intentFilter.addAction(Intent.ACTION_PACKAGE_REMOVED);
             intentFilter.addDataScheme("package");
             userAllContext.registerReceiver(
-                    mIntentReceiver, intentFilter, null /* broadcastPermission */, handler);
+                    mIntentReceiver, intentFilter, NETWORK_STACK, handler);
 
             // Listen to EXTERNAL_APPLICATIONS_AVAILABLE is that an app becoming
             // available means it may need to gain a permission. But an app that
@@ -499,14 +499,14 @@ public class PermissionMonitor {
             final IntentFilter externalIntentFilter =
                     new IntentFilter(Intent.ACTION_EXTERNAL_APPLICATIONS_AVAILABLE);
             userAllContext.registerReceiver(
-                    mIntentReceiver, externalIntentFilter, null /* broadcastPermission */, handler);
+                    mIntentReceiver, externalIntentFilter, NETWORK_STACK, handler);
 
             // Listen for user add/remove.
             final IntentFilter userIntentFilter = new IntentFilter();
             userIntentFilter.addAction(Intent.ACTION_USER_ADDED);
             userIntentFilter.addAction(Intent.ACTION_USER_REMOVED);
             userAllContext.registerReceiver(
-                    mIntentReceiver, userIntentFilter, null /* broadcastPermission */, handler);
+                    mIntentReceiver, userIntentFilter, NETWORK_STACK, handler);
         }
 
         // Register UIDS_ALLOWED_ON_RESTRICTED_NETWORKS setting observer

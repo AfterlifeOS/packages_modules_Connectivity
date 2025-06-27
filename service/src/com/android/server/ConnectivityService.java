@@ -2174,7 +2174,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
             final IntentFilter dataSaverIntentFilter =
                     new IntentFilter(ACTION_RESTRICT_BACKGROUND_CHANGED);
             mUserAllContext.registerReceiver(mDataSaverReceiver, dataSaverIntentFilter,
-                    null /* broadcastPermission */, mHandler);
+                    android.Manifest.permission.NETWORK_STACK, mHandler);
         }
 
         // TrackMultiNetworkActivities feature should be enabled by trunk stable flag.
