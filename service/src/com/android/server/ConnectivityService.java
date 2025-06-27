@@ -110,6 +110,7 @@ import static android.net.NetworkCapabilities.REDACT_FOR_ACCESS_FINE_LOCATION;
 import static android.net.NetworkCapabilities.REDACT_FOR_LOCAL_MAC_ADDRESS;
 import static android.net.NetworkCapabilities.REDACT_FOR_NETWORK_SETTINGS;
 import static android.net.NetworkCapabilities.REDACT_FOR_THREAD_NETWORK_PRIVILEGED;
+import static android.net.NetworkCapabilities.REDACT_NONE;
 import static android.net.NetworkCapabilities.RES_ID_MATCH_ALL_RESERVATIONS;
 import static android.net.NetworkCapabilities.RES_ID_UNSET;
 import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
@@ -209,6 +210,7 @@ import android.net.ConnectivityManager;
 import android.net.ConnectivityManager.BlockedReason;
 import android.net.ConnectivityManager.NetworkCallback;
 import android.net.ConnectivityManager.RestrictBackgroundStatus;
+import android.net.NetworkCapabilities.RedactionHelper;
 import android.net.ConnectivitySettingsManager;
 import android.net.DataStallReportParcelable;
 import android.net.DnsResolverServiceManager;
@@ -428,6 +430,8 @@ import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.io.PrintWriter;
 import java.io.Writer;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -8880,11 +8884,44 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
     }
 
+    @Nullable
+    private NetworkSpecifier maybeRedactRequestedNetworkSpecifier(
+            @Nullable NetworkSpecifier specifier, int callerPid, int callerUid,
+            String callerPackageName, @Nullable String callerAttributionTag,
+            boolean includeLocationSensitiveInfo) {
+        if (specifier == null) {
+            return null;
+        }
+
+        final long applicableRedactions =
+                RedactionHelper.getSpecifierApplicableRedactions(specifier);
+        if (applicableRedactions == REDACT_NONE) {
+            return specifier;
+        }
+
+        final RedactionPermissionChecker redactionPermissionChecker =
+                new RedactionPermissionChecker(
+                        callerPid, callerUid, callerPackageName, callerAttributionTag);
+        final long redactions = retrieveRequiredRedactions(
+                    applicableRedactions, redactionPermissionChecker,
+                    includeLocationSensitiveInfo);
+        return RedactionHelper.getSpecifierRedactResult(specifier, redactions);
+    }
+
     // This checks that the passed capabilities either do not request a
     // specific SSID/SignalStrength, or the calling app has permission to do so.
     private void ensureSufficientPermissionsForRequest(NetworkCapabilities nc,
             int callerPid, int callerUid, String callerPackageName,
             @Nullable String callerAttributionTag, boolean includeLocationSensitiveInfo) {
+        final NetworkSpecifier specifier = nc.getNetworkSpecifier();
+        final NetworkSpecifier redactedSpecifier = maybeRedactRequestedNetworkSpecifier(
+                specifier, callerPid, callerUid, callerPackageName, callerAttributionTag,
+                includeLocationSensitiveInfo);
+        if (!Objects.equals(redactedSpecifier, specifier)) {
+            throw new SecurityException(
+                    "Insufficient permissions to request a specific NetworkSpecifier");
+        }
+
         if (null != nc.getSsid() && !hasSettingsPermission(callerPid, callerUid)) {
             throw new SecurityException("Insufficient permissions to request a specific SSID");
         }
