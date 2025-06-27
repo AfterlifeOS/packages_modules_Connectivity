@@ -170,6 +170,15 @@ public final class NetworkCapabilities implements Parcelable {
     public static final long REDACT_FOR_NETWORK_SETTINGS = 1 << 2;
 
     /**
+     * Redact any fields that need {@link android.Manifest.permission#THREAD_NETWORK_PRIVILEGED}
+     * permission since the receiving app does not hold this permission.
+     *
+     * @see android.Manifest.permission#THREAD_NETWORK_PRIVILEGED
+     * @hide for only {@code ThreadNetworkSpecifier} which is in the same module
+     */
+    public static final long REDACT_FOR_THREAD_NETWORK_PRIVILEGED = 1 << 3;
+
+    /**
      * Redact all fields in this object that require any relevant permission.
      * @hide
      */
@@ -182,6 +191,7 @@ public final class NetworkCapabilities implements Parcelable {
             REDACT_FOR_ACCESS_FINE_LOCATION,
             REDACT_FOR_LOCAL_MAC_ADDRESS,
             REDACT_FOR_NETWORK_SETTINGS,
+            REDACT_FOR_THREAD_NETWORK_PRIVILEGED,
             REDACT_ALL
     })
     @Retention(RetentionPolicy.SOURCE)

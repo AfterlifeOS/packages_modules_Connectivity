@@ -109,6 +109,7 @@ import static android.net.NetworkCapabilities.NET_ENTERPRISE_ID_5;
 import static android.net.NetworkCapabilities.REDACT_FOR_ACCESS_FINE_LOCATION;
 import static android.net.NetworkCapabilities.REDACT_FOR_LOCAL_MAC_ADDRESS;
 import static android.net.NetworkCapabilities.REDACT_FOR_NETWORK_SETTINGS;
+import static android.net.NetworkCapabilities.REDACT_FOR_THREAD_NETWORK_PRIVILEGED;
 import static android.net.NetworkCapabilities.RES_ID_MATCH_ALL_RESERVATIONS;
 import static android.net.NetworkCapabilities.RES_ID_UNSET;
 import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
@@ -3208,6 +3209,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         private Boolean mHasLocationPermission = null;
         private Boolean mHasLocalMacAddressPermission = null;
         private Boolean mHasSettingsPermission = null;
+        private Boolean mHasThreadNetworkPrivilegedPermission = null;
 
         RedactionPermissionChecker(int callingPid, int callingUid,
                 @NonNull String callingPackageName, @Nullable String callingAttributionTag) {
@@ -3267,6 +3269,20 @@ public class ConnectivityService extends IConnectivityManager.Stub
             }
             return mHasSettingsPermission;
         }
+
+        /**
+         * Returns whether the app holds THREAD_NETWORK_PRIVILEGED permission or not (might return
+         * cached result if the permission was already checked before).
+         */
+        @CheckResult
+        private boolean hasThreadNetworkPrivilegedPermission() {
+            if (mHasThreadNetworkPrivilegedPermission == null) {
+                // If there is no cached result, perform the check now.
+                mHasThreadNetworkPrivilegedPermission = ConnectivityService.this
+                        .hasThreadNetworkPrivilegedPermission(mCallingPid, mCallingUid);
+            }
+            return mHasThreadNetworkPrivilegedPermission;
+        }
     }
 
     private static boolean shouldRedact(@NetworkCapabilities.RedactionType long redactions,
@@ -3299,6 +3315,11 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (shouldRedact(redactions, REDACT_FOR_NETWORK_SETTINGS)) {
             if (redactionPermissionChecker.hasSettingsPermission()) {
                 redactions &= ~REDACT_FOR_NETWORK_SETTINGS;
+            }
+        }
+        if (shouldRedact(redactions, REDACT_FOR_THREAD_NETWORK_PRIVILEGED)) {
+            if (redactionPermissionChecker.hasThreadNetworkPrivilegedPermission()) {
+                redactions &= ~REDACT_FOR_THREAD_NETWORK_PRIVILEGED;
             }
         }
         return redactions;
@@ -4267,6 +4288,16 @@ public class ConnectivityService extends IConnectivityManager.Stub
     private boolean hasLocalMacAddressPermission(int pid, int uid) {
         return PERMISSION_GRANTED == mContext.checkPermission(
                 Manifest.permission.LOCAL_MAC_ADDRESS, pid, uid);
+    }
+
+    @CheckResult
+    private boolean hasThreadNetworkPrivilegedPermission(int pid, int uid) {
+        // The THREAD_NETWORK_PRIVILEGED permission was added in Android V
+        if (!SdkLevel.isAtLeastV()) {
+            return false;
+        }
+        return PERMISSION_GRANTED == mContext.checkPermission(
+                Manifest.permission.THREAD_NETWORK_PRIVILEGED, pid, uid);
     }
 
     private void sendConnectedBroadcast(NetworkInfo info) {
