@@ -84,8 +84,12 @@ public class EthernetPortStateTest {
         mNetworkCapabilities = new NetworkCapabilities.Builder()
                 .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
                 .build();
-        mConfig1 = new EthernetConfiguration(ipConfig1, mNetworkCapabilities);
-        mConfig2 = new EthernetConfiguration(ipConfig2, mNetworkCapabilities);
+        mConfig1 = new EthernetConfiguration.Builder().setIpConfiguration(ipConfig1)
+                .setNetworkCapabilities(mNetworkCapabilities)
+                .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED).build();
+        mConfig2 = new EthernetConfiguration.Builder().setIpConfiguration(ipConfig2)
+                .setNetworkCapabilities(mNetworkCapabilities)
+                .setPersistence(EthernetConfiguration.PERSISTENCE_NOT_PERSISTED).build();
 
         mEthernetPortState1 = new EthernetPortState(
                 mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
@@ -176,8 +180,8 @@ public class EthernetPortStateTest {
                         + "EthernetManager.STATE_LINK_UP}.",
                 IllegalArgumentException.class,
                 () -> new EthernetPortState(
-                mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
-                EthernetManager.ROLE_CLIENT, -1));
+                        mTestInterfaceName1, mTestMacAddress1, mTestInterfaceIndex1, mConfig1,
+                        EthernetManager.ROLE_CLIENT, -1));
     }
 
     @Test
@@ -221,8 +225,8 @@ public class EthernetPortStateTest {
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: "
                     + "NOT_RESTRICTED&TRUSTED&NOT_VPN&NOT_BANDWIDTH_CONSTRAINED "
-                    + "UnderlyingNetworks: Null], Interface name:eth0, "
-                    + "MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
+                    + "UnderlyingNetworks: Null], Is persisted: 0,"
+                    + " Interface name:eth0, MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
         } else {
             expect = "Role:1, State:2, Configurations: IP configurations: "
                     + "IP assignment: STATIC\n"
@@ -232,8 +236,8 @@ public class EthernetPortStateTest {
                     + "HTTP proxy: [test1] 8888\n"
                     + "Network capabilities: [ Transports: ETHERNET Capabilities: "
                     + "NOT_RESTRICTED&TRUSTED&NOT_VPN UnderlyingNetworks: Nu"
-                    + "ll], Interface name:eth0, MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
-
+                    + "ll], Is persisted: 0, Interface name:eth0, "
+                    + "MAC address:0a:1b:2c:3d:4e:5f, Interface index:1";
         }
         assertEquals(mEthernetPortState1.toString(), expect);
     }
