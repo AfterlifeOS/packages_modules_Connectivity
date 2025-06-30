@@ -418,13 +418,15 @@ public class NetworkCapabilitiesTest {
         assertParcelingIsLossless(cap);
     }
 
-    private static NetworkCapabilities createNetworkCapabilitiesWithTransportInfo() {
+    private static NetworkCapabilities createNetworkCapabilitiesWithTransportInfoAndSpecifier() {
         return new NetworkCapabilities()
                 .addCapability(NET_CAPABILITY_INTERNET)
                 .addCapability(NET_CAPABILITY_EIMS)
                 .addCapability(NET_CAPABILITY_NOT_METERED)
+                .addTransportType(TRANSPORT_THREAD)
                 .setSSID(TEST_SSID)
                 .setTransportInfo(new TestTransportInfo())
+                .setNetworkSpecifier(new RedactableNetworkSpecifier())
                 .setRequestorPackageName("com.android.test")
                 .setRequestorUid(9304);
     }
@@ -433,7 +435,8 @@ public class NetworkCapabilitiesTest {
     public void testNetworkCapabilitiesCopyWithNoRedactions() {
         assumeTrue(isAtLeastS());
 
-        final NetworkCapabilities netCap = createNetworkCapabilitiesWithTransportInfo();
+        final NetworkCapabilities netCap =
+                createNetworkCapabilitiesWithTransportInfoAndSpecifier();
         final NetworkCapabilities netCapWithNoRedactions =
                 new NetworkCapabilities(netCap, NetworkCapabilities.REDACT_NONE);
         TestTransportInfo testTransportInfo =
@@ -441,13 +444,18 @@ public class NetworkCapabilitiesTest {
         assertFalse(testTransportInfo.locationRedacted);
         assertFalse(testTransportInfo.localMacAddressRedacted);
         assertFalse(testTransportInfo.settingsRedacted);
+        RedactableNetworkSpecifier testNetworkSpecifier =
+                (RedactableNetworkSpecifier) netCapWithNoRedactions.getNetworkSpecifier();
+        assertFalse(testNetworkSpecifier.locationRedacted);
+        assertFalse(testNetworkSpecifier.threadNetworkRedacted);
     }
 
     @Test
     public void testNetworkCapabilitiesCopyWithoutLocationSensitiveFields() {
         assumeTrue(isAtLeastS());
 
-        final NetworkCapabilities netCap = createNetworkCapabilitiesWithTransportInfo();
+        final NetworkCapabilities netCap =
+                createNetworkCapabilitiesWithTransportInfoAndSpecifier();
         final NetworkCapabilities netCapWithNoRedactions =
                 new NetworkCapabilities(netCap, REDACT_FOR_ACCESS_FINE_LOCATION);
         TestTransportInfo testTransportInfo =
@@ -455,6 +463,24 @@ public class NetworkCapabilitiesTest {
         assertTrue(testTransportInfo.locationRedacted);
         assertFalse(testTransportInfo.localMacAddressRedacted);
         assertFalse(testTransportInfo.settingsRedacted);
+        RedactableNetworkSpecifier testNetworkSpecifier =
+                (RedactableNetworkSpecifier) netCapWithNoRedactions.getNetworkSpecifier();
+        assertTrue(testNetworkSpecifier.locationRedacted);
+        assertFalse(testNetworkSpecifier.threadNetworkRedacted);
+    }
+
+    @Test
+    public void testGetApplicableRedactions() {
+        assumeTrue(isAtLeastS());
+
+        final NetworkCapabilities netCap =
+                createNetworkCapabilitiesWithTransportInfoAndSpecifier();
+        final long redactions = netCap.getApplicableRedactions();
+
+        assertEquals(
+                REDACT_FOR_ACCESS_FINE_LOCATION | REDACT_FOR_LOCAL_MAC_ADDRESS
+                        | REDACT_FOR_NETWORK_SETTINGS | REDACT_FOR_THREAD_NETWORK_PRIVILEGED,
+                redactions);
     }
 
     @Test

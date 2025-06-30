@@ -352,6 +352,11 @@ public final class NetworkCapabilities implements Parcelable {
         if (mTransportInfo != null) {
             mTransportInfo = nc.mTransportInfo.makeCopy(redactions);
         }
+        if (mNetworkSpecifier != null) {
+            mNetworkSpecifier =
+                    (NetworkSpecifier) RedactionHelper.getSpecifierRedactResult(
+                            mNetworkSpecifier, redactions);
+        }
     }
 
     /**
@@ -3022,13 +3027,14 @@ public final class NetworkCapabilities implements Parcelable {
      * @hide
      */
     public @RedactionType long getApplicableRedactions() {
-        // Currently, there are no fields redacted in NetworkCapabilities itself, so we just
-        // passthrough the redactions required by the embedded TransportInfo. If this changes
-        // in the future, modify this method.
-        if (mTransportInfo == null) {
-            return NetworkCapabilities.REDACT_NONE;
+        long redactions = REDACT_NONE;
+        if (mTransportInfo != null) {
+            redactions |= mTransportInfo.getApplicableRedactions();
         }
-        return mTransportInfo.getApplicableRedactions();
+        if (mNetworkSpecifier != null) {
+            redactions |= RedactionHelper.getSpecifierApplicableRedactions(mNetworkSpecifier);
+        }
+        return redactions;
     }
 
     private NetworkCapabilities removeDefaultCapabilites() {
