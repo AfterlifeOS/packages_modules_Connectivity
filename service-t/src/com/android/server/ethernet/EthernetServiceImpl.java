@@ -33,6 +33,7 @@ import android.net.ITetheredInterfaceCallback;
 import android.net.IpConfiguration;
 import android.net.NetworkCapabilities;
 import android.net.NetworkSpecifier;
+import android.os.Binder;
 import android.os.Handler;
 import android.os.RemoteException;
 import android.util.Log;
@@ -94,7 +95,13 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
     @Override
     public String[] getAvailableInterfaces() throws RemoteException {
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
-        return mTracker.getClientModeInterfacesSorted(hasUseRestrictedNetworksPermission());
+
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            return mTracker.getClientModeInterfacesSorted(hasUseRestrictedNetworksPermission());
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     /**
@@ -108,7 +115,12 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
             PermissionUtils.enforceRestrictedNetworkPermission(mContext, TAG);
         }
 
-        return new IpConfiguration(mTracker.getIpConfiguration(iface));
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            return new IpConfiguration(mTracker.getIpConfiguration(iface));
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     /**
@@ -123,9 +135,12 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
             PermissionUtils.enforceRestrictedNetworkPermission(mContext, TAG);
         }
 
-        // TODO: this does not check proxy settings, gateways, etc.
-        // Fix this by making IpConfiguration a complete representation of static configuration.
-        mTracker.updateIpConfiguration(iface, new IpConfiguration(config));
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.updateIpConfiguration(iface, new IpConfiguration(config));
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     /**
@@ -138,36 +153,61 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
             PermissionUtils.enforceRestrictedNetworkPermission(mContext, TAG);
         }
 
-        return mTracker.isTrackingInterfaceByRegex(iface);
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            return mTracker.isTrackingInterfaceByRegex(iface);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     /**
      * Adds a listener.
      * @param listener A {@link IEthernetServiceListener} to add.
      */
+    @Override
     public void addListener(IEthernetServiceListener listener) throws RemoteException {
         Objects.requireNonNull(listener, "listener must not be null");
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
-        mTracker.addListener(listener, hasUseRestrictedNetworksPermission());
+        final boolean hasUseRestrictedNetworksPermission = hasUseRestrictedNetworksPermission();
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.addListener(listener, hasUseRestrictedNetworksPermission);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     /**
      * Removes a listener.
      * @param listener A {@link IEthernetServiceListener} to remove.
      */
+    @Override
     public void removeListener(IEthernetServiceListener listener) {
         if (listener == null) {
             throw new IllegalArgumentException("listener must not be null");
         }
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
-        mTracker.removeListener(listener);
+
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.removeListener(listener);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     @Override
     public void setIncludeTestInterfaces(boolean include) {
         PermissionUtils.enforceNetworkStackPermissionOr(mContext,
                 android.Manifest.permission.NETWORK_SETTINGS);
-        mTracker.setIncludeTestInterfaces(include);
+
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.setIncludeTestInterfaces(include);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     @Override
@@ -175,7 +215,13 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
         Objects.requireNonNull(callback, "callback must not be null");
         PermissionUtils.enforceNetworkStackPermissionOr(mContext,
                 android.Manifest.permission.NETWORK_SETTINGS);
-        mTracker.requestTetheredInterface(callback);
+
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.requestTetheredInterface(callback);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     @Override
@@ -183,7 +229,13 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
         Objects.requireNonNull(callback, "callback must not be null");
         PermissionUtils.enforceNetworkStackPermissionOr(mContext,
                 android.Manifest.permission.NETWORK_SETTINGS);
-        mTracker.releaseTetheredInterface(callback);
+
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.releaseTetheredInterface(callback);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     @Override
@@ -278,8 +330,13 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
             maybeValidateEthernetTransport(iface, nc);
         }
 
-        mTracker.updateConfiguration(
-                iface, request.getIpConfiguration(), nc, new EthernetCallback(cb));
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.updateConfiguration(
+                    iface, request.getIpConfiguration(), nc, new EthernetCallback(cb));
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     @Override
@@ -291,7 +348,12 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
 
         enforceAdminPermission(iface, false, "enableInterface()");
 
-        mTracker.setInterfaceEnabled(iface, true /* enabled */, new EthernetCallback(cb));
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.setInterfaceEnabled(iface, true /* enabled */, new EthernetCallback(cb));
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     @Override
@@ -303,7 +365,12 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
 
         enforceAdminPermission(iface, false, "disableInterface()");
 
-        mTracker.setInterfaceEnabled(iface, false /* enabled */, new EthernetCallback(cb));
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.setInterfaceEnabled(iface, false /* enabled */, new EthernetCallback(cb));
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     @Override
@@ -311,12 +378,23 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
         PermissionUtils.enforceNetworkStackPermissionOr(mContext,
                 android.Manifest.permission.NETWORK_SETTINGS);
 
-        mTracker.setEthernetEnabled(enabled);
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            mTracker.setEthernetEnabled(enabled);
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 
     @Override
     public List<String> getInterfaceList() {
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
-        return mTracker.getEthernetInterfaceList();
+
+        final long ident = Binder.clearCallingIdentity();
+        try {
+            return mTracker.getEthernetInterfaceList();
+        } finally {
+            Binder.restoreCallingIdentity(ident);
+        }
     }
 }

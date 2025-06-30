@@ -58,6 +58,7 @@ import android.util.Log;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.modules.utils.build.SdkLevel;
+import com.android.net.module.util.DeviceConfigUtils;
 import com.android.net.module.util.HandlerUtils;
 import com.android.net.module.util.NetdUtils;
 import com.android.net.module.util.ServiceConnectivityJni;
@@ -108,6 +109,8 @@ public class EthernetTracker {
 
     private static final String TAG = EthernetTracker.class.getSimpleName();
     private static final boolean DBG = EthernetNetworkFactory.DBG;
+
+    private static final String NCM_ENABLED_FLAG = "ethernet_local_ncm_tracking_enabled_flag";
 
     private static final Pattern TEST_IFACE_REGEXP = Pattern.compile(TEST_TAP_PREFIX + "\\d+");
 
@@ -251,13 +254,12 @@ public class EthernetTracker {
 
         private void onNewLink(EthernetPort port, boolean linkUp) {
             if (!isInterfaceTracked(port)) {
-                // TODO: start tracking USB NCM interfaces.
                 final String ifname = port.getInterfaceName();
                 final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
                 if (trackingReason.isEmpty()) return;
 
                 Log.i(TAG, "onInterfaceAdded: " + port + " for reason: " + trackingReason);
-                maybeTrackInterface(port, trackingReason);
+                trackInterface(port, trackingReason);
             }
             Log.i(TAG, "interfaceLinkStateChanged: " + port + ", up: " + linkUp);
             updateInterfaceState(port, linkUp);
@@ -294,11 +296,9 @@ public class EthernetTracker {
                     final boolean linkUp = (ifinfomsg.flags & NetlinkConstants.IFF_LOWER_UP) != 0;
                     onNewLink(port, linkUp);
                     break;
-
                 case NetlinkConstants.RTM_DELLINK:
                     onDelLink(port);
                     break;
-
                 case NetlinkConstants.NLMSG_DONE:
                     // do nothing.
                     break;
@@ -742,7 +742,7 @@ public class EthernetTracker {
         // start configuring it.
         if (NetdUtils.hasFlag(config, INetd.IF_FLAG_RUNNING)) {
             // no need to send an interface state change as this is not a true "state change". The
-            // callers (maybeTrackInterface() and setTetheringInterfaceMode()) already broadcast the
+            // callers (trackInterface() and setTetheringInterfaceMode()) already broadcast the
             // state change.
             mFactory.updateInterfaceLinkState(port, true);
         }
@@ -802,15 +802,9 @@ public class EthernetTracker {
         mTetheredInterfaceWasAvailable = available;
     }
 
-    private void maybeTrackInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
+    private void trackInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
         final String iface = port.getInterfaceName();
-        // If we don't already track this interface, and if this interface matches
-        // our regex, start tracking it.
-        if (mFactory.hasInterface(iface) || (getInterfaceMode(iface) == INTERFACE_MODE_SERVER)) {
-            if (DBG) Log.w(TAG, "Ignoring already-tracked " + port);
-            return;
-        }
-        if (DBG) Log.i(TAG, "maybeTrackInterface: " + port);
+        if (DBG) Log.i(TAG, "trackInterface: " + port);
 
         // Do not use an interface for tethering if it has configured NetworkCapabilities, or if it
         // was not included in the regex.
@@ -885,6 +879,11 @@ public class EthernetTracker {
         if (isValidTestInterface(iface)) {
             reasons.add(TrackingReason.REGEX);
             reasons.add(TrackingReason.NCM);
+        }
+
+        // TODO: remove this flag after M-2025-09 release.
+        if (!DeviceConfigUtils.isTetheringFeatureNotChickenedOut(mContext, NCM_ENABLED_FLAG)) {
+            return reasons;
         }
 
         // Host-side NCM interfaces are guaranteed to be named either usb%d or eth%d.
