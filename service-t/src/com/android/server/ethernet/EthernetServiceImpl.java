@@ -172,7 +172,8 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
         final boolean hasUseRestrictedNetworksPermission = hasUseRestrictedNetworksPermission();
         final long ident = Binder.clearCallingIdentity();
         try {
-            mTracker.addListener(listener, hasUseRestrictedNetworksPermission);
+            final EthernetListener wrappedListener = new EthernetListener(listener);
+            mTracker.addListener(wrappedListener, hasUseRestrictedNetworksPermission);
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
@@ -191,7 +192,8 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
 
         final long ident = Binder.clearCallingIdentity();
         try {
-            mTracker.removeListener(listener);
+            final EthernetListener wrappedListener = new EthernetListener(listener);
+            mTracker.removeListener(wrappedListener);
         } finally {
             Binder.restoreCallingIdentity(ident);
         }

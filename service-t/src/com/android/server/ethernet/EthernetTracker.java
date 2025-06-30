@@ -33,7 +33,6 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.net.EthernetManager;
-import android.net.IEthernetServiceListener;
 import android.net.INetd;
 import android.net.ITetheredInterfaceCallback;
 import android.net.InterfaceConfigurationParcel;
@@ -166,8 +165,7 @@ public class EthernetTracker {
     private final EthernetNetlinkMonitor mNetlinkMonitor;
     private final Dependencies mDeps;
 
-    private final RemoteCallbackList<IEthernetServiceListener> mListeners =
-            new RemoteCallbackList<>();
+    private final RemoteCallbackList<EthernetListener> mListeners = new RemoteCallbackList<>();
     private final TetheredInterfaceRequestList mTetheredInterfaceRequests =
             new TetheredInterfaceRequestList();
 
@@ -411,15 +409,11 @@ public class EthernetTracker {
         final boolean isRestricted = isRestrictedInterface(iface);
         final int n = mListeners.beginBroadcast();
         for (int i = 0; i < n; i++) {
-            try {
-                if (isRestricted) {
-                    final ListenerInfo info = (ListenerInfo) mListeners.getBroadcastCookie(i);
-                    if (!info.canUseRestrictedNetworks) continue;
-                }
-                mListeners.getBroadcastItem(i).onInterfaceStateChanged(iface, state, role, config);
-            } catch (RemoteException e) {
-                // Do nothing here.
+            if (isRestricted) {
+                final ListenerInfo info = (ListenerInfo) mListeners.getBroadcastCookie(i);
+                if (!info.canUseRestrictedNetworks) continue;
             }
+            mListeners.getBroadcastItem(i).onInterfaceStateChanged(iface, state, role, config);
         }
         mListeners.finishBroadcast();
     }
@@ -428,17 +422,12 @@ public class EthernetTracker {
      * Unicast the interface state or IpConfiguration change of existing Ethernet interfaces to a
      * specific listener.
      */
-    protected void unicastInterfaceStateChange(@NonNull IEthernetServiceListener listener,
-            @NonNull String iface) {
+    protected void unicastInterfaceStateChange(EthernetListener listener, String iface) {
         ensureRunningOnEthernetServiceThread();
         final int state = getInterfaceState(iface);
         final int role = getInterfaceRole(iface);
         final IpConfiguration config = getIpConfigurationForCallback(iface, state);
-        try {
-            listener.onInterfaceStateChanged(iface, state, role, config);
-        } catch (RemoteException e) {
-            // Do nothing here.
-        }
+        listener.onInterfaceStateChanged(iface, state, role, config);
     }
 
     @VisibleForTesting(visibility = PACKAGE)
@@ -538,7 +527,7 @@ public class EthernetTracker {
         return nc != null && !nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
     }
 
-    void addListener(IEthernetServiceListener listener, boolean canUseRestrictedNetworks) {
+    void addListener(EthernetListener listener, boolean canUseRestrictedNetworks) {
         mHandler.post(() -> {
             if (!mListeners.register(listener, new ListenerInfo(canUseRestrictedNetworks))) {
                 // Remote process has already died
@@ -555,7 +544,7 @@ public class EthernetTracker {
         });
     }
 
-    void removeListener(IEthernetServiceListener listener) {
+    void removeListener(EthernetListener listener) {
         mHandler.post(() -> mListeners.unregister(listener));
     }
 
@@ -944,26 +933,16 @@ public class EthernetTracker {
         return state ? ETHERNET_STATE_ENABLED : ETHERNET_STATE_DISABLED;
     }
 
-    private void unicastEthernetStateChange(@NonNull IEthernetServiceListener listener,
-            boolean enabled) {
+    private void unicastEthernetStateChange(EthernetListener listener, boolean enabled) {
         ensureRunningOnEthernetServiceThread();
-        try {
-            listener.onEthernetStateChanged(isEthernetEnabledAsInt(enabled));
-        } catch (RemoteException e) {
-            // Do nothing here.
-        }
+        listener.onEthernetStateChanged(isEthernetEnabledAsInt(enabled));
     }
 
     private void broadcastEthernetStateChange(boolean enabled) {
         ensureRunningOnEthernetServiceThread();
         final int n = mListeners.beginBroadcast();
         for (int i = 0; i < n; i++) {
-            try {
-                mListeners.getBroadcastItem(i)
-                            .onEthernetStateChanged(isEthernetEnabledAsInt(enabled));
-            } catch (RemoteException e) {
-                // Do nothing here.
-            }
+            mListeners.getBroadcastItem(i).onEthernetStateChanged(isEthernetEnabledAsInt(enabled));
         }
         mListeners.finishBroadcast();
     }
