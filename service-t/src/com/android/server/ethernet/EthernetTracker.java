@@ -141,7 +141,7 @@ public class EthernetTracker {
 
     /**
      * Interface names we track. This is a product-dependent regular expression.
-     * Use getTrackingReason() to check if a interface name is a valid ethernet interface (this
+     * Use inferTrackingReason() to check if a interface name is a valid ethernet interface (this
      * includes test interfaces if setIncludeTestInterfaces is set to true) and should be tracked.
      */
     private final Pattern mIfaceMatch;
@@ -255,7 +255,7 @@ public class EthernetTracker {
         private void onNewLink(EthernetPort port, boolean linkUp) {
             if (!isInterfaceTracked(port)) {
                 final String ifname = port.getInterfaceName();
-                final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
+                final EnumSet<TrackingReason> trackingReason = inferTrackingReason(ifname);
                 if (trackingReason.isEmpty()) return;
 
                 Log.i(TAG, "onInterfaceAdded: " + port + " for reason: " + trackingReason);
@@ -285,9 +285,9 @@ public class EthernetTracker {
             if (mac == null) return;
 
             // Note that #onNewLink() and #onDelLink() filter out non-ethernet interfaces by calling
-            // either #getTrackingReason (for newly tracked interfaces) or #isInterfaceTracked (for
-            // existing interfaces). Up until then, this code runs for every network interface on
-            // the system.
+            // either #inferTrackingReason (for newly tracked interfaces) or #isInterfaceTracked
+            // (for existing interfaces). Up until then, this code runs for every network interface
+            // on the system.
             final String ifname = msg.getInterfaceName();
             final EthernetPort port = new EthernetPort(ifname, mac, ifinfomsg.index);
 
@@ -514,7 +514,7 @@ public class EthernetTracker {
         }
 
         // There is a possible race with setIncludeTestInterfaces() which affects
-        // getTrackingReason().
+        // inferTrackingReason().
         // setIncludeTestInterfaces() is only used in tests, and since getEthernetInterfaceList()
         // does not run on the handler thread, the behavior around setIncludeTestInterfaces() is
         // indeterminate either way. This can easily be circumvented by waiting on a callback from
@@ -522,7 +522,7 @@ public class EthernetTracker {
         // In production code, this has no effect.
         while (ifaces.hasMoreElements()) {
             NetworkInterface iface = ifaces.nextElement();
-            if (getTrackingReason(iface.getName()).contains(TrackingReason.REGEX)) {
+            if (inferTrackingReason(iface.getName()).contains(TrackingReason.REGEX)) {
                 interfaceList.add(iface.getName());
             }
         }
@@ -569,7 +569,7 @@ public class EthernetTracker {
                 // remove all test interfaces
                 for (EthernetPort port : getAllEthernetPorts()) {
                     final String iface = port.getInterfaceName();
-                    if (getTrackingReason(iface).contains(TrackingReason.REGEX)) continue;
+                    if (inferTrackingReason(iface).contains(TrackingReason.REGEX)) continue;
                     stopTrackingInterface(port);
                 }
             }
@@ -868,7 +868,7 @@ public class EthernetTracker {
      *
      * If the returned EnumSet is empty, the interface is not tracked.
      */
-    private EnumSet<TrackingReason> getTrackingReason(String iface) {
+    private EnumSet<TrackingReason> inferTrackingReason(String iface) {
         final EnumSet<TrackingReason> reasons = EnumSet.noneOf(TrackingReason.class);
         if (mIfaceMatch.matcher(iface).matches()) {
             reasons.add(TrackingReason.REGEX);
