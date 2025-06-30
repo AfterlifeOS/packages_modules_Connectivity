@@ -295,9 +295,12 @@ class EthernetManagerTest {
             assertNotNull(cb, "Never received expected $expected. Received: ${events.backtrace()}")
         }
 
-        fun eventuallyExpect(iface: EthernetTestInterface, state: Int, role: Int) {
-            eventuallyExpect(createChangeEvent(iface.name, state, role))
+        fun eventuallyExpect(ifname: String, state: Int, role: Int) {
+            eventuallyExpect(createChangeEvent(ifname, state, role))
         }
+
+        fun eventuallyExpect(iface: EthernetTestInterface, state: Int, role: Int) =
+                eventuallyExpect(iface.name, state, role)
 
         fun eventuallyExpect(state: Int) {
             eventuallyExpect(EthernetStateChanged(state))
@@ -511,13 +514,13 @@ class EthernetManagerTest {
     }
 
     private fun updateConfiguration(
-        iface: EthernetTestInterface,
+        ifname: String,
         ipConfig: IpConfiguration? = null,
         capabilities: NetworkCapabilities? = null
     ) = EthernetOutcomeReceiver().also {
         runAsShell(MANAGE_TEST_NETWORKS) {
             em.updateConfiguration(
-                iface.name,
+                ifname,
                 EthernetNetworkUpdateRequest.Builder()
                     .setIpConfiguration(ipConfig)
                     .setNetworkCapabilities(capabilities).build(),
@@ -525,6 +528,12 @@ class EthernetManagerTest {
                 it)
         }
     }
+
+    private fun updateConfiguration(
+        iface: EthernetTestInterface,
+        ipConfig: IpConfiguration? = null,
+        capabilities: NetworkCapabilities? = null
+    ) = updateConfiguration(iface.name, ipConfig, capabilities)
 
     // WARNING: check that isAdbOverEthernet() is false before calling setEthernetEnabled(false).
     private fun setEthernetEnabled(enabled: Boolean) {
@@ -1075,6 +1084,17 @@ class EthernetManagerTest {
         iface.setCarrierEnabled(true)
         cb.eventuallyExpectCapabilities(TEST_CAPS)
         cb.eventuallyExpectLpForStaticConfig(STATIC_IP_CONFIGURATION.staticIpConfiguration)
+    }
+
+    @Test
+    fun testUpdateConfiguration_callbacksForMissingInterface() {
+        val listener = EthernetStateListener()
+        addInterfaceStateListener(listener)
+
+        val bogusIfname = "testtap000"
+        updateConfiguration(bogusIfname, STATIC_IP_CONFIGURATION).expectResult(bogusIfname)
+
+        listener.eventuallyExpect(bogusIfname, STATE_ABSENT, ROLE_NONE)
     }
 
     @Test
