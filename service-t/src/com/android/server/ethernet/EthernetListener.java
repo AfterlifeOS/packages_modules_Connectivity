@@ -25,9 +25,16 @@ import android.os.RemoteException;
 /** Wraps IEthernetServiceListener and implements IInterface for use in RemoteCallbackList */
 public class EthernetListener implements IInterface {
     private final IEthernetServiceListener mListener;
+    private final boolean mHasUseRestrictedNetworksPermission;
 
-    public EthernetListener(IEthernetServiceListener listener) {
+    public EthernetListener(IEthernetServiceListener listener, boolean canUseRestrictedNetworks) {
         mListener = listener;
+        mHasUseRestrictedNetworksPermission = canUseRestrictedNetworks;
+    }
+
+    /** Indicates whether the remote uid has USE_RESTRICTED_NETWORKS permission */
+    public boolean hasUseRestrictedNetworksPermission() {
+        return mHasUseRestrictedNetworksPermission;
     }
 
     /** Send onEthernetStateChanged callback */

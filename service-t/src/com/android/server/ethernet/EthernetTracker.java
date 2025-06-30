@@ -409,11 +409,9 @@ public class EthernetTracker {
         final boolean isRestricted = isRestrictedInterface(iface);
         final int n = mListeners.beginBroadcast();
         for (int i = 0; i < n; i++) {
-            if (isRestricted) {
-                final ListenerInfo info = (ListenerInfo) mListeners.getBroadcastCookie(i);
-                if (!info.canUseRestrictedNetworks) continue;
-            }
-            mListeners.getBroadcastItem(i).onInterfaceStateChanged(iface, state, role, config);
+            final EthernetListener listener = mListeners.getBroadcastItem(i);
+            if (isRestricted && !listener.hasUseRestrictedNetworksPermission()) continue;
+            listener.onInterfaceStateChanged(iface, state, role, config);
         }
         mListeners.finishBroadcast();
     }
@@ -527,12 +525,13 @@ public class EthernetTracker {
         return nc != null && !nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
     }
 
-    void addListener(EthernetListener listener, boolean canUseRestrictedNetworks) {
+    void addListener(EthernetListener listener) {
         mHandler.post(() -> {
-            if (!mListeners.register(listener, new ListenerInfo(canUseRestrictedNetworks))) {
+            if (!mListeners.register(listener)) {
                 // Remote process has already died
                 return;
             }
+            final boolean canUseRestrictedNetworks = listener.hasUseRestrictedNetworksPermission();
             for (String iface : getClientModeInterfacesSorted(canUseRestrictedNetworks)) {
                 unicastInterfaceStateChange(listener, iface);
             }
@@ -806,15 +805,6 @@ public class EthernetTracker {
         addInterface(port, trackingReason);
 
         broadcastInterfaceStateChange(iface);
-    }
-
-    private static class ListenerInfo {
-
-        boolean canUseRestrictedNetworks = false;
-
-        ListenerInfo(boolean canUseRestrictedNetworks) {
-            this.canUseRestrictedNetworks = canUseRestrictedNetworks;
-        }
     }
 
     /**

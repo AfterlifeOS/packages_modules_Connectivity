@@ -170,10 +170,12 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
         Objects.requireNonNull(listener, "listener must not be null");
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
         final boolean hasUseRestrictedNetworksPermission = hasUseRestrictedNetworksPermission();
+
         final long ident = Binder.clearCallingIdentity();
         try {
-            final EthernetListener wrappedListener = new EthernetListener(listener);
-            mTracker.addListener(wrappedListener, hasUseRestrictedNetworksPermission);
+            final EthernetListener wrappedListener =
+                    new EthernetListener(listener, hasUseRestrictedNetworksPermission);
+            mTracker.addListener(wrappedListener);
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
@@ -187,10 +189,17 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
     public void removeListener(IEthernetServiceListener listener) {
         Objects.requireNonNull(listener, "listener must not be null");
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
+        final boolean hasUseRestrictedNetworksPermission = hasUseRestrictedNetworksPermission();
 
         final long ident = Binder.clearCallingIdentity();
         try {
-            final EthernetListener wrappedListener = new EthernetListener(listener);
+            // TODO: don't allocate an EthernetListener wrapper in the remove case.
+            // Unfortunately, RemoteCallbackList#unregister takes a generic <E
+            // extends IInterface> instead of just IInterface.
+            // Note that hasUseRestrictedNetworksPermission is irrelevant in
+            // this context and is only populated for the sake of completeness.
+            final EthernetListener wrappedListener =
+                    new EthernetListener(listener, hasUseRestrictedNetworksPermission);
             mTracker.removeListener(wrappedListener);
         } finally {
             Binder.restoreCallingIdentity(ident);
