@@ -185,9 +185,7 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
      */
     @Override
     public void removeListener(IEthernetServiceListener listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("listener must not be null");
-        }
+        Objects.requireNonNull(listener, "listener must not be null");
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
 
         final long ident = Binder.clearCallingIdentity();
