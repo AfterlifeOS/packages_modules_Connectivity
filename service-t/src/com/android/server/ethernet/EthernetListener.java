@@ -26,10 +26,13 @@ import android.os.RemoteException;
 public class EthernetListener implements IInterface {
     private final IEthernetServiceListener mListener;
     private final boolean mHasUseRestrictedNetworksPermission;
+    private final int mFlags;
 
-    public EthernetListener(IEthernetServiceListener listener, boolean canUseRestrictedNetworks) {
+    public EthernetListener(IEthernetServiceListener listener, boolean canUseRestrictedNetworks,
+            int flags) {
         mListener = listener;
         mHasUseRestrictedNetworksPermission = canUseRestrictedNetworks;
+        mFlags = flags;
     }
 
     /** Indicates whether the remote uid has USE_RESTRICTED_NETWORKS permission */
