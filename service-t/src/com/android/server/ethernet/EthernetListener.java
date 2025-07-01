@@ -16,14 +16,23 @@
 
 package com.android.server.ethernet;
 
+import static android.net.EthernetManager.LISTENER_FLAG_INCLUDE_NCM;
+
 import android.net.IEthernetServiceListener;
 import android.net.IpConfiguration;
 import android.os.IBinder;
 import android.os.IInterface;
 import android.os.RemoteException;
+import android.util.Log;
+
+import com.android.server.ethernet.EthernetTracker.TrackingReason;
+
+import java.util.EnumSet;
 
 /** Wraps IEthernetServiceListener and implements IInterface for use in RemoteCallbackList */
 public class EthernetListener implements IInterface {
+    private static final String TAG = "EthernetListener";
+
     private final IEthernetServiceListener mListener;
     private final boolean mHasUseRestrictedNetworksPermission;
     private final int mFlags;
@@ -49,9 +58,26 @@ public class EthernetListener implements IInterface {
         }
     }
 
-    /** Send onInterfaceStateChanged callback */
-    public void onInterfaceStateChanged(String iface, int state, int role,
-            IpConfiguration configuration) {
+    private boolean isIncludingNcmCallback() {
+        return (mFlags & LISTENER_FLAG_INCLUDE_NCM) != 0;
+    }
+
+    private boolean shouldNotifyInterfaceStateListener(EnumSet<TrackingReason> trackingReason) {
+        if (trackingReason.isEmpty()) {
+            Log.wtf(TAG, "TrackingReason is empty in onInterfaceStateChanged. This is a bug.");
+            return false;
+        }
+
+        if (trackingReason.contains(TrackingReason.REGEX)) return true;
+        if (trackingReason.contains(TrackingReason.NCM) && isIncludingNcmCallback()) return true;
+        return false;
+    }
+
+    /** Send onInterfaceStateChanged callback based on tracking reason. */
+    public void onInterfaceStateChanged(String iface, EnumSet<TrackingReason> trackingReason,
+            int state, int role, IpConfiguration configuration) {
+        if (!shouldNotifyInterfaceStateListener(trackingReason)) return;
+
         try {
             mListener.onInterfaceStateChanged(iface, state, role, configuration);
         } catch (RemoteException e) {
