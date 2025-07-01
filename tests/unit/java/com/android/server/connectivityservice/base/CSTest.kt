@@ -68,6 +68,7 @@ import com.android.internal.app.IBatteryStats
 import com.android.internal.util.test.BroadcastInterceptingContext
 import com.android.metrics.DefaultNetworkRematchMetrics
 import com.android.metrics.SatelliteCoarseUsageMetricsCollector
+import com.android.metrics.SatisfiedByLocalNetworkMetrics
 import com.android.modules.utils.build.SdkLevel
 import com.android.net.module.util.ArrayTrackRecord
 import com.android.net.module.util.SharedLog
@@ -187,6 +188,7 @@ open class CSTest {
         it[ConnectivityFlags.CLOSE_QUIC_CONNECTION] = true
         it[ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN] = true
         it[ConnectivityFlags.CONSTRAINED_DATA_SATELLITE_METRICS] = true
+        it[ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS] = true
     }
     fun setFeatureEnabled(flag: String, enabled: Boolean) = enabledFeatures.set(flag, enabled)
 
@@ -237,6 +239,7 @@ open class CSTest {
     val satelliteAccessController = mock<SatelliteAccessController>()
     val satelliteCoarseUsageMetricsCollector = mock<SatelliteCoarseUsageMetricsCollector>()
     val defaultNetworkRematchMetrics = mock<DefaultNetworkRematchMetrics>()
+    val satisfiedByLocalNetworkMetrics = mock<SatisfiedByLocalNetworkMetrics>()
     val quicConnectionCloser = mock<QuicConnectionCloser>()
     val destroySocketsWrapper = mock<DestroySocketsWrapper>()
     val dnsResolver = mock<IDnsResolver>()
@@ -262,7 +265,7 @@ open class CSTest {
     annotation class Flag(val name: String, val enabled: Boolean)
 
     @Before
-    fun setUp() {
+    open fun setUp() {
         // Set feature flags before constructing ConnectivityService
         val testMethodName = testNameRule.methodName
         try {
@@ -355,6 +358,11 @@ open class CSTest {
 
         override fun makeDefaultNetworkRematchMetrics(): DefaultNetworkRematchMetrics? {
             return defaultNetworkRematchMetrics
+        }
+
+        override fun makeSatisfiedByLocalNetworkMetrics(context: Context, handler: Handler):
+                SatisfiedByLocalNetworkMetrics {
+            return satisfiedByLocalNetworkMetrics
         }
 
         private inner class AOOKTDeps(c: Context) : AutomaticOnOffKeepaliveTracker.Dependencies(c) {

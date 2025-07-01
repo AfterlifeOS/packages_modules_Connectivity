@@ -73,6 +73,9 @@ public final class ConnectivityFlags {
     public static final String CONSTRAINED_DATA_SATELLITE_METRICS =
             "constrained_data_satellite_metrics";
 
+    public static final String SATISFIED_BY_LOCAL_NETWORK_METRICS =
+            "satisfied_by_local_network_metrics";
+
     /**
      * A feature flag to control whether the early link properties update for vpn should be enabled.
      *
