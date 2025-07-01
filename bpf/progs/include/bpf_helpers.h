@@ -178,25 +178,25 @@ struct sdk_level_uint { unsigned int sdk_level; };
  * the contents is only ever used during bpf program loading & map creation
  * by the bpf loader, and not by the eBPF program itself.
  */
-static void* (*bpf_map_lookup_elem_unsafe)(const struct bpf_map_def* map,
+static void* (*bpf_map_lookup_elem_unsafe)(const void* map,
                                            const void* key) = (void*)BPF_FUNC_map_lookup_elem;
-static int (*bpf_map_update_elem_unsafe)(const struct bpf_map_def* map, const void* key,
+static int (*bpf_map_update_elem_unsafe)(const void* map, const void* key,
                                          const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_map_update_elem;
-static int (*bpf_map_delete_elem_unsafe)(const struct bpf_map_def* map,
+static int (*bpf_map_delete_elem_unsafe)(const void* map,
                                          const void* key) = (void*)BPF_FUNC_map_delete_elem;
-static int (*bpf_ringbuf_output_unsafe)(const struct bpf_map_def* ringbuf,
+static int (*bpf_ringbuf_output_unsafe)(const void* ringbuf,
                                         const void* data, __u64 size, __u64 flags) = (void*)
         BPF_FUNC_ringbuf_output;
-static void* (*bpf_ringbuf_reserve_unsafe)(const struct bpf_map_def* ringbuf,
+static void* (*bpf_ringbuf_reserve_unsafe)(const void* ringbuf,
                                            __u64 size, __u64 flags) = (void*)
         BPF_FUNC_ringbuf_reserve;
 static void (*bpf_ringbuf_submit_unsafe)(const void* data, __u64 flags) = (void*)
         BPF_FUNC_ringbuf_submit;
-static void* (*bpf_sk_storage_get_unsafe) (const struct bpf_map_def* sk_storage, const void* sk,
+static void* (*bpf_sk_storage_get_unsafe) (const void* sk_storage, const void* sk,
                                            const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_sk_storage_get;
-static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage,
+static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
                                             const void* sk) = (void*) BPF_FUNC_sk_storage_delete;
 
 #define BPF_ANNOTATE_KV_PAIR(name, type_key, type_val)  \
