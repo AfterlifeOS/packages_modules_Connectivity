@@ -393,6 +393,7 @@ import com.android.internal.util.test.BroadcastInterceptingContext;
 import com.android.internal.util.test.FakeSettingsProvider;
 import com.android.metrics.DefaultNetworkRematchMetrics;
 import com.android.metrics.SatelliteCoarseUsageMetricsCollector;
+import com.android.metrics.SatisfiedByLocalNetworkMetrics;
 import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.ArrayTrackRecord;
 import com.android.net.module.util.BaseNetdUnsolicitedEventListener;
@@ -654,6 +655,7 @@ public class ConnectivityServiceTest {
     @Mock SatelliteAccessController mSatelliteAccessController;
     @Mock SatelliteCoarseUsageMetricsCollector mSatelliteCoarseUsageMetricsCollector;
     @Mock DefaultNetworkRematchMetrics mDefaultNetworkRematchMetrics;
+    @Mock SatisfiedByLocalNetworkMetrics mSatisfiedByLocalNetworkMetrics;
 
     // BatteryStatsManager is final and cannot be mocked with regular mockito, so just mock the
     // underlying binder calls.
@@ -2109,6 +2111,12 @@ public class ConnectivityServiceTest {
         }
 
         @Override
+        public SatisfiedByLocalNetworkMetrics makeSatisfiedByLocalNetworkMetrics(Context context,
+                Handler handler) {
+            return mSatisfiedByLocalNetworkMetrics;
+        }
+
+        @Override
         public boolean intentFilterEquals(final PendingIntent a, final PendingIntent b) {
             return runAsShell(GET_INTENT_SENDER_INTENT, () -> a.intentFilterEquals(b));
         }
@@ -2223,6 +2231,7 @@ public class ConnectivityServiceTest {
                 case ConnectivityFlags.CLOSE_QUIC_CONNECTION:
                 case ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN:
                 case ConnectivityFlags.CONSTRAINED_DATA_SATELLITE_METRICS:
+                case ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS:
                     return true;
                 default:
                     throw new UnsupportedOperationException("Unknown flag " + name

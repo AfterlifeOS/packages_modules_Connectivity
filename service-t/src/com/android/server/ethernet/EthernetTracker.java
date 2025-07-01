@@ -33,7 +33,6 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.net.EthernetManager;
-import android.net.IEthernetServiceListener;
 import android.net.INetd;
 import android.net.ITetheredInterfaceCallback;
 import android.net.InterfaceConfigurationParcel;
@@ -58,6 +57,7 @@ import android.util.Log;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.modules.utils.build.SdkLevel;
+import com.android.net.module.util.DeviceConfigUtils;
 import com.android.net.module.util.HandlerUtils;
 import com.android.net.module.util.NetdUtils;
 import com.android.net.module.util.ServiceConnectivityJni;
@@ -109,6 +109,8 @@ public class EthernetTracker {
     private static final String TAG = EthernetTracker.class.getSimpleName();
     private static final boolean DBG = EthernetNetworkFactory.DBG;
 
+    private static final String NCM_ENABLED_FLAG = "ethernet_local_ncm_tracking_enabled_flag";
+
     private static final Pattern TEST_IFACE_REGEXP = Pattern.compile(TEST_TAP_PREFIX + "\\d+");
 
     /** Pattern that identifies possible NCM host interfaces. */
@@ -138,7 +140,7 @@ public class EthernetTracker {
 
     /**
      * Interface names we track. This is a product-dependent regular expression.
-     * Use getTrackingReason() to check if a interface name is a valid ethernet interface (this
+     * Use inferTrackingReason() to check if a interface name is a valid ethernet interface (this
      * includes test interfaces if setIncludeTestInterfaces is set to true) and should be tracked.
      */
     private final Pattern mIfaceMatch;
@@ -163,8 +165,7 @@ public class EthernetTracker {
     private final EthernetNetlinkMonitor mNetlinkMonitor;
     private final Dependencies mDeps;
 
-    private final RemoteCallbackList<IEthernetServiceListener> mListeners =
-            new RemoteCallbackList<>();
+    private final RemoteCallbackList<EthernetListener> mListeners = new RemoteCallbackList<>();
     private final TetheredInterfaceRequestList mTetheredInterfaceRequests =
             new TetheredInterfaceRequestList();
 
@@ -251,13 +252,12 @@ public class EthernetTracker {
 
         private void onNewLink(EthernetPort port, boolean linkUp) {
             if (!isInterfaceTracked(port)) {
-                // TODO: start tracking USB NCM interfaces.
                 final String ifname = port.getInterfaceName();
-                final EnumSet<TrackingReason> trackingReason = getTrackingReason(ifname);
+                final EnumSet<TrackingReason> trackingReason = inferTrackingReason(ifname);
                 if (trackingReason.isEmpty()) return;
 
                 Log.i(TAG, "onInterfaceAdded: " + port + " for reason: " + trackingReason);
-                maybeTrackInterface(port, trackingReason);
+                trackInterface(port, trackingReason);
             }
             Log.i(TAG, "interfaceLinkStateChanged: " + port + ", up: " + linkUp);
             updateInterfaceState(port, linkUp);
@@ -283,9 +283,9 @@ public class EthernetTracker {
             if (mac == null) return;
 
             // Note that #onNewLink() and #onDelLink() filter out non-ethernet interfaces by calling
-            // either #getTrackingReason (for newly tracked interfaces) or #isInterfaceTracked (for
-            // existing interfaces). Up until then, this code runs for every network interface on
-            // the system.
+            // either #inferTrackingReason (for newly tracked interfaces) or #isInterfaceTracked
+            // (for existing interfaces). Up until then, this code runs for every network interface
+            // on the system.
             final String ifname = msg.getInterfaceName();
             final EthernetPort port = new EthernetPort(ifname, mac, ifinfomsg.index);
 
@@ -294,11 +294,9 @@ public class EthernetTracker {
                     final boolean linkUp = (ifinfomsg.flags & NetlinkConstants.IFF_LOWER_UP) != 0;
                     onNewLink(port, linkUp);
                     break;
-
                 case NetlinkConstants.RTM_DELLINK:
                     onDelLink(port);
                     break;
-
                 case NetlinkConstants.NLMSG_DONE:
                     // do nothing.
                     break;
@@ -411,15 +409,9 @@ public class EthernetTracker {
         final boolean isRestricted = isRestrictedInterface(iface);
         final int n = mListeners.beginBroadcast();
         for (int i = 0; i < n; i++) {
-            try {
-                if (isRestricted) {
-                    final ListenerInfo info = (ListenerInfo) mListeners.getBroadcastCookie(i);
-                    if (!info.canUseRestrictedNetworks) continue;
-                }
-                mListeners.getBroadcastItem(i).onInterfaceStateChanged(iface, state, role, config);
-            } catch (RemoteException e) {
-                // Do nothing here.
-            }
+            final EthernetListener listener = mListeners.getBroadcastItem(i);
+            if (isRestricted && !listener.hasUseRestrictedNetworksPermission()) continue;
+            listener.onInterfaceStateChanged(iface, state, role, config);
         }
         mListeners.finishBroadcast();
     }
@@ -428,17 +420,12 @@ public class EthernetTracker {
      * Unicast the interface state or IpConfiguration change of existing Ethernet interfaces to a
      * specific listener.
      */
-    protected void unicastInterfaceStateChange(@NonNull IEthernetServiceListener listener,
-            @NonNull String iface) {
+    protected void unicastInterfaceStateChange(EthernetListener listener, String iface) {
         ensureRunningOnEthernetServiceThread();
         final int state = getInterfaceState(iface);
         final int role = getInterfaceRole(iface);
         final IpConfiguration config = getIpConfigurationForCallback(iface, state);
-        try {
-            listener.onInterfaceStateChanged(iface, state, role, config);
-        } catch (RemoteException e) {
-            // Do nothing here.
-        }
+        listener.onInterfaceStateChanged(iface, state, role, config);
     }
 
     @VisibleForTesting(visibility = PACKAGE)
@@ -514,7 +501,7 @@ public class EthernetTracker {
         }
 
         // There is a possible race with setIncludeTestInterfaces() which affects
-        // getTrackingReason().
+        // inferTrackingReason().
         // setIncludeTestInterfaces() is only used in tests, and since getEthernetInterfaceList()
         // does not run on the handler thread, the behavior around setIncludeTestInterfaces() is
         // indeterminate either way. This can easily be circumvented by waiting on a callback from
@@ -522,7 +509,7 @@ public class EthernetTracker {
         // In production code, this has no effect.
         while (ifaces.hasMoreElements()) {
             NetworkInterface iface = ifaces.nextElement();
-            if (getTrackingReason(iface.getName()).contains(TrackingReason.REGEX)) {
+            if (inferTrackingReason(iface.getName()).contains(TrackingReason.REGEX)) {
                 interfaceList.add(iface.getName());
             }
         }
@@ -538,12 +525,13 @@ public class EthernetTracker {
         return nc != null && !nc.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_RESTRICTED);
     }
 
-    void addListener(IEthernetServiceListener listener, boolean canUseRestrictedNetworks) {
+    void addListener(EthernetListener listener) {
         mHandler.post(() -> {
-            if (!mListeners.register(listener, new ListenerInfo(canUseRestrictedNetworks))) {
+            if (!mListeners.register(listener)) {
                 // Remote process has already died
                 return;
             }
+            final boolean canUseRestrictedNetworks = listener.hasUseRestrictedNetworksPermission();
             for (String iface : getClientModeInterfacesSorted(canUseRestrictedNetworks)) {
                 unicastInterfaceStateChange(listener, iface);
             }
@@ -555,7 +543,7 @@ public class EthernetTracker {
         });
     }
 
-    void removeListener(IEthernetServiceListener listener) {
+    void removeListener(EthernetListener listener) {
         mHandler.post(() -> mListeners.unregister(listener));
     }
 
@@ -569,7 +557,7 @@ public class EthernetTracker {
                 // remove all test interfaces
                 for (EthernetPort port : getAllEthernetPorts()) {
                     final String iface = port.getInterfaceName();
-                    if (getTrackingReason(iface).contains(TrackingReason.REGEX)) continue;
+                    if (inferTrackingReason(iface).contains(TrackingReason.REGEX)) continue;
                     stopTrackingInterface(port);
                 }
             }
@@ -742,7 +730,7 @@ public class EthernetTracker {
         // start configuring it.
         if (NetdUtils.hasFlag(config, INetd.IF_FLAG_RUNNING)) {
             // no need to send an interface state change as this is not a true "state change". The
-            // callers (maybeTrackInterface() and setTetheringInterfaceMode()) already broadcast the
+            // callers (trackInterface() and setTetheringInterfaceMode()) already broadcast the
             // state change.
             mFactory.updateInterfaceLinkState(port, true);
         }
@@ -802,15 +790,9 @@ public class EthernetTracker {
         mTetheredInterfaceWasAvailable = available;
     }
 
-    private void maybeTrackInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
+    private void trackInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
         final String iface = port.getInterfaceName();
-        // If we don't already track this interface, and if this interface matches
-        // our regex, start tracking it.
-        if (mFactory.hasInterface(iface) || (getInterfaceMode(iface) == INTERFACE_MODE_SERVER)) {
-            if (DBG) Log.w(TAG, "Ignoring already-tracked " + port);
-            return;
-        }
-        if (DBG) Log.i(TAG, "maybeTrackInterface: " + port);
+        if (DBG) Log.i(TAG, "trackInterface: " + port);
 
         // Do not use an interface for tethering if it has configured NetworkCapabilities, or if it
         // was not included in the regex.
@@ -823,15 +805,6 @@ public class EthernetTracker {
         addInterface(port, trackingReason);
 
         broadcastInterfaceStateChange(iface);
-    }
-
-    private static class ListenerInfo {
-
-        boolean canUseRestrictedNetworks = false;
-
-        ListenerInfo(boolean canUseRestrictedNetworks) {
-            this.canUseRestrictedNetworks = canUseRestrictedNetworks;
-        }
     }
 
     /**
@@ -874,7 +847,7 @@ public class EthernetTracker {
      *
      * If the returned EnumSet is empty, the interface is not tracked.
      */
-    private EnumSet<TrackingReason> getTrackingReason(String iface) {
+    private EnumSet<TrackingReason> inferTrackingReason(String iface) {
         final EnumSet<TrackingReason> reasons = EnumSet.noneOf(TrackingReason.class);
         if (mIfaceMatch.matcher(iface).matches()) {
             reasons.add(TrackingReason.REGEX);
@@ -885,6 +858,11 @@ public class EthernetTracker {
         if (isValidTestInterface(iface)) {
             reasons.add(TrackingReason.REGEX);
             reasons.add(TrackingReason.NCM);
+        }
+
+        // TODO: remove this flag after M-2025-09 release.
+        if (!DeviceConfigUtils.isTetheringFeatureNotChickenedOut(mContext, NCM_ENABLED_FLAG)) {
+            return reasons;
         }
 
         // Host-side NCM interfaces are guaranteed to be named either usb%d or eth%d.
@@ -945,26 +923,16 @@ public class EthernetTracker {
         return state ? ETHERNET_STATE_ENABLED : ETHERNET_STATE_DISABLED;
     }
 
-    private void unicastEthernetStateChange(@NonNull IEthernetServiceListener listener,
-            boolean enabled) {
+    private void unicastEthernetStateChange(EthernetListener listener, boolean enabled) {
         ensureRunningOnEthernetServiceThread();
-        try {
-            listener.onEthernetStateChanged(isEthernetEnabledAsInt(enabled));
-        } catch (RemoteException e) {
-            // Do nothing here.
-        }
+        listener.onEthernetStateChanged(isEthernetEnabledAsInt(enabled));
     }
 
     private void broadcastEthernetStateChange(boolean enabled) {
         ensureRunningOnEthernetServiceThread();
         final int n = mListeners.beginBroadcast();
         for (int i = 0; i < n; i++) {
-            try {
-                mListeners.getBroadcastItem(i)
-                            .onEthernetStateChanged(isEthernetEnabledAsInt(enabled));
-            } catch (RemoteException e) {
-                // Do nothing here.
-            }
+            mListeners.getBroadcastItem(i).onEthernetStateChanged(isEthernetEnabledAsInt(enabled));
         }
         mListeners.finishBroadcast();
     }

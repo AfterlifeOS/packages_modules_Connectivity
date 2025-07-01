@@ -168,6 +168,7 @@ import static com.android.server.connectivity.ConnectivityFlags.NAMESPACE_TETHER
 import static com.android.server.connectivity.ConnectivityFlags.QUEUE_CALLBACKS_FOR_FROZEN_APPS;
 import static com.android.server.connectivity.ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER;
 import static com.android.server.connectivity.ConnectivityFlags.REQUEST_RESTRICTED_WIFI;
+import static com.android.server.connectivity.ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS;
 import static com.android.server.connectivity.ConnectivityFlags.WIFI_DATA_INACTIVITY_TIMEOUT;
 
 import android.Manifest;
@@ -344,6 +345,7 @@ import com.android.metrics.NetworkRequestCount;
 import com.android.metrics.RequestCountForType;
 import com.android.metrics.SatelliteAccessInfo;
 import com.android.metrics.SatelliteCoarseUsageMetricsCollector;
+import com.android.metrics.SatisfiedByLocalNetworkMetrics;
 import com.android.modules.utils.BasicShellCommandHandler;
 import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.BaseNetdUnsolicitedEventListener;
@@ -1095,6 +1097,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
 
     private final IpConnectivityLog mMetricsLog;
     private final DefaultNetworkRematchMetrics mDefaultNetworkRematchMetrics;
+    private final SatisfiedByLocalNetworkMetrics mSatisfiedByLocalNetworkMetrics;
 
     @Nullable private final NetworkRequestStateStatsMetrics mNetworkRequestStateStatsMetrics;
 
@@ -1731,6 +1734,15 @@ public class ConnectivityService extends IConnectivityManager.Stub
             return new DefaultNetworkRematchMetrics();
         }
 
+        /**
+         * @see SatisfiedByLocalNetworkMetrics
+         */
+        @Nullable
+        public SatisfiedByLocalNetworkMetrics makeSatisfiedByLocalNetworkMetrics(Context context,
+                Handler handler) {
+            return new SatisfiedByLocalNetworkMetrics(context, handler);
+        }
+
         /** Creates an L2capNetworkProvider */
         public L2capNetworkProvider makeL2capNetworkProvider(Context context) {
             return new L2capNetworkProvider(context);
@@ -2121,6 +2133,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
         } else {
             mSatelliteCoarseUsageMetricsCollector = null;
             mDefaultNetworkRematchMetrics = null;
+        }
+        if (mDeps.isFeatureNotChickenedOut(mContext, SATISFIED_BY_LOCAL_NETWORK_METRICS)) {
+            mSatisfiedByLocalNetworkMetrics =
+                    mDeps.makeSatisfiedByLocalNetworkMetrics(mContext, mHandler);
+        } else {
+            mSatisfiedByLocalNetworkMetrics = null;
         }
 
         if (mDeps.flagConnectivityServiceDestroySocket()) {
@@ -4364,6 +4382,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
         ConnectivitySampleMetricsHelper.start(mContext, mHandler,
                 CONNECTIVITY_STATE_SAMPLE, this::sampleConnectivityStateToStatsEvent);
+        if (mSatisfiedByLocalNetworkMetrics != null) {
+            mSatisfiedByLocalNetworkMetrics.start();
+        }
         // Wait PermissionMonitor to finish the permission update. Then MultipathPolicyTracker won't
         // have permission problem. While CV#block() is unbounded in time and can in principle block
         // forever, this replaces a synchronous call to PermissionMonitor#initialize, which
@@ -4701,6 +4722,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
         if (mConstrainedDataSatelliteMetrics) {
             mSatelliteCoarseUsageMetricsCollector.dump(pw);
+        }
+        if (mSatisfiedByLocalNetworkMetrics != null) {
+            mSatisfiedByLocalNetworkMetrics.dump(pw);
         }
 
         pw.println();
@@ -8901,6 +8925,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 callingAttributionTag, declaredMethodsFlag);
         if (DBG) log("requestNetwork for " + nri);
         trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_REQUEST, nri);
+        if (mSatisfiedByLocalNetworkMetrics != null) {
+            mSatisfiedByLocalNetworkMetrics.logRequest(networkRequest, asUid);
+        }
         if (timeoutMs > 0) {
             mHandler.sendMessageDelayed(mHandler.obtainMessage(EVENT_TIMEOUT_NETWORK_REQUEST,
                     nri), timeoutMs);
@@ -9114,6 +9141,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 callingAttributionTag);
         if (DBG) log("pendingRequest for " + nri);
         trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_REQUEST_WITH_INTENT, nri);
+        if (mSatisfiedByLocalNetworkMetrics != null) {
+            mSatisfiedByLocalNetworkMetrics.logRequest(networkRequest, callingUid);
+        }
         return networkRequest;
     }
 
@@ -9260,6 +9290,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (VDBG) log("listenForNetwork for " + nri);
 
         trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_LISTENER, nri);
+        if (mSatisfiedByLocalNetworkMetrics != null) {
+            mSatisfiedByLocalNetworkMetrics.logRequest(networkRequest, callingUid);
+        }
         return networkRequest;
     }
 
@@ -9285,6 +9318,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (VDBG) log("pendingListenForNetwork for " + nri);
 
         trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_LISTENER_WITH_INTENT, nri);
+        if (mSatisfiedByLocalNetworkMetrics != null) {
+            mSatisfiedByLocalNetworkMetrics.logRequest(networkRequest, callingUid);
+        }
     }
 
     /** Returns the next Network provider ID. */
