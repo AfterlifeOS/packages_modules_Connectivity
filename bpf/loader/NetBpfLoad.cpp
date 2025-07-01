@@ -868,6 +868,22 @@ static bool isBtfSupported(enum bpf_map_type type) {
     return type != BPF_MAP_TYPE_DEVMAP_HASH && type != BPF_MAP_TYPE_RINGBUF;
 }
 
+static int readMapNames(ifstream& elfFile, vector<string>& mapNames) {
+    int ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
+    if (ret) return ret;
+
+    const string suffix = "_def";
+    for (string& name : mapNames) {
+        if (EndsWith(name, suffix)) {
+            name.erase(name.length() - suffix.length());
+        } else {
+           ALOGE("Failed to get map names, invalid symbol in .android_maps: %s", name.c_str());
+           return 1;
+        }
+    }
+    return 0;
+}
+
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
                       const char* prefix, const unsigned int bpfloader_ver) {
     int ret;
@@ -880,7 +896,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     if (ret == -2) return 0;  // no maps to read
     if (ret) return ret;
 
-    ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
+    ret = readMapNames(elfFile, mapNames);
     if (ret) return ret;
 
     struct btf *btf = NULL;
@@ -1120,7 +1136,7 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
 static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<codeSection>& cs) {
     vector<string> mapNames;
 
-    int ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
+    int ret = readMapNames(elfFile, mapNames);
     if (ret) return;
 
     for (int k = 0; k != (int)cs.size(); k++) {
