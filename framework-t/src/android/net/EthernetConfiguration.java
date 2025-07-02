@@ -75,7 +75,7 @@ public class EthernetConfiguration implements Parcelable {
     public static final int METERED_OVERRIDE_FORCE_UNMETERED = 2;
 
     /** @hide */
-    @IntDef(prefix = "METERED_OVERRIDE", value = {METERED_OVERRIDE_NONE,
+    @IntDef(prefix = "METERED_OVERRIDE_", value = {METERED_OVERRIDE_NONE,
             METERED_OVERRIDE_FORCE_METERED, METERED_OVERRIDE_FORCE_UNMETERED})
     public @interface MeteredOverride {}
 
@@ -104,7 +104,7 @@ public class EthernetConfiguration implements Parcelable {
      * More persistence types will be introduced in the future for multi-user management.
      * @hide
      */
-    @IntDef(prefix = "PERSISTENCE", value = {PERSISTENCE_IS_PERSISTED, PERSISTENCE_NOT_PERSISTED})
+    @IntDef(prefix = "PERSISTENCE_", value = {PERSISTENCE_IS_PERSISTED, PERSISTENCE_NOT_PERSISTED})
     public @interface Persistence {}
 
     /**
