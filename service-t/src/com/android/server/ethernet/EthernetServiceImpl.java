@@ -24,6 +24,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.net.EthernetManager;
 import android.net.EthernetNetworkSpecifier;
 import android.net.EthernetNetworkUpdateRequest;
 import android.net.IEthernetManager;
@@ -166,7 +167,7 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
      * @param listener A {@link IEthernetServiceListener} to add.
      */
     @Override
-    public void addListener(IEthernetServiceListener listener) throws RemoteException {
+    public void addListener(IEthernetServiceListener listener, int flags) throws RemoteException {
         Objects.requireNonNull(listener, "listener must not be null");
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
         final boolean hasUseRestrictedNetworksPermission = hasUseRestrictedNetworksPermission();
@@ -174,7 +175,7 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
         final long ident = Binder.clearCallingIdentity();
         try {
             final EthernetListener wrappedListener =
-                    new EthernetListener(listener, hasUseRestrictedNetworksPermission);
+                    new EthernetListener(listener, hasUseRestrictedNetworksPermission, flags);
             mTracker.addListener(wrappedListener);
         } finally {
             Binder.restoreCallingIdentity(ident);
@@ -198,8 +199,8 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
             // extends IInterface> instead of just IInterface.
             // Note that hasUseRestrictedNetworksPermission is irrelevant in
             // this context and is only populated for the sake of completeness.
-            final EthernetListener wrappedListener =
-                    new EthernetListener(listener, hasUseRestrictedNetworksPermission);
+            final EthernetListener wrappedListener = new EthernetListener(listener,
+                    hasUseRestrictedNetworksPermission, EthernetManager.LISTENER_FLAG_DEFAULT);
             mTracker.removeListener(wrappedListener);
         } finally {
             Binder.restoreCallingIdentity(ident);

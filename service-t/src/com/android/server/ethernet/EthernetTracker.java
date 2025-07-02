@@ -372,6 +372,7 @@ public class EthernetTracker {
         });
     }
 
+    // TODO: is this dead code?
     void updateIpConfiguration(String iface, IpConfiguration ipConfiguration) {
         if (DBG) {
             Log.i(TAG, "updateIpConfiguration, iface: " + iface + ", cfg: " + ipConfiguration);
@@ -379,7 +380,12 @@ public class EthernetTracker {
         writeIpConfiguration(iface, ipConfiguration);
         mHandler.post(() -> {
             mFactory.updateInterface(iface, ipConfiguration, null);
-            broadcastInterfaceStateChange(iface);
+            // This code always sends an InterfaceStateChange callback even if the interface is not
+            // being tracked. For the sake of the onInterfaceStateChanged callback, pretend that the
+            // interface is in the regex.
+            // TODO: find a better solution for this. Consider adding callback flags instead of
+            // passing the tracking reason. Also consider getting rid of this behavior altogether.
+            broadcastInterfaceStateChange(iface, EnumSet.of(TrackingReason.REGEX));
         });
     }
 
@@ -401,7 +407,8 @@ public class EthernetTracker {
      * Broadcast the link state or IpConfiguration change of existing Ethernet interfaces to all
      * listeners.
      */
-    protected void broadcastInterfaceStateChange(@NonNull String iface) {
+    protected void broadcastInterfaceStateChange(@NonNull String iface,
+            EnumSet<TrackingReason> trackingReason) {
         ensureRunningOnEthernetServiceThread();
         final int state = getInterfaceState(iface);
         final int role = getInterfaceRole(iface);
@@ -411,7 +418,7 @@ public class EthernetTracker {
         for (int i = 0; i < n; i++) {
             final EthernetListener listener = mListeners.getBroadcastItem(i);
             if (isRestricted && !listener.hasUseRestrictedNetworksPermission()) continue;
-            listener.onInterfaceStateChanged(iface, state, role, config);
+            listener.onInterfaceStateChanged(iface, trackingReason, state, role, config);
         }
         mListeners.finishBroadcast();
     }
@@ -422,10 +429,11 @@ public class EthernetTracker {
      */
     protected void unicastInterfaceStateChange(EthernetListener listener, String iface) {
         ensureRunningOnEthernetServiceThread();
+        final EnumSet<TrackingReason> trackingReason = getInterfaceTrackingReason(iface);
         final int state = getInterfaceState(iface);
         final int role = getInterfaceRole(iface);
         final IpConfiguration config = getIpConfigurationForCallback(iface, state);
-        listener.onInterfaceStateChanged(iface, state, role, config);
+        listener.onInterfaceStateChanged(iface, trackingReason, state, role, config);
     }
 
     @VisibleForTesting(visibility = PACKAGE)
@@ -454,7 +462,11 @@ public class EthernetTracker {
 
             // only broadcast state change when the ip configuration is updated.
             if (ipConfig != null) {
-                broadcastInterfaceStateChange(iface);
+                // This code always sends an InterfaceStateChange callback even if the interface is
+                // not being tracked. For the sake of the onInterfaceStateChanged callback, pretend
+                // that the interface is in the regex.
+                // TODO: consider only sending callbacks if the interface is currently tracked.
+                broadcastInterfaceStateChange(iface, EnumSet.of(TrackingReason.REGEX));
             }
             // Always return success. Even if the interface does not currently exist, the
             // IpConfiguration and NetworkCapabilities were saved and will be applied if an
@@ -636,7 +648,8 @@ public class EthernetTracker {
             addInterface(mTetheringInterface, mTetheringTrackingReason);
             // when this broadcast is sent, any calls to notifyTetheredInterfaceAvailable or
             // notifyTetheredInterfaceUnavailable have already happened
-            broadcastInterfaceStateChange(mTetheringInterface.getInterfaceName());
+            final String ifname = mTetheringInterface.getInterfaceName();
+            broadcastInterfaceStateChange(ifname, getInterfaceTrackingReason(ifname));
         }
     }
 
@@ -671,19 +684,31 @@ public class EthernetTracker {
         return INTERFACE_MODE_CLIENT;
     }
 
+    /** Returns the TrackingReason(s) for any tracked interface; an empty EnumSet otherwise. */
+    private EnumSet<TrackingReason> getInterfaceTrackingReason(String iface) {
+        if (mFactory.hasInterface(iface)) {
+            return mFactory.getTrackingReason(iface);
+        } else if (mTetheringInterface != null) {
+            return mTetheringTrackingReason;
+        }
+        return EnumSet.noneOf(TrackingReason.class);
+    }
+
     private void removeInterface(EthernetPort port) {
         mFactory.removeInterface(port);
         maybeUpdateServerModeInterfaceState(port.getInterfaceName(), false);
     }
 
     private void stopTrackingInterface(EthernetPort port) {
-        removeInterface(port);
+        // getInterfaceTrackingReason before the interface is removed.
         final String iface = port.getInterfaceName();
+        final EnumSet<TrackingReason> trackingReason = getInterfaceTrackingReason(iface);
+        removeInterface(port);
         if (mTetheringInterface != null && iface.equals(mTetheringInterface.getInterfaceName())) {
             mTetheringInterface = null;
             mTetheringTrackingReason = null;
         }
-        broadcastInterfaceStateChange(iface);
+        broadcastInterfaceStateChange(iface, trackingReason);
     }
 
     private void addInterface(EthernetPort port, EnumSet<TrackingReason> trackingReason) {
@@ -765,7 +790,7 @@ public class EthernetTracker {
 
         // If updateInterfaceLinkState returns false, the interface is already in the correct state.
         if (mFactory.updateInterfaceLinkState(port, up)) {
-            broadcastInterfaceStateChange(iface);
+            broadcastInterfaceStateChange(iface, getInterfaceTrackingReason(iface));
         }
     }
 
@@ -804,7 +829,7 @@ public class EthernetTracker {
 
         addInterface(port, trackingReason);
 
-        broadcastInterfaceStateChange(iface);
+        broadcastInterfaceStateChange(iface, getInterfaceTrackingReason(iface));
     }
 
     /**
