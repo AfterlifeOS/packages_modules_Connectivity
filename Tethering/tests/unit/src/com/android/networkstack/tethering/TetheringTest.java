@@ -77,6 +77,7 @@ import static android.telephony.SubscriptionManager.INVALID_SUBSCRIPTION_ID;
 import static com.android.modules.utils.build.SdkLevel.isAtLeastS;
 import static com.android.modules.utils.build.SdkLevel.isAtLeastT;
 import static com.android.modules.utils.build.SdkLevel.isAtLeastV;
+import static com.android.net.module.util.ConnectivityCommonFlags.USE_ROUTE_PARCEL_IPCS;
 import static com.android.net.module.util.Inet4AddressUtils.inet4AddressToIntHTH;
 import static com.android.net.module.util.Inet4AddressUtils.intToInet4AddressHTH;
 import static com.android.net.module.util.NetworkStackConstants.RFC7421_PREFIX_LENGTH;
@@ -211,6 +212,7 @@ import com.android.net.module.util.InterfaceParams;
 import com.android.net.module.util.PrivateAddressCoordinator;
 import com.android.net.module.util.RoutingCoordinatorManager;
 import com.android.net.module.util.RoutingCoordinatorService;
+import com.android.net.module.util.SdkUtil;
 import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.ip.IpNeighborMonitor;
 import com.android.networkstack.apishim.common.BluetoothPanShim;
@@ -493,6 +495,11 @@ public class TetheringTest {
         @Override
         public boolean isTetheringAndP2pGoLocalAgentBetaFlagEnabled() {
             return mFeatureFlags.getOrDefault(Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, false);
+        }
+
+        @Override
+        public boolean isFeatureNotChickenedOut(Context context, String name) {
+            return mFeatureFlags.getOrDefault(name, true);
         }
     }
 
@@ -994,11 +1001,10 @@ public class TetheringTest {
         verify(mNetd).tetherInterfaceAdd(ifname);
         if (expectAgentEnabled) {
             verify(mNetd, never()).networkAddInterface(anyInt(), anyString());
-            verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), anyString(), anyString());
+            verifyNeverNetworkAddRoute();
         } else {
             verify(mNetd).networkAddInterface(INetd.LOCAL_NET_ID, ifname);
-            verify(mNetd, times(2)).networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(ifname),
-                    anyString(), anyString());
+            verifyNetworkAddRoute(ifname, 2);
         }
     }
 
@@ -2250,11 +2256,10 @@ public class TetheringTest {
         verify(mNetd, times(1)).tetherInterfaceAdd(TEST_WLAN_IFNAME);
         if (isTetheringNetworkAgentFeatureEnabled()) {
             verify(mNetd, never()).networkAddInterface(anyInt(), anyString());
-            verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), anyString(), anyString());
+            verifyNeverNetworkAddRoute();
         } else {
             verify(mNetd, times(1)).networkAddInterface(INetd.LOCAL_NET_ID, TEST_WLAN_IFNAME);
-            verify(mNetd, times(2)).networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(TEST_WLAN_IFNAME),
-                    anyString(), anyString());
+            verifyNetworkAddRoute(TEST_WLAN_IFNAME, 2);
         }
         verify(mWifiManager).updateInterfaceIpState(
                 TEST_WLAN_IFNAME, WifiManager.IFACE_IP_MODE_UNSPECIFIED);
@@ -4183,19 +4188,17 @@ public class TetheringTest {
         verify(mNetd).tetherInterfaceAdd(TEST_BT_IFNAME);
         if (isTetheringNetworkAgentFeatureEnabled()) {
             verify(mNetd, never()).networkAddInterface(anyInt(), anyString());
-            verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), anyString(), anyString());
+            verifyNeverNetworkAddRoute();
         } else {
             verify(mNetd).networkAddInterface(INetd.LOCAL_NET_ID, TEST_BT_IFNAME);
-            verify(mNetd, times(2)).networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(TEST_BT_IFNAME),
-                    anyString(), anyString());
+            verifyNetworkAddRoute(TEST_BT_IFNAME, 2);
         }
         verify(mNetd).ipfwdEnableForwarding(TETHERING_NAME);
         verify(mNetd).tetherStartWithConfiguration(any());
         if (isTetheringNetworkAgentFeatureEnabled()) {
-            verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), anyString(), anyString());
+            verifyNeverNetworkAddRoute();
         } else {
-            verify(mNetd, times(2)).networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(TEST_BT_IFNAME),
-                    anyString(), anyString());
+            verifyNetworkAddRoute(TEST_BT_IFNAME, 2);
         }
         verifyNoMoreInteractions(mNetd);
         reset(mNetd);
@@ -4206,6 +4209,29 @@ public class TetheringTest {
             if (flag.equals(match)) return true;
         }
         return false;
+    }
+
+    private void verifyNeverNetworkAddRoute() throws Exception {
+        verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), anyString(), anyString());
+        verify(mNetd, never()).networkAddRouteParcel(anyInt(), any());
+    }
+
+    private boolean useRouteParcelIpcs() {
+        return  SdkUtil.isAtLeast25Q4()
+                || mFeatureFlags.getOrDefault(USE_ROUTE_PARCEL_IPCS, true);
+    }
+
+    private void verifyNetworkAddRoute(String ifName, int times)
+            throws Exception {
+        if (useRouteParcelIpcs()) {
+            verify(mNetd, times(times))
+                    .networkAddRouteParcel(eq(INetd.LOCAL_NET_ID),
+                    argThat((parcel) -> ifName.equals(parcel.ifName)));
+        } else {
+            verify(mNetd, times(times))
+                    .networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(ifName),
+                    anyString(), anyString());
+        }
     }
 
     private void verifyNetdCommandForBtTearDown() throws Exception {
