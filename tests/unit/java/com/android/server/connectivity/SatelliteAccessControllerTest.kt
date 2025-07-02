@@ -594,6 +594,8 @@ class SatelliteAccessControllerTest {
         mockIsSatelliteDataOptimizedAppForUser(SECONDARY_USER, SMS_APP1, true)
         mockIsSatelliteDataOptimizedAppForUser(PRIMARY_USER, SMS_APP2, true)
         mockIsSatelliteDataOptimizedAppForUser(SECONDARY_USER, SMS_APP2, true)
+        doReturn(listOf(PRIMARY_USER_HANDLE, SECONDARY_USER_HANDLE))
+                .`when`(userManager).getUserHandles(true)
 
         val inOrder = inOrder(callback)
         onUserAddedWithInstalledPackageList(PRIMARY_USER_HANDLE, emptyList())
