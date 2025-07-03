@@ -721,6 +721,67 @@ static int setBtfVarOffset(ifstream &elfFile, struct btf *btf,
     return 0;
 }
 
+#define BTF_INFO_ENC(kind, kind_flag, vlen)                                    \
+    ((!!(kind_flag) << 31) | ((kind) << 24) | ((vlen) & BTF_MAX_VLEN))
+#define BTF_INT_ENC(encoding, bits_offset, nr_bits)                            \
+    ((encoding) << 24 | (bits_offset) << 16 | (nr_bits))
+
+static int sanitizeBtf(struct btf *btf) {
+    for (unsigned int i = 1; i < btf__type_cnt(btf); ++i) {
+        struct btf_type *bt = (struct btf_type *)btf__type_by_id(btf, i);
+
+        // Replace BTF_KIND_VAR (5.2+) with BTF_KIND_INT (4.18+)
+        if (btf_is_var(bt)) {
+            bt->info = BTF_INFO_ENC(BTF_KIND_INT, 0, 0);
+            // using size = 1 is the safest choice, 4 will be too
+            // big and cause kernel BTF validation failure if
+            // original variable took less than 4 bytes
+            bt->size = 1;
+            *(int *)(bt + 1) = BTF_INT_ENC(0, 0, 8);
+            continue;
+        }
+
+        // Replace BTF_KIND_FUNC_PROTO (5.0+) with BTF_KIND_ENUM (4.18+)
+        if (btf_is_func_proto(bt)) {
+            int vlen = btf_vlen(bt);
+            bt->info = BTF_INFO_ENC(BTF_KIND_ENUM, 0, vlen);
+            bt->size = sizeof(__u32); // kernel enforced
+            continue;
+        }
+
+        // Replace BTF_KIND_FUNC (5.0+) with BTF_KIND_TYPEDEF (4.18+)
+        if (btf_is_func(bt)) {
+            bt->info = BTF_INFO_ENC(BTF_KIND_TYPEDEF, 0, 0);
+            continue;
+        }
+
+        // Replace BTF_KIND_DATASEC (5.2+) with BTF_KIND_STRUCT (4.18+)
+        if (btf_is_datasec(bt)) {
+            const struct btf_var_secinfo *v = btf_var_secinfos(bt);
+            struct btf_member *m = btf_members(bt);
+            char *name;
+
+            name = (char *)btf__name_by_offset(btf, bt->name_off);
+            while (*name) {
+                if (*name == '.' || *name == '?') *name = '_';
+                name++;
+            }
+
+            int vlen = btf_vlen(bt);
+            bt->info = BTF_INFO_ENC(BTF_KIND_STRUCT, 0, vlen);
+            for (int j = 0; j < vlen; j++, v++, m++) {
+                // order of field assignments is important
+                m->offset = v->offset * 8;
+                m->type = v->type;
+                // preserve variable name as member name
+                const struct btf_type *vt = btf__type_by_id(btf, v->type);
+                m->name_off = vt->name_off;
+            }
+        }
+    }
+    return 0;
+}
+
 static int loadBtf(ifstream &elfFile, struct btf *btf) {
     int ret;
     for (unsigned int i = 1; i < btf__type_cnt(btf); ++i) {
@@ -730,6 +791,11 @@ static int loadBtf(ifstream &elfFile, struct btf *btf) {
         if (ret) return ret;
         ret = setBtfVarOffset(elfFile, btf, bt);
         if (ret) return ret;
+    }
+
+    if (!isAtLeastKernelVersion(5, 10, 0)) {
+        // Likely unnecessary on kernel 5.4 but untested.
+        sanitizeBtf(btf);
     }
 
     ret = btf__load_into_kernel(btf);
@@ -855,10 +921,8 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
 
     struct btf *btf = NULL;
     auto btfGuard = base::make_scope_guard([&btf] { if (btf) btf__free(btf); });
-    if (isAtLeastKernelVersion(5, 10, 0)) {
-        // Untested on Linux Kernel 5.4, but likely compatible.
+    if (isAtLeastKernelVersion(4, 19, 0)) {
         // On Linux Kernels older than 4.18 BPF_BTF_LOAD command doesn't exist.
-        // On Linux Kernels older than 5.2 BTF_KIND_VAR and BTF_KIND_DATASEC don't exist.
         ret = readSectionByName(".BTF", elfFile, btfData);
         if (ret) {
             ALOGE("Failed to read .BTF section, ret:%d", ret);
