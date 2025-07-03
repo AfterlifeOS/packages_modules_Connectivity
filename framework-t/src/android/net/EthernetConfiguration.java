@@ -56,6 +56,37 @@ public class EthernetConfiguration implements Parcelable {
     @Nullable private final NetworkCapabilities mNetworkCapabilities;
 
     /**
+     * There is no metered override configuration of this interface, which means the system is in
+     * charge of determining the metered status until a user or app explicitly sets it.
+     * @hide
+     */
+    public static final int METERED_OVERRIDE_NONE = 0;
+
+    /**
+     * The interface is configured to be force metered.
+     * @hide
+     */
+    public static final int METERED_OVERRIDE_FORCE_METERED = 1;
+
+    /**
+     * The interface is configured to be force unmetered.
+     * @hide
+     */
+    public static final int METERED_OVERRIDE_FORCE_UNMETERED = 2;
+
+    /** @hide */
+    @IntDef(prefix = "METERED_OVERRIDE_", value = {METERED_OVERRIDE_NONE,
+            METERED_OVERRIDE_FORCE_METERED, METERED_OVERRIDE_FORCE_UNMETERED})
+    public @interface MeteredOverride {}
+
+    /**
+     * The static configuration regarding metered override, this value will always override the
+     * value in specified by input {@link NetworkCapabilities}. Note that this is only configured
+     * meteredness, and real meteredness state is only retrievable via {@link ConnectivityManager}.
+     */
+    private final @MeteredOverride int mMeteredOverride;
+
+    /**
      * This configuration is not persisted across boot.
      * @hide
      */
@@ -73,7 +104,7 @@ public class EthernetConfiguration implements Parcelable {
      * More persistence types will be introduced in the future for multi-user management.
      * @hide
      */
-    @IntDef(prefix = "PERSISTENCE", value = {PERSISTENCE_IS_PERSISTED, PERSISTENCE_NOT_PERSISTED})
+    @IntDef(prefix = "PERSISTENCE_", value = {PERSISTENCE_IS_PERSISTED, PERSISTENCE_NOT_PERSISTED})
     public @interface Persistence {}
 
     /**
@@ -86,9 +117,11 @@ public class EthernetConfiguration implements Parcelable {
     private final @Persistence int mPersistence;
 
     private EthernetConfiguration(@Nullable IpConfiguration ipConfiguration,
-            @Nullable NetworkCapabilities capabilities, @Persistence int persistence) {
+            @Nullable NetworkCapabilities capabilities, @MeteredOverride int meteredOverride,
+            @Persistence int persistence) {
         mIpConfiguration = ipConfiguration;
         mNetworkCapabilities = capabilities;
+        mMeteredOverride = meteredOverride;
         mPersistence = persistence;
     }
 
@@ -116,11 +149,47 @@ public class EthernetConfiguration implements Parcelable {
         return mPersistence;
     }
 
+    /**
+     * Get the metered override configuration.
+     */
+    public @MeteredOverride int getMeteredOverride() {
+        return mMeteredOverride;
+    }
+
     @Override
     public String toString() {
         return "IP configurations: " + mIpConfiguration
                 + "Network capabilities: " + mNetworkCapabilities
-                + ", Is persisted: " + mPersistence;
+                + ", Metered override: " + getMeteredOverrideString()
+                + ", Is persisted: " + getPersistenceString();
+    }
+
+    /** Get metered override configuration in human readable string. */
+    private String getMeteredOverrideString() {
+        switch(mMeteredOverride) {
+            case METERED_OVERRIDE_NONE:
+                return "NONE";
+            case METERED_OVERRIDE_FORCE_METERED:
+                return "FORCE_METERED";
+            case METERED_OVERRIDE_FORCE_UNMETERED:
+                return "FORCE_UNMETERED";
+            default:
+                // We should not reach this branch.
+                return "UNKNOWN";
+        }
+    }
+
+    /** Get persistence configuration in human readable string. */
+    private String getPersistenceString() {
+        switch(mPersistence) {
+            case PERSISTENCE_IS_PERSISTED:
+                return "IS_PERSISTED";
+            case PERSISTENCE_NOT_PERSISTED:
+                return "NOT_PERSISTED";
+            default:
+                // We should not reach this branch.
+                return "UNKNOWN";
+        }
     }
 
     @Override
@@ -136,12 +205,13 @@ public class EthernetConfiguration implements Parcelable {
         final EthernetConfiguration other = (EthernetConfiguration) o;
         return Objects.equals(this.mIpConfiguration, other.mIpConfiguration)
                 && Objects.equals(this.mNetworkCapabilities, other.mNetworkCapabilities)
+                && mMeteredOverride == other.mMeteredOverride
                 && mPersistence == other.mPersistence;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(mIpConfiguration, mNetworkCapabilities, mPersistence);
+        return Objects.hash(mIpConfiguration, mNetworkCapabilities, mMeteredOverride, mPersistence);
     }
 
     /** Implement the Parcelable interface */
@@ -149,12 +219,14 @@ public class EthernetConfiguration implements Parcelable {
     public void writeToParcel(Parcel dest, int flags) {
         dest.writeParcelable(mIpConfiguration, flags);
         dest.writeParcelable(mNetworkCapabilities, flags);
+        dest.writeInt(mMeteredOverride);
         dest.writeInt(mPersistence);
     }
 
     private EthernetConfiguration(Parcel in) {
         mIpConfiguration = in.readParcelable(IpConfiguration.class.getClassLoader());
         mNetworkCapabilities = in.readParcelable(NetworkCapabilities.class.getClassLoader());
+        mMeteredOverride = in.readInt();
         mPersistence = in.readInt();
     }
 
@@ -184,7 +256,27 @@ public class EthernetConfiguration implements Parcelable {
     public static final class Builder {
         @Nullable private IpConfiguration mIpConfiguration;
         @Nullable private NetworkCapabilities mNetworkCapabilities;
+        private @MeteredOverride int mMeteredOverride = METERED_OVERRIDE_NONE;
         private @Persistence int mPersistence = PERSISTENCE_NOT_PERSISTED;
+
+        /**
+         * Set metered override configuration for current ethernet configuration. One of
+         * {@code METERED_OVERRIDE_NONE}, {@code METERED_OVERRIDE_FORCE_METERED},
+         * {@code METERED_OVERRIDE_FORCE_UNMETERED}.
+         * When not set, this field is {@code METERED_OVERRIDE_NONE} by default.
+         */
+        @NonNull
+        public Builder setMeteredOverride(@MeteredOverride int meteredOverride) {
+            switch (meteredOverride) {
+                case METERED_OVERRIDE_NONE:
+                case METERED_OVERRIDE_FORCE_METERED:
+                case METERED_OVERRIDE_FORCE_UNMETERED:
+                    mMeteredOverride = meteredOverride;
+                    return this;
+            }
+            throw new IllegalArgumentException(
+                    "Invalid metered override value: " + meteredOverride);
+        }
 
         /**
          * Set persisted configuration for current ethernet configuration. One of
@@ -228,7 +320,8 @@ public class EthernetConfiguration implements Parcelable {
             if (mPersistence == PERSISTENCE_IS_PERSISTED && mNetworkCapabilities != null) {
                 throw new IllegalArgumentException("Network capabilities cannot be persisted.");
             }
-            return new EthernetConfiguration(mIpConfiguration, mNetworkCapabilities, mPersistence);
+            return new EthernetConfiguration(mIpConfiguration, mNetworkCapabilities,
+                    mMeteredOverride, mPersistence);
         }
     }
 }

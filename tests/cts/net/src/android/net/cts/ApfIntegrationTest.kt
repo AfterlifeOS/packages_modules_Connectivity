@@ -417,7 +417,11 @@ class ApfIntegrationTest {
         assertThat(caps.apfVersionSupported).isAnyOf(0, 2, 3, 4, 6000, 6100)
         // APF became mandatory in Android 14 VSR.
         val vsrApiLevel = getVsrApiLevel()
-        assumeTrue(shouldEnforceApfSupport(vsrApiLevel))
+        // If the firmware declares a version greater than or equal to 6000, it must properly
+        // support APFv6+.
+        if (caps.apfVersionSupported < 6000) {
+            assumeTrue(shouldEnforceApfSupport(vsrApiLevel))
+        }
 
         // DEVICEs launching with Android 14 with CHIPSETs that set ro.board.first_api_level to 34:
         // - [GMS-VSR-5.3.12-003] MUST return 4 or higher as the APF version number from calls to
@@ -553,7 +557,11 @@ class ApfIntegrationTest {
         // VSR-14 mandates APF to be turned on when the screen is off and the Wi-Fi link
         // is idle or traffic is less than 10 Mbps. Before that, we don't mandate when the APF
         // should be turned on.
-        assume().that(getVsrApiLevel()).isAtLeast(34)
+        // If the firmware declares a version greater than or equal to 6000, it must properly
+        // support APFv6+.
+        if (caps.apfVersionSupported < 6000) {
+            assume().that(getVsrApiLevel()).isAtLeast(34)
+        }
         assumeApfVersionSupportAtLeast(4)
         assumeNotCuttlefish()
 
@@ -619,7 +627,11 @@ class ApfIntegrationTest {
         // VSR-14 mandates APF to be turned on when the screen is off and the Wi-Fi link
         // is idle or traffic is less than 10 Mbps. Before that, we don't mandate when the APF
         // should be turned on.
-        assume().that(getVsrApiLevel()).isAtLeast(34)
+        // If the firmware declares a version greater than or equal to 6000, it must properly
+        // support APFv6+.
+        if (caps.apfVersionSupported < 6000) {
+            assume().that(getVsrApiLevel()).isAtLeast(34)
+        }
         // Test v4 memory slots on both v4 and v6 interpreters.
         assumeApfVersionSupportAtLeast(4)
         assumeNotCuttlefish()
@@ -686,7 +698,11 @@ class ApfIntegrationTest {
         // VSR-14 mandates APF to be turned on when the screen is off and the Wi-Fi link
         // is idle or traffic is less than 10 Mbps. Before that, we don't mandate when the APF
         // should be turned on.
-        assume().that(getVsrApiLevel()).isAtLeast(34)
+        // If the firmware declares a version greater than or equal to 6000, it must properly
+        // support APFv6+.
+        if (caps.apfVersionSupported < 6000) {
+            assume().that(getVsrApiLevel()).isAtLeast(34)
+        }
         assumeApfVersionSupportAtLeast(4)
         assumeNotCuttlefish()
         clearApfMemory()
