@@ -448,8 +448,9 @@ public class SatelliteAccessController {
 
             // Then check meta-data under service tags.
             final PackageInfo packageInfo = pmForUser.getPackageInfo(
-                    packageName, PackageManager.GET_SERVICES | PackageManager.GET_META_DATA);
-            if (packageInfo.services != null) {
+                    packageName, PackageManager.GET_SERVICES | PackageManager.GET_META_DATA
+                            | PackageManager.MATCH_DISABLED_COMPONENTS);
+            if (packageInfo != null && packageInfo.services != null) {
                 for (ServiceInfo serviceInfo : packageInfo.services) {
                     if (isSatelliteDataOptimizedMetaData(serviceInfo.metaData, packageName)) {
                         return true;
