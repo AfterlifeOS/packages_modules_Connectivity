@@ -183,16 +183,18 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
             value = bpf_##the_stats_map##_lookup_elem(key);                                      \
         }                                                                                        \
         if (value) {                                                                             \
+            const bool is5_4 = KVER_IS_AT_LEAST(kver, 5, 4, 0);                                  \
             const int mtu = 1500;                                                                \
             uint64_t packets = 1;                                                                \
             uint64_t bytes = skb->len;                                                           \
-            if (bytes > mtu) {                                                                   \
-                const bool is5_4 = KVER_IS_AT_LEAST(kver, 5, 4, 0);                              \
+            if ((!is5_4 && bytes > mtu) || (is5_4 && skb->gso_segs > 1)) {                       \
                 const bool is_ipv6 = (skb->protocol == htons(ETH_P_IPV6));                       \
                 const int ip_overhead = is_ipv6 ? sizeof(struct ipv6hdr) : sizeof(struct iphdr); \
                 struct bpf_sock * const sk = is5_4 && skb->sk ? bpf_sk_fullsock(skb->sk) : NULL; \
-                const bool is_tcp = !sk || sk->protocol == IPPROTO_TCP;                          \
-                const int L4_size = is_tcp ? sizeof(struct tcphdr) + 12 : sizeof(struct udphdr); \
+                const bool is_tcp_or_unknown = !sk || sk->protocol == IPPROTO_TCP;               \
+                const int tcphdr_size = sizeof(struct tcphdr);                                   \
+                const int udphdr_size = sizeof(struct udphdr);                                   \
+                const int L4_size = is_tcp_or_unknown ? tcphdr_size + 12 : udphdr_size;          \
                 const int overhead = ip_overhead + L4_size;                                      \
                 const int mss = mtu - overhead;                                                  \
                 const uint64_t payload = bytes - overhead;                                       \
