@@ -202,6 +202,9 @@ public class SatisfiedByLocalNetworkMetrics implements StatsManager.StatsPullAto
                 data.add(mDeps.buildStatsEvent(uid, requestType, count));
             }
         }
+        // Clear counts whenever pulled, this makes server-side to
+        // process data easier.
+        mSatisfiedRequestsPerTypeAndUid.clear();
         return StatsManager.PULL_SUCCESS;
     }
 

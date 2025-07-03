@@ -8924,10 +8924,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 asUid, networkRequest, messenger, binder, callbackFlags,
                 callingAttributionTag, declaredMethodsFlag);
         if (DBG) log("requestNetwork for " + nri);
-        trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_REQUEST, nri);
         if (mSatisfiedByLocalNetworkMetrics != null) {
+            // This has to be called before sending NRI to the handler thread,
+            // in case it is concurrently modified on the handler thread.
             mSatisfiedByLocalNetworkMetrics.logRequest(networkRequest, asUid);
         }
+        trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_REQUEST, nri);
         if (timeoutMs > 0) {
             mHandler.sendMessageDelayed(mHandler.obtainMessage(EVENT_TIMEOUT_NETWORK_REQUEST,
                     nri), timeoutMs);
@@ -9140,10 +9142,10 @@ public class ConnectivityService extends IConnectivityManager.Stub
         NetworkRequestInfo nri = new NetworkRequestInfo(callingUid, networkRequest, operation,
                 callingAttributionTag);
         if (DBG) log("pendingRequest for " + nri);
-        trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_REQUEST_WITH_INTENT, nri);
         if (mSatisfiedByLocalNetworkMetrics != null) {
             mSatisfiedByLocalNetworkMetrics.logRequest(networkRequest, callingUid);
         }
+        trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_REQUEST_WITH_INTENT, nri);
         return networkRequest;
     }
 
@@ -9289,10 +9291,10 @@ public class ConnectivityService extends IConnectivityManager.Stub
                         callingAttributionTag, declaredMethodsFlag);
         if (VDBG) log("listenForNetwork for " + nri);
 
-        trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_LISTENER, nri);
         if (mSatisfiedByLocalNetworkMetrics != null) {
             mSatisfiedByLocalNetworkMetrics.logRequest(networkRequest, callingUid);
         }
+        trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_LISTENER, nri);
         return networkRequest;
     }
 
@@ -9317,10 +9319,10 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 callingAttributionTag);
         if (VDBG) log("pendingListenForNetwork for " + nri);
 
-        trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_LISTENER_WITH_INTENT, nri);
         if (mSatisfiedByLocalNetworkMetrics != null) {
             mSatisfiedByLocalNetworkMetrics.logRequest(networkRequest, callingUid);
         }
+        trackUidAndRegisterNetworkRequest(EVENT_REGISTER_NETWORK_LISTENER_WITH_INTENT, nri);
     }
 
     /** Returns the next Network provider ID. */
