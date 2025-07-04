@@ -27,7 +27,6 @@ import android.content.pm.PackageManager;
 import android.net.EthernetManager;
 import android.net.EthernetNetworkSpecifier;
 import android.net.EthernetNetworkUpdateRequest;
-import android.net.IEthernetManager;
 import android.net.IEthernetServiceListener;
 import android.net.INetworkInterfaceOutcomeReceiver;
 import android.net.ITetheredInterfaceCallback;
@@ -43,6 +42,7 @@ import android.util.PrintWriterPrinter;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.IndentingPrintWriter;
 import com.android.net.module.util.PermissionUtils;
+import com.android.server.BaseEthernetServiceImpl;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -54,7 +54,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * EthernetServiceImpl handles remote Ethernet operation requests by implementing
  * the IEthernetManager interface.
  */
-public class EthernetServiceImpl extends IEthernetManager.Stub {
+public class EthernetServiceImpl extends BaseEthernetServiceImpl {
     private static final String TAG = "EthernetServiceImpl";
 
     @VisibleForTesting

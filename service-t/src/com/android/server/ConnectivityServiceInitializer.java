@@ -25,8 +25,6 @@ import android.util.Log;
 import com.android.modules.utils.build.SdkLevel;
 import com.android.networkstack.apishim.ConstantsShim;
 import com.android.server.connectivity.ConnectivityNativeService;
-import com.android.server.ethernet.EthernetService;
-import com.android.server.ethernet.EthernetServiceImpl;
 import com.android.server.nearby.NearbyService;
 import com.android.server.net.ct.CertificateTransparencyService;
 import com.android.server.thread.ThreadNetworkService;
@@ -48,7 +46,7 @@ public final class ConnectivityServiceInitializer extends SystemService {
     private final IpSecService mIpSecService;
     private final NsdService mNsdService;
     private final NearbyService mNearbyService;
-    private final EthernetServiceImpl mEthernetServiceImpl;
+    private final BaseEthernetServiceImpl mEthernetServiceImpl;
     private final ThreadNetworkService mThreadNetworkService;
     private final CertificateTransparencyService mCertificateTransparencyService;
     private final SystemService mConnectivityServiceInitializerB;
@@ -180,14 +178,19 @@ public final class ConnectivityServiceInitializer extends SystemService {
     }
 
     /**
-     * Return EthernetServiceImpl instance or null if current SDK is lower than T or Ethernet
+     * Return BaseEthernetServiceImpl instance or null if current SDK is lower than T or Ethernet
      * service isn't necessary.
      */
-    private EthernetServiceImpl createEthernetService(final Context context) {
+    private BaseEthernetServiceImpl createEthernetService(final Context context) {
         if (!SdkLevel.isAtLeastT() || !mConnectivity.deviceSupportsEthernet(context)) {
             return null;
         }
-        return EthernetService.create(context);
+        // TODO: add a kill switch.
+        if (true) {
+            return com.android.server.ethernet.EthernetService.create(context);
+        } else {
+            return com.android.server.ethernetlegacy.EthernetService.create(context);
+        }
     }
 
     /**
