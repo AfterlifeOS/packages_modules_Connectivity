@@ -144,8 +144,9 @@ public class EthernetServiceImpl extends IEthernetManager.Stub {
     /**
      * Adds a listener.
      * @param listener A {@link IEthernetServiceListener} to add.
+     * @param unused Ignored because the legacy code does not support listener flags.
      */
-    public void addListener(IEthernetServiceListener listener) throws RemoteException {
+    public void addListener(IEthernetServiceListener listener, int unused) throws RemoteException {
         Objects.requireNonNull(listener, "listener must not be null");
         PermissionUtils.enforceAccessNetworkStatePermission(mContext, TAG);
         mTracker.addListener(listener, hasUseRestrictedNetworksPermission());
