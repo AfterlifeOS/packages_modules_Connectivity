@@ -169,6 +169,33 @@ class SatisfiedByLocalNetworkMetricsTest {
     }
 
     @Test
+    fun testPullAtom_clearsCounters() {
+        val testRequest = createTestRequest(Type.REQUEST, WIFI_CAPS)
+
+        // Log one request.
+        metrics.logRequest(testRequest, TEST_UID_1)
+
+        // First pull: should contain one event.
+        val data1 = mutableListOf<StatsEvent>()
+        val result1 = testHandler.postAndWait {
+            metrics.onPullAtom(SATISFIED_BY_LOCAL_NETWORK_REQUESTS, data1)
+        }
+
+        assertEquals(StatsManager.PULL_SUCCESS, result1)
+        assertEquals(1, data1.size)
+        verifyStatsEventBuilt(deps, TEST_UID_1, Type.REQUEST, 1)
+
+        // Second pull: should contain no events, as counters were cleared.
+        val data2 = mutableListOf<StatsEvent>()
+        val result2 = testHandler.postAndWait {
+            metrics.onPullAtom(SATISFIED_BY_LOCAL_NETWORK_REQUESTS, data2)
+        }
+
+        assertEquals(StatsManager.PULL_SUCCESS, result2)
+        assertTrue(data2.isEmpty(), "Counters should be cleared after a pull, but found data.")
+    }
+
+    @Test
     fun testWrongAtomTag() {
         val data = mutableListOf<StatsEvent>()
         val result = testHandler.postAndWait {

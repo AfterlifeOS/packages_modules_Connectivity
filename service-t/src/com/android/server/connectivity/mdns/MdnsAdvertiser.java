@@ -179,7 +179,8 @@ public class MdnsAdvertiser {
                 @NonNull MdnsInterfaceAdvertiser advertiser, int serviceId) {
             final Registration registration = mRegistrations.get(serviceId);
             if (registration == null) {
-                mSharedLog.wtf("Register succeeded for unknown registration");
+                mSharedLog.w(
+                        "Register succeeded for unknown registration, serviceId: " + serviceId);
                 return;
             }
             if (mMdnsFeatureFlags.mIsMdnsOffloadFeatureEnabled
