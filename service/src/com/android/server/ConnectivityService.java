@@ -2142,7 +2142,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
 
         if (mDeps.flagConnectivityServiceDestroySocket()) {
-            mIpToNetworksMap = new HashMap<>();
+            mIpToNetworksMap = new ArrayMap<>();
             mAddressUpdateMonitor = mDeps.makeAddressUpdateMonitor(
                     mHandler, new SharedLog(20, TAG), TAG,
                     this::processNetlinkAddressUpdateMessage);
