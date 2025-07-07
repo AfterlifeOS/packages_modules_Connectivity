@@ -23,6 +23,7 @@ import android.net.thread.ThreadNetworkManager;
 import android.util.Log;
 
 import com.android.modules.utils.build.SdkLevel;
+import com.android.net.module.util.DeviceConfigUtils;
 import com.android.networkstack.apishim.ConstantsShim;
 import com.android.server.connectivity.ConnectivityNativeService;
 import com.android.server.nearby.NearbyService;
@@ -40,6 +41,7 @@ public final class ConnectivityServiceInitializer extends SystemService {
     private static final String TAG = ConnectivityServiceInitializer.class.getSimpleName();
     private static final String CONNECTIVITY_SERVICE_INITIALIZER_B_CLASS =
             "com.android.server.ConnectivityServiceInitializerB";
+    private static final String ETHERNET_SUPPORT_NCM = "ethernet_support_ncm";
 
     private final ConnectivityNativeService mConnectivityNative;
     private final ConnectivityService mConnectivity;
@@ -185,8 +187,7 @@ public final class ConnectivityServiceInitializer extends SystemService {
         if (!SdkLevel.isAtLeastT() || !mConnectivity.deviceSupportsEthernet(context)) {
             return null;
         }
-        // TODO: add a kill switch.
-        if (true) {
+        if (DeviceConfigUtils.isTetheringFeatureNotChickenedOut(context, ETHERNET_SUPPORT_NCM)) {
             return com.android.server.ethernet.EthernetService.create(context);
         } else {
             return com.android.server.ethernetlegacy.EthernetService.create(context);
