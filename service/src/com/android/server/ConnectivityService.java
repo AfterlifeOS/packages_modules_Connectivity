@@ -2142,7 +2142,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
 
         if (mDeps.flagConnectivityServiceDestroySocket()) {
-            mIpToNetworksMap = new HashMap<>();
+            mIpToNetworksMap = new ArrayMap<>();
             mAddressUpdateMonitor = mDeps.makeAddressUpdateMonitor(
                     mHandler, new SharedLog(20, TAG), TAG,
                     this::processNetlinkAddressUpdateMessage);
@@ -8716,7 +8716,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
     // This checks that the passed capabilities either do not request a
     // specific SSID/SignalStrength, or the calling app has permission to do so.
     private void ensureSufficientPermissionsForRequest(NetworkCapabilities nc,
-            int callerPid, int callerUid, String callerPackageName) {
+            int callerPid, int callerUid, String callerPackageName,
+            @Nullable String callerAttributionTag, boolean includeLocationSensitiveInfo) {
         if (null != nc.getSsid() && !hasSettingsPermission(callerPid, callerUid)) {
             throw new SecurityException("Insufficient permissions to request a specific SSID");
         }
@@ -8887,7 +8888,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
         ensureRequestableCapabilities(networkCapabilities);
         ensureSufficientPermissionsForRequest(networkCapabilities,
-                Binder.getCallingPid(), callingUid, callingPackageName);
+                Binder.getCallingPid(), callingUid, callingPackageName, callingAttributionTag,
+                (callbackFlags & NetworkCallback.FLAG_INCLUDE_LOCATION_INFO) != 0);
 
         // Enforce FOREGROUND if the caller does not have permission to use background network.
         if (reqType == LISTEN_FOR_BEST) {
@@ -9132,8 +9134,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 callingAttributionTag, callingUid);
         enforceMeteredApnPolicy(networkCapabilities);
         ensureRequestableCapabilities(networkCapabilities);
+        // {@code includeLocationSensitiveInfo} is set to {@code false} because this is consistent
+        // with {@code NetworkCallback.FLAG_NONE} being used in {@link
+        // NetworkRequestInfo(int, NetworkRequest, PendingIntent, String)}
         ensureSufficientPermissionsForRequest(networkCapabilities,
-                Binder.getCallingPid(), callingUid, callingPackageName);
+                Binder.getCallingPid(), callingUid, callingPackageName, callingAttributionTag,
+                false /* includeLocationSensitiveInfo */);
         restrictRequestNetworkCapabilitiesForCaller(
                 networkCapabilities, callingUid, callingPackageName);
 
@@ -9273,7 +9279,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
 
         NetworkCapabilities nc = new NetworkCapabilities(networkCapabilities);
         ensureSufficientPermissionsForRequest(networkCapabilities,
-                Binder.getCallingPid(), callingUid, callingPackageName);
+                Binder.getCallingPid(), callingUid, callingPackageName, callingAttributionTag,
+                (callbackFlags & NetworkCallback.FLAG_INCLUDE_LOCATION_INFO) != 0);
         restrictRequestNetworkCapabilitiesForCaller(nc, callingUid, callingPackageName);
         // Apps without the CHANGE_NETWORK_STATE permission can't use background networks, so
         // make all their listens include NET_CAPABILITY_FOREGROUND. That way, they will get
@@ -9308,8 +9315,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
             enforceAccessPermission();
         }
         ensureListenableCapabilities(networkCapabilities);
+        // {@code includeLocationSensitiveInfo} is set to {@code false} because this is consistent
+        // with {@code NetworkCallback.FLAG_NONE} being used in {@link
+        // NetworkRequestInfo(int, NetworkRequest, PendingIntent, String)}
         ensureSufficientPermissionsForRequest(networkCapabilities,
-                Binder.getCallingPid(), callingUid, callingPackageName);
+                Binder.getCallingPid(), callingUid, callingPackageName, callingAttributionTag,
+                false /* includeLocationSensitiveInfo */);
         final NetworkCapabilities nc = new NetworkCapabilities(networkCapabilities);
         restrictRequestNetworkCapabilitiesForCaller(nc, callingUid, callingPackageName);
 
