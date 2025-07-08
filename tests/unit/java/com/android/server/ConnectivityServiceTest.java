@@ -1899,11 +1899,6 @@ public class ConnectivityServiceTest {
         mockHasSystemFeature(FEATURE_WIFI_DIRECT, true);
         mockHasSystemFeature(FEATURE_ETHERNET, true);
         doReturn(true).when(mTelephonyManager).isDataCapable();
-        // This will return the same object for all subscription IDs. This is
-        // fine for all tests at the time of this writing, but if the difference
-        // becomes important for all tests, then it may be necessary to create a
-        // new one per subId. See [CSTest#createContextAsUser] above for a model.
-        doReturn(mTelephonyManager).when(mTelephonyManager).createForSubscriptionId(anyInt());
 
         FakeSettingsProvider.clearSettingsProvider();
         mServiceContext = new MockContext(InstrumentationRegistry.getContext(),
