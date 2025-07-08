@@ -23,7 +23,6 @@ import android.net.ConnectivityManager
 import android.net.EthernetManager
 import android.net.EthernetManager.ETHERNET_STATE_DISABLED
 import android.net.EthernetManager.ETHERNET_STATE_ENABLED
-import android.net.EthernetManager.InterfaceStateListener
 import android.net.EthernetManager.ROLE_CLIENT
 import android.net.EthernetManager.ROLE_NONE
 import android.net.EthernetManager.ROLE_SERVER
@@ -53,8 +52,6 @@ import android.net.StaticIpConfiguration
 import android.net.TestNetworkInterface
 import android.net.TestNetworkManager
 import android.net.TestNetworkManager.TestInterfaceRequest
-import android.net.cts.EthernetManagerTest.EthernetStateListener.Event.EthernetStateChanged
-import android.net.cts.EthernetManagerTest.EthernetStateListener.Event.InterfaceStateChanged
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -63,14 +60,15 @@ import android.os.Process
 import android.os.SystemProperties
 import android.platform.test.annotations.AppModeFull
 import androidx.test.platform.app.InstrumentationRegistry
-import com.android.net.module.util.ArrayTrackRecord
-import com.android.net.module.util.TrackRecord
 import com.android.testutils.ConnectivityModuleTest
 import com.android.testutils.DevSdkIgnoreRule
 import com.android.testutils.DevSdkIgnoreRunner
 import com.android.testutils.DeviceInfoUtils.isKernelVersionAtLeast
 import com.android.testutils.NdResponder
 import com.android.testutils.PollPacketReader
+import com.android.testutils.TestEthernetStateListener
+import com.android.testutils.TestEthernetStateListener.EthernetStateChanged
+import com.android.testutils.TestInterfaceStateListener
 import com.android.testutils.TestableNetworkCallback
 import com.android.testutils.TestableNetworkCallback.Event.Available
 import com.android.testutils.TestableNetworkCallback.Event.CapabilitiesChanged
@@ -88,13 +86,10 @@ import java.util.concurrent.CompletableFuture
 import java.util.concurrent.ExecutionException
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.TimeoutException
-import java.util.function.IntConsumer
 import kotlin.comparisons.compareBy
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
-import kotlin.test.assertNotNull
-import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import org.junit.After
 import org.junit.Assume.assumeFalse
@@ -153,9 +148,10 @@ class EthernetManagerTest {
     private val cm by lazy { context.getSystemService(ConnectivityManager::class.java)!! }
     private val handler by lazy { Handler(Looper.getMainLooper()) }
 
-    private val ifaceListener = EthernetStateListener()
+    private val ifaceListener = TestInterfaceStateListener()
     private val createdIfaces = ArrayList<EthernetTestInterface>()
-    private val addedListeners = ArrayList<EthernetStateListener>()
+    private val addedInterfaceStateListeners = ArrayList<TestInterfaceStateListener>()
+    private val addedEthernetStateListeners = ArrayList<TestEthernetStateListener>()
     private val registeredCallbacks = ArrayList<TestableNetworkCallback>()
 
     private var tetheredInterfaceRequest: TetheredInterfaceRequest? = null
@@ -217,108 +213,6 @@ class EthernetManagerTest {
             ndResponder.stop()
             handler.post({ packetReader.stop() })
             handler.waitForIdle(TIMEOUT_MS)
-        }
-    }
-
-    private open class EthernetStateListener private constructor(
-        private val history: ArrayTrackRecord<Event>
-    ) : InterfaceStateListener, IntConsumer,
-                TrackRecord<EthernetStateListener.Event> by history {
-        constructor() : this(ArrayTrackRecord())
-
-        val events = history.newReadHead()
-
-        sealed class Event {
-            data class InterfaceStateChanged(
-                val iface: String,
-                val state: Int,
-                val role: Int,
-                val configuration: IpConfiguration?
-            ) : Event() {
-                override fun toString(): String {
-                    val stateString = when (state) {
-                        STATE_ABSENT -> "STATE_ABSENT"
-                        STATE_LINK_UP -> "STATE_LINK_UP"
-                        STATE_LINK_DOWN -> "STATE_LINK_DOWN"
-                        else -> state.toString()
-                    }
-                    val roleString = when (role) {
-                        ROLE_NONE -> "ROLE_NONE"
-                        ROLE_CLIENT -> "ROLE_CLIENT"
-                        ROLE_SERVER -> "ROLE_SERVER"
-                        else -> role.toString()
-                    }
-                    return ("InterfaceStateChanged(iface=$iface, state=$stateString, " +
-                            "role=$roleString, ipConfig=$configuration)")
-                }
-            }
-
-            data class EthernetStateChanged(val state: Int) : Event() {
-                override fun toString(): String {
-                    val stateString = when (state) {
-                        ETHERNET_STATE_ENABLED -> "ETHERNET_STATE_ENABLED"
-                        ETHERNET_STATE_DISABLED -> "ETHERNET_STATE_DISABLED"
-                        else -> state.toString()
-                    }
-                    return "EthernetStateChanged(state=$stateString)"
-                }
-            }
-        }
-
-        override fun onInterfaceStateChanged(
-            iface: String,
-            state: Int,
-            role: Int,
-            cfg: IpConfiguration?
-        ) {
-            add(InterfaceStateChanged(iface, state, role, cfg))
-        }
-
-        override fun accept(state: Int) {
-            add(EthernetStateChanged(state))
-        }
-
-        fun <T : Event> expectCallback(expected: T): T {
-            val event = events.poll(TIMEOUT_MS)
-            assertEquals(expected, event)
-            return event as T
-        }
-
-        fun expectCallback(iface: EthernetTestInterface, state: Int, role: Int) {
-            expectCallback(createChangeEvent(iface.name, state, role))
-        }
-
-        fun expectCallback(state: Int) {
-            expectCallback(EthernetStateChanged(state))
-        }
-
-        private fun createChangeEvent(iface: String, state: Int, role: Int) =
-                InterfaceStateChanged(
-                        iface,
-                        state,
-                        role,
-                        if (state != STATE_ABSENT) DEFAULT_IP_CONFIGURATION else null
-                )
-
-        fun eventuallyExpect(expected: Event) {
-            val cb = events.poll(TIMEOUT_MS) { it == expected }
-            assertNotNull(cb, "Never received expected $expected. Received: ${events.backtrace()}")
-        }
-
-        fun eventuallyExpect(ifname: String, state: Int, role: Int) {
-            eventuallyExpect(createChangeEvent(ifname, state, role))
-        }
-
-        fun eventuallyExpect(iface: EthernetTestInterface, state: Int, role: Int) =
-                eventuallyExpect(iface.name, state, role)
-
-        fun eventuallyExpect(state: Int) {
-            eventuallyExpect(EthernetStateChanged(state))
-        }
-
-        fun assertNoCallback() {
-            val cb = events.poll(NO_CALLBACK_TIMEOUT_MS)
-            assertNull(cb, "Expected no callback but got $cb")
         }
     }
 
@@ -394,16 +288,16 @@ class EthernetManagerTest {
 
         for (iface in createdIfaces) {
             iface.destroy()
-            ifaceListener.eventuallyExpect(iface, STATE_ABSENT, ROLE_NONE)
+            ifaceListener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_ABSENT, ROLE_NONE)
         }
 
         // After test interfaces are removed, disable tracking.
         setIncludeTestInterfaces(false)
 
-        for (listener in addedListeners) {
-            // Even if a given listener was not registered as both an interface and ethernet state
-            // listener, calling remove is safe.
+        for (listener in addedInterfaceStateListeners) {
             em.removeInterfaceStateListener(listener)
+        }
+        for (listener in addedEthernetStateListeners) {
             em.removeEthernetStateListener(listener)
         }
         registeredCallbacks.forEach { cm.unregisterNetworkCallback(it) }
@@ -436,14 +330,14 @@ class EthernetManagerTest {
                 SystemProperties.getInt("service.adb.tcp.port", -1) > -1)
     }
 
-    private fun addInterfaceStateListener(listener: EthernetStateListener) {
+    private fun addInterfaceStateListener(listener: TestInterfaceStateListener) {
         em.addInterfaceStateListener(handler::post, listener)
-        addedListeners.add(listener)
+        addedInterfaceStateListeners.add(listener)
     }
 
-    private fun addEthernetStateListener(listener: EthernetStateListener) {
+    private fun addEthernetStateListener(listener: TestEthernetStateListener) {
         em.addEthernetStateListener(handler::post, listener)
-        addedListeners.add(listener)
+        addedEthernetStateListeners.add(listener)
     }
 
     // WARNING: setting hasCarrier to false requires kernel support. Call
@@ -456,9 +350,13 @@ class EthernetManagerTest {
         ).also { createdIfaces.add(it) }
 
         // when an interface comes up, we should always see a down cb before an up cb.
-        ifaceListener.eventuallyExpect(iface, STATE_LINK_DOWN, ROLE_CLIENT)
+        ifaceListener.eventuallyExpectInterfaceStateChanged(
+            iface.name,
+            STATE_LINK_DOWN,
+            ROLE_CLIENT
+        )
         if (hasCarrier && ethernetEnabled) {
-            ifaceListener.expectCallback(iface, STATE_LINK_UP, ROLE_CLIENT)
+            ifaceListener.expectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
         }
         return iface
     }
@@ -472,7 +370,7 @@ class EthernetManagerTest {
     private fun removeInterface(iface: EthernetTestInterface) {
         iface.destroy()
         createdIfaces.remove(iface)
-        ifaceListener.eventuallyExpect(iface, STATE_ABSENT, ROLE_NONE)
+        ifaceListener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_ABSENT, ROLE_NONE)
     }
 
     private fun requestNetwork(request: NetworkRequest): TestableNetworkCallback {
@@ -553,9 +451,11 @@ class EthernetManagerTest {
         runAsShell(NETWORK_SETTINGS) { em.setEthernetEnabled(enabled) }
 
         ethernetEnabled = enabled
-        val listener = EthernetStateListener()
+        val listener = TestEthernetStateListener()
         addEthernetStateListener(listener)
-        listener.eventuallyExpect(if (enabled) ETHERNET_STATE_ENABLED else ETHERNET_STATE_DISABLED)
+        listener.eventuallyExpect<EthernetStateChanged> {
+            it.state == if (enabled) ETHERNET_STATE_ENABLED else ETHERNET_STATE_DISABLED
+        }
     }
 
     // NetworkRequest.Builder does not create a copy of the passed NetworkRequest, so in order to
@@ -602,35 +502,43 @@ class EthernetManagerTest {
 
         // If an interface exists when the callback is registered, it is reported on registration.
         val iface = createInterface()
-        val listener1 = EthernetStateListener()
+        val listener1 = TestInterfaceStateListener()
         addInterfaceStateListener(listener1)
-        listener1.expectCallback(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener1.expectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
 
         // If an interface appears, existing callbacks see it.
         val iface2 = createInterface()
-        listener1.expectCallback(iface2, STATE_LINK_DOWN, ROLE_CLIENT)
-        listener1.expectCallback(iface2, STATE_LINK_UP, ROLE_CLIENT)
+        listener1.expectInterfaceStateChanged(iface2.name, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener1.expectInterfaceStateChanged(iface2.name, STATE_LINK_UP, ROLE_CLIENT)
 
         // Register a new listener, it should see state of all existing interfaces immediately.
-        val listener2 = EthernetStateListener()
+        val listener2 = TestInterfaceStateListener()
         addInterfaceStateListener(listener2)
         // Note that interfaces are in lexicographical order with restricted interfaces appearing
         // last. This means that testtap10 is ordered ahead of testtap9.
         val sortedIfaces = listOf(iface, iface2).sortedWith(compareBy { it.name })
-        listener2.expectCallback(sortedIfaces.elementAt(0), STATE_LINK_UP, ROLE_CLIENT)
-        listener2.expectCallback(sortedIfaces.elementAt(1), STATE_LINK_UP, ROLE_CLIENT)
+        listener2.expectInterfaceStateChanged(
+            sortedIfaces.elementAt(0).name,
+            STATE_LINK_UP,
+            ROLE_CLIENT
+        )
+        listener2.expectInterfaceStateChanged(
+            sortedIfaces.elementAt(1).name,
+            STATE_LINK_UP,
+            ROLE_CLIENT
+        )
 
         // Removing interfaces first sends link down, then STATE_ABSENT/ROLE_NONE.
         removeInterface(iface)
         for (listener in listOf(listener1, listener2)) {
-            listener.expectCallback(iface, STATE_LINK_DOWN, ROLE_CLIENT)
-            listener.expectCallback(iface, STATE_ABSENT, ROLE_NONE)
+            listener.expectInterfaceStateChanged(iface.name, STATE_LINK_DOWN, ROLE_CLIENT)
+            listener.expectInterfaceStateChanged(iface.name, STATE_ABSENT, ROLE_NONE)
         }
 
         removeInterface(iface2)
         for (listener in listOf(listener1, listener2)) {
-            listener.expectCallback(iface2, STATE_LINK_DOWN, ROLE_CLIENT)
-            listener.expectCallback(iface2, STATE_ABSENT, ROLE_NONE)
+            listener.expectInterfaceStateChanged(iface2.name, STATE_LINK_DOWN, ROLE_CLIENT)
+            listener.expectInterfaceStateChanged(iface2.name, STATE_ABSENT, ROLE_NONE)
             listener.assertNoCallback()
         }
     }
@@ -669,20 +577,20 @@ class EthernetManagerTest {
         val iface = createInterface()
         requestTetheredInterface().expectOnAvailable()
 
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
         // TODO(b/295146844): do not report IpConfiguration for server mode interfaces.
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_SERVER)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_SERVER)
 
         releaseTetheredInterface()
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
 
         requestTetheredInterface().expectOnAvailable()
         // This should be changed to expectCallback, once b/236895792 is fixed.
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_SERVER)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_SERVER)
 
         releaseTetheredInterface()
-        listener.expectCallback(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.expectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
     }
 
     @Test
@@ -694,7 +602,7 @@ class EthernetManagerTest {
         requestTetheredInterface().expectOnAvailable()
         removeInterface(iface)
 
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
         listener.assertNoCallback()
     }
@@ -715,7 +623,7 @@ class EthernetManagerTest {
         setIncludeTestInterfaces(false)
         setEthernetEnabled(true)
 
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
         listener.assertNoCallback()
 
@@ -723,9 +631,9 @@ class EthernetManagerTest {
         setIncludeTestInterfaces(true)
         setEthernetEnabled(true)
 
-        listener.expectCallback(iface1, STATE_LINK_UP, ROLE_CLIENT)
-        listener.expectCallback(iface2, STATE_LINK_UP, ROLE_CLIENT)
-        listener.expectCallback(iface3, STATE_LINK_UP, ROLE_CLIENT)
+        listener.expectInterfaceStateChanged(iface1.name, STATE_LINK_UP, ROLE_CLIENT)
+        listener.expectInterfaceStateChanged(iface2.name, STATE_LINK_UP, ROLE_CLIENT)
+        listener.expectInterfaceStateChanged(iface3.name, STATE_LINK_UP, ROLE_CLIENT)
         listener.assertNoCallback()
     }
 
@@ -892,20 +800,20 @@ class EthernetManagerTest {
     fun testRemoveInterface_whileInServerMode() {
         assumeNoInterfaceForTetheringAvailable()
 
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
 
         val iface = createInterface()
         val ifaceName = requestTetheredInterface().expectOnAvailable()
 
         assertEquals(iface.name, ifaceName)
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_SERVER)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_SERVER)
 
         removeInterface(iface)
 
         // Note: removeInterface already verifies that a STATE_ABSENT, ROLE_NONE callback is
         // received, but it can't hurt to explicitly check for it.
-        listener.expectCallback(iface, STATE_ABSENT, ROLE_NONE)
+        listener.expectInterfaceStateChanged(iface.name, STATE_ABSENT, ROLE_NONE)
         releaseTetheredInterface()
         listener.assertNoCallback()
     }
@@ -947,43 +855,43 @@ class EthernetManagerTest {
     @Test
     fun testEnableDisableInterface_callbacks() {
         val iface = createInterface()
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
         // Uses eventuallyExpect to account for interfaces that could already exist on device
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
 
         disableInterface(iface).expectResult(iface.name)
-        listener.eventuallyExpect(iface, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_DOWN, ROLE_CLIENT)
 
         enableInterface(iface).expectResult(iface.name)
-        listener.expectCallback(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.expectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
 
         disableInterface(iface).expectResult(iface.name)
-        listener.expectCallback(iface, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener.expectInterfaceStateChanged(iface.name, STATE_LINK_DOWN, ROLE_CLIENT)
     }
 
     @Test
     fun testEnableDisableInterface_disableEnableEthernet() {
         val iface = createInterface()
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
 
         // When ethernet is disabled, interface should be down and enable/disableInterface()
         // should not bring the interfaces up.
         setEthernetEnabled(false)
-        listener.eventuallyExpect(iface, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_DOWN, ROLE_CLIENT)
         enableInterface(iface).expectError()
         disableInterface(iface).expectError()
         listener.assertNoCallback()
 
         // When ethernet is enabled, enable/disableInterface() should succeed.
         setEthernetEnabled(true)
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
         disableInterface(iface).expectResult(iface.name)
-        listener.eventuallyExpect(iface, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_DOWN, ROLE_CLIENT)
         enableInterface(iface).expectResult(iface.name)
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
     }
 
     @Test
@@ -1101,52 +1009,52 @@ class EthernetManagerTest {
 
     @Test
     fun testUpdateConfiguration_callbacksForMissingInterface() {
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
 
         val bogusIfname = "testtap000"
         updateConfiguration(bogusIfname, STATIC_IP_CONFIGURATION).expectResult(bogusIfname)
 
-        listener.eventuallyExpect(bogusIfname, STATE_ABSENT, ROLE_NONE)
+        listener.eventuallyExpectInterfaceStateChanged(bogusIfname, STATE_ABSENT, ROLE_NONE)
     }
 
     @Test
     fun testAddInterface_disableEnableEthernet() {
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
 
         // When ethernet is disabled, newly added interfaces should not be brought up.
         setEthernetEnabled(false)
         val iface = createInterface(/* hasCarrier */ true)
-        listener.eventuallyExpect(iface, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_DOWN, ROLE_CLIENT)
 
         // When ethernet is re-enabled after interface is added, it will be brought up.
         setEthernetEnabled(true)
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
     }
 
     @Test
     fun testRemoveInterface_disableEnableEthernet() {
         // Set up 2 interfaces for testing
         val iface1 = createInterface()
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
-        listener.eventuallyExpect(iface1, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface1.name, STATE_LINK_UP, ROLE_CLIENT)
         val iface2 = createInterface()
-        listener.eventuallyExpect(iface2, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface2.name, STATE_LINK_UP, ROLE_CLIENT)
 
         // Removing interfaces when ethernet is enabled will first send link down, then
         // STATE_ABSENT/ROLE_NONE.
         removeInterface(iface1)
-        listener.expectCallback(iface1, STATE_LINK_DOWN, ROLE_CLIENT)
-        listener.expectCallback(iface1, STATE_ABSENT, ROLE_NONE)
+        listener.expectInterfaceStateChanged(iface1.name, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener.expectInterfaceStateChanged(iface1.name, STATE_ABSENT, ROLE_NONE)
 
         // Removing interfaces after ethernet is disabled will first send link down when ethernet is
         // disabled, then STATE_ABSENT/ROLE_NONE when interface is removed.
         setEthernetEnabled(false)
-        listener.expectCallback(iface2, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener.expectInterfaceStateChanged(iface2.name, STATE_LINK_DOWN, ROLE_CLIENT)
         removeInterface(iface2)
-        listener.expectCallback(iface2, STATE_ABSENT, ROLE_NONE)
+        listener.expectInterfaceStateChanged(iface2.name, STATE_ABSENT, ROLE_NONE)
     }
 
     @Test
@@ -1154,12 +1062,12 @@ class EthernetManagerTest {
         // do not run this test if an interface that can be used for tethering already exists.
         assumeNoInterfaceForTetheringAvailable()
 
-        val listener = EthernetStateListener()
+        val listener = TestInterfaceStateListener()
         addInterfaceStateListener(listener)
 
         val iface = createInterface()
         requestTetheredInterface().expectOnAvailable()
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_SERVER)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_SERVER)
 
         // (b/234743836): Currently the state of server mode interfaces always returns true due to
         // that interface state for server mode interfaces is not tracked properly.
@@ -1169,11 +1077,11 @@ class EthernetManagerTest {
 
         // When ethernet is disabled, change interface mode will not bring the interface up.
         releaseTetheredInterface()
-        listener.eventuallyExpect(iface, STATE_LINK_DOWN, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_DOWN, ROLE_CLIENT)
 
         // When ethernet is re-enabled, interface will be brought up.
         setEthernetEnabled(true)
-        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+        listener.eventuallyExpectInterfaceStateChanged(iface.name, STATE_LINK_UP, ROLE_CLIENT)
     }
 
     @Test
