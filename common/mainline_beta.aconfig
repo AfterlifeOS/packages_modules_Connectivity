@@ -1,0 +1,9 @@
+package: "com.android.tethering.mainline.beta"
+container: "com.android.tethering"
+
+flag {
+    name: "bluetooth_tethering_randomized_address"
+    namespace: "com_android_tethering"
+    description: "bluetooth tethering use randomized address"
+    bug: "287177081"
+}

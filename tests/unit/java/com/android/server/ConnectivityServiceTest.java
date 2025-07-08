@@ -2432,6 +2432,11 @@ public class ConnectivityServiceTest {
         public L2capNetworkProvider makeL2capNetworkProvider(Context context) {
             return null;
         }
+
+        @Override
+        public boolean shouldBluetoothTetheringUseRandomAddress() {
+            return false;
+        }
     }
 
     static class PermissionMonitorDependencies extends PermissionMonitor.Dependencies {
