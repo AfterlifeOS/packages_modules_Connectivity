@@ -778,3 +778,22 @@ java_library {
         "com.android.tethering",
     ],
 }
+
+java_library {
+    name: "net-utils-framework-vcn",
+    sdk_version: "module_current",
+    min_sdk_version: "30",
+    srcs: [
+        "framework/com/android/net/module/util/HexDump.java",
+    ],
+    libs: [
+        "androidx.annotation_annotation",
+    ],
+    visibility: [
+        // TODO: b/374174952 Clean up the paths when the VCN
+        // code location is finalized
+        "//frameworks/base/packages/Vcn/framework-b",
+        "//packages/modules/Connectivity/Vcn/framework-b",
+        "//packages/modules/Connectivity/framework-b",
+    ],
+}
