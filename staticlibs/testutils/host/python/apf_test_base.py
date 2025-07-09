@@ -12,10 +12,11 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
-import time
 from mobly import asserts
 from net_tests_utils.host.python import adb_utils, apf_utils, assert_utils, multi_devices_test_base, tether_utils
 from net_tests_utils.host.python.tether_utils import UpstreamType
+
+APF_ACTIVATION_WAIT_TIME_SEC = 5
 
 
 class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
@@ -75,9 +76,6 @@ class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
 
     # Enable doze mode to activate APF.
     adb_utils.set_doze_mode(self.clientDevice, True)
-
-    # Longer wait time is required for APF to become active in CTS test suite.
-    time.sleep(5)
 
   def teardown_class(self):
     adb_utils.set_doze_mode(self.clientDevice, False)
@@ -142,3 +140,11 @@ class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
 
     finally:
       apf_utils.stop_capture_packets(self.serverDevice, self.server_iface_name)
+
+  def expect_apf_offload_enabled(self, offload: str):
+    assert_utils.expect_with_retry(
+        lambda: offload
+        in apf_utils.get_apf_config_from_cmd(
+            self.clientDevice, self.client_iface_name
+        )
+    )

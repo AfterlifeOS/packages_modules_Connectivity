@@ -44,6 +44,9 @@ class ApfV4Test(apf_test_base.ApfTestBase, parameterized.TestCase):
           self.clientDevice, self.client_iface_name, 4
       )
 
+    # Longer wait time is required for APF to become active in CTS test suite.
+    time.sleep(apf_test_base.APF_ACTIVATION_WAIT_TIME_SEC)
+
   # APF L2 packet filtering on V+ Android allows only specific
   # types: IPv4, ARP, IPv6, EAPOL, WAPI.
   # Tests can use any disallowed packet type. Currently,
