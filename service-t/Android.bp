@@ -147,4 +147,16 @@ droidstubs {
     visibility: [
         "//visibility:private",
     ],
+
+    // Use the compatibility check properties to supply the previously released API to which
+    // flagged APIs can be reverted but disable the compatibility check as it is not required.
+    check_api: {
+        last_released: {
+            enabled: false,
+            // Use special target to indicate that the previously released API is actually
+            // missing.
+            api_file: ":default-unsafe-ignore-missing-latest-api",
+            removed_api_file: ":default-unsafe-ignore-missing-latest-api",
+        },
+    },
 }
