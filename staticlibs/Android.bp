@@ -767,6 +767,7 @@ java_library {
     visibility: [
         // TODO: b/374174952 Remove it when VCN modularization is released
         "//frameworks/base/packages/Vcn/service-b",
+        "//packages/modules/Connectivity/Vcn/service-b",
 
         "//packages/modules/Connectivity/service-b",
     ],
