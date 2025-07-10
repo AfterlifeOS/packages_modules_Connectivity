@@ -56,18 +56,23 @@ public class RoutingCoordinatorService extends IRoutingCoordinator.Stub {
     @GuardedBy("mPrivateAddressCoordinatorLock")
     private final PrivateAddressCoordinator mPrivateAddressCoordinator;
 
+    // TODO: Remove bluetoothTetheringUseRandomAddress argument once the beta flag is rolled out
     public RoutingCoordinatorService(@NonNull INetd netd,
-                                     @NonNull Supplier<Network[]> getAllNetworksSupplier,
-                                     @NonNull Context context) {
-        this(netd, getAllNetworksSupplier, new PrivateAddressCoordinator.Dependencies(context));
+            @NonNull Supplier<Network[]> getAllNetworksSupplier,
+            @NonNull Context context,
+            boolean bluetoothTetheringUseRandomAddress) {
+        this(netd, getAllNetworksSupplier, new PrivateAddressCoordinator.Dependencies(context),
+                bluetoothTetheringUseRandomAddress);
     }
 
     @VisibleForTesting
     public RoutingCoordinatorService(@NonNull INetd netd,
-                                     @NonNull Supplier<Network[]> getAllNetworksSupplier,
-                                     @NonNull PrivateAddressCoordinator.Dependencies pacDeps) {
+            @NonNull Supplier<Network[]> getAllNetworksSupplier,
+            @NonNull PrivateAddressCoordinator.Dependencies pacDeps,
+            boolean bluetoothTetheringUseRandomAddress) {
         mNetd = netd;
-        mPrivateAddressCoordinator = new PrivateAddressCoordinator(getAllNetworksSupplier, pacDeps);
+        mPrivateAddressCoordinator = new PrivateAddressCoordinator(
+                getAllNetworksSupplier, pacDeps, bluetoothTetheringUseRandomAddress);
     }
 
     /**

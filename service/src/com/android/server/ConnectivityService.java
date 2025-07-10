@@ -1991,6 +1991,17 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 @NonNull Consumer<NetlinkMessage> consumer) {
             return new AddressUpdateMonitor(h, log, tag, consumer);
         }
+
+        /**
+         * Whether to randomize the tethering prefix for bluetooth as well. Requires T+ because
+         * in S this code is in the platform.
+         * This method is intended to be called only a single time.
+         * The flag value can change at runtime via a server push.
+         */
+        public boolean shouldBluetoothTetheringUseRandomAddress() {
+            // TODO: add a mainline beta flag to enable the new behaviour.
+            return SdkLevel.isAtLeastT() && false;
+        }
     }
 
     public ConnectivityService(Context context) {
@@ -2275,7 +2286,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
 
         mRoutingCoordinatorService =
-                new RoutingCoordinatorService(netd, this::getAllNetworks, mContext);
+                new RoutingCoordinatorService(netd, this::getAllNetworks, mContext,
+                        mDeps.shouldBluetoothTetheringUseRandomAddress());
         mMulticastRoutingCoordinatorService =
                 mDeps.makeMulticastRoutingCoordinatorService(mHandler);
 
