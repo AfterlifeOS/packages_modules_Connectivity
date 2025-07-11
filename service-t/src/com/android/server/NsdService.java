@@ -1369,7 +1369,7 @@ public class NsdService extends INsdManager.Stub {
                             final String tag = "Client" + arg.uid + "-" + mClientNumberId++;
                             final NetworkNsdReportedMetrics metrics =
                                     mDeps.makeNetworkNsdReportedMetrics(
-                                            (int) mClock.elapsedRealtime());
+                                            (int) mClock.elapsedRealtime(), arg.uid);
                             clientInfo = new ClientInfo(cb, arg.uid, arg.useJavaBackend,
                                     mServiceLogs.forSubComponent(tag), metrics);
                             mClients.put(arg.connector, clientInfo);
@@ -2123,8 +2123,8 @@ public class NsdService extends INsdManager.Stub {
         /**
          * @see NetworkNsdReportedMetrics
          */
-        public NetworkNsdReportedMetrics makeNetworkNsdReportedMetrics(int clientId) {
-            return new NetworkNsdReportedMetrics(clientId);
+        public NetworkNsdReportedMetrics makeNetworkNsdReportedMetrics(int clientId, int uid) {
+            return new NetworkNsdReportedMetrics(clientId, uid);
         }
 
         /**
