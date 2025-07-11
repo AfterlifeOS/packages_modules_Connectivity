@@ -27,6 +27,8 @@ import android.os.Looper
 import android.os.ParcelFileDescriptor
 import android.system.OsConstants.SOL_SOCKET
 import android.util.SparseArray
+import com.android.net.module.util.FrameworkConnectivityStatsLog.CORE_NETWORKING_CRITICAL_COUNTS_EVENT_OCCURRED__EVENT_TYPE__CRITICAL_COUNTS_EVENT_TYPE_QUIC_CONNECTION_CLOSE_LOST_ACCESS
+import com.android.net.module.util.FrameworkConnectivityStatsLog.CORE_NETWORKING_CRITICAL_COUNTS_EVENT_OCCURRED__EVENT_TYPE__CRITICAL_COUNTS_EVENT_TYPE_QUIC_CONNECTION_CLOSE_SOCKET_DESTROY
 import com.android.net.module.util.SkDestroyListener
 import com.android.net.module.util.netlink.InetDiagMessage
 import com.android.net.module.util.netlink.StructInetDiagSockId
@@ -41,6 +43,7 @@ import org.junit.runner.RunWith
 import org.mockito.ArgumentCaptor
 import org.mockito.InOrder
 import org.mockito.Mockito.any
+import org.mockito.Mockito.anyInt
 import org.mockito.Mockito.anyLong
 import org.mockito.Mockito.doReturn
 import org.mockito.Mockito.eq
@@ -191,6 +194,52 @@ class QuicConnectionCloserTest {
         inOrder.assertNoSendQuicConnectionClosePayload()
     }
 
+    private fun closeConnectionByUids() {
+        mQuicConnectionCloser.registerQuicConnectionClosePayload(TEST_UID, pfd, TEST_PAYLOAD)
+        visibleOnHandlerThread(handler) {
+            mQuicConnectionCloser.closeQuicConnectionByUids(setOf(TEST_UID))
+        }
+    }
+
+    @Test
+    fun testCloseQuicConnectionByUids_reportMetrics() {
+        val inOrder = inOrder(mDeps)
+        doReturn(0L).`when`(mDeps).getElapsedRealtime()
+
+        closeConnectionByUids()
+        inOrder.expectDestroyUdpSocket()
+        inOrder.expectSendQuicConnectionClosePayload()
+        inOrder.verify(
+                mDeps,
+                timeout(TIMEOUT_MS)
+        ).writeStats(
+                CORE_NETWORKING_CRITICAL_COUNTS_EVENT_OCCURRED__EVENT_TYPE__CRITICAL_COUNTS_EVENT_TYPE_QUIC_CONNECTION_CLOSE_LOST_ACCESS,
+                1
+        )
+
+        repeat(4) {
+            closeConnectionByUids()
+            inOrder.expectDestroyUdpSocket()
+            inOrder.expectSendQuicConnectionClosePayload()
+        }
+
+        // No metrics are reported because the clock has not advanced.
+        inOrder.verify(mDeps, never()).writeStats(anyInt(), anyInt())
+
+        // Advance the clock.
+        doReturn(60_000L).`when`(mDeps).getElapsedRealtime()
+        closeConnectionByUids()
+        inOrder.expectDestroyUdpSocket()
+        inOrder.expectSendQuicConnectionClosePayload()
+        inOrder.verify(
+                mDeps,
+                timeout(TIMEOUT_MS)
+        ).writeStats(
+                CORE_NETWORKING_CRITICAL_COUNTS_EVENT_OCCURRED__EVENT_TYPE__CRITICAL_COUNTS_EVENT_TYPE_QUIC_CONNECTION_CLOSE_LOST_ACCESS,
+                5
+        )
+    }
+
     private fun getSkDestroyListenerCallback(): Consumer<InetDiagMessage> {
         val captor = ArgumentCaptor.forClass(Consumer::class.java)
                 as ArgumentCaptor<Consumer<InetDiagMessage>>
@@ -236,5 +285,55 @@ class QuicConnectionCloserTest {
         // SkDestroyListenerCallback posts to handler thread, so a short timeout is set.
         inOrder.assertNoDestroyUdpSocket(SHORT_TIMEOUT_MS)
         inOrder.assertNoSendQuicConnectionClosePayload()
+    }
+
+    private fun destroySocketAndCloseConnection(destroyListenerCallback: Consumer<InetDiagMessage>) {
+        mQuicConnectionCloser.registerQuicConnectionClosePayload(TEST_UID, pfd, TEST_PAYLOAD)
+
+        val inetDiagMessage = InetDiagMessage(StructNlMsgHdr())
+        inetDiagMessage.inetDiagMsg.id = StructInetDiagSockId(
+                TEST_SRC_SOCKET_ADDRESS,
+                TEST_DST_SOCKET_ADDRESS,
+                0 /* ifindex */,
+                TEST_SOCKET_COOKIE
+        )
+        destroyListenerCallback.accept(inetDiagMessage)
+    }
+
+    @Test
+    fun testSocketDestroy_reportMetrics() {
+        val destroyListenerCallback = getSkDestroyListenerCallback()
+        val inOrder = inOrder(mDeps)
+        doReturn(0L).`when`(mDeps).getElapsedRealtime()
+
+        destroySocketAndCloseConnection(destroyListenerCallback)
+        inOrder.expectSendQuicConnectionClosePayload(TIMEOUT_MS)
+        inOrder.verify(
+                mDeps,
+                timeout(TIMEOUT_MS)
+        ).writeStats(
+                CORE_NETWORKING_CRITICAL_COUNTS_EVENT_OCCURRED__EVENT_TYPE__CRITICAL_COUNTS_EVENT_TYPE_QUIC_CONNECTION_CLOSE_SOCKET_DESTROY,
+                1
+        )
+
+        repeat(4) {
+            destroySocketAndCloseConnection(destroyListenerCallback)
+            inOrder.expectSendQuicConnectionClosePayload(TIMEOUT_MS)
+        }
+
+        // No metrics are reported because the clock has not advanced.
+        inOrder.verify(mDeps, never()).writeStats(anyInt(), anyInt())
+
+        // Advance the clock.
+        doReturn(60_000L).`when`(mDeps).getElapsedRealtime()
+        destroySocketAndCloseConnection(destroyListenerCallback)
+        inOrder.expectSendQuicConnectionClosePayload(TIMEOUT_MS)
+        inOrder.verify(
+                mDeps,
+                timeout(TIMEOUT_MS)
+        ).writeStats(
+                CORE_NETWORKING_CRITICAL_COUNTS_EVENT_OCCURRED__EVENT_TYPE__CRITICAL_COUNTS_EVENT_TYPE_QUIC_CONNECTION_CLOSE_SOCKET_DESTROY,
+                5
+        )
     }
 }
