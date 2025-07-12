@@ -187,7 +187,8 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
             const int mtu = 1500;                                                                \
             uint64_t packets = 1;                                                                \
             uint64_t bytes = skb->len;                                                           \
-            if ((!is5_4 && bytes > mtu) || (is5_4 && skb->gso_segs > 1)) {                       \
+            volatile uint32_t gso_segs = is5_4 ? skb->gso_segs : 1;                              \
+            if ((!is5_4 && bytes > mtu) || (is5_4 && gso_segs > 1)) {                            \
                 const bool is_ipv6 = (skb->protocol == htons(ETH_P_IPV6));                       \
                 const int ip_overhead = is_ipv6 ? sizeof(struct ipv6hdr) : sizeof(struct iphdr); \
                 struct bpf_sock * const sk = is5_4 && skb->sk ? bpf_sk_fullsock(skb->sk) : NULL; \
@@ -198,7 +199,7 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
                 const int overhead = ip_overhead + L4_size;                                      \
                 const int mss = mtu - overhead;                                                  \
                 const uint64_t payload = bytes - overhead;                                       \
-                packets = is5_4 ? skb->gso_segs : (payload + mss - 1) / mss;                     \
+                packets = is5_4 ? gso_segs : (payload + mss - 1) / mss;                          \
                 bytes = overhead * packets + payload;                                            \
             }                                                                                    \
             if (egress.egress) {                                                                 \

@@ -253,7 +253,7 @@ public class NsdServiceTest {
             mAdvertiserCallback = (MdnsAdvertiser.AdvertiserCallback) inv.getArguments()[2];
             return mAdvertiser;
         }).when(mDeps).makeMdnsAdvertiser(any(), any(), any(), any(), any(), any());
-        doReturn(mMetrics).when(mDeps).makeNetworkNsdReportedMetrics(anyInt());
+        doReturn(mMetrics).when(mDeps).makeNetworkNsdReportedMetrics(anyInt(), anyInt());
         doReturn(mClock).when(mDeps).makeClock();
         doReturn(TEST_TIME_MS).when(mClock).elapsedRealtime();
         mService = makeService();
