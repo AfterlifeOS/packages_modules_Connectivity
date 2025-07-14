@@ -57,27 +57,13 @@ class CaptivePortalDataTest {
             .apply {
                 if (SdkLevel.isAtLeastS()) {
                     setVenueFriendlyName("venue friendly name")
-                    setUserPortalUrl(
-                        Uri.parse("https://tc.example.com/passpoint"),
-                            CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT
-                    )
-                    setVenueInfoUrl(
-                        Uri.parse("https://venue.example.com/passpoint"),
-                            CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT
-                    )
+                    setUserPortalUrl(Uri.parse("https://tc.example.com/passpoint"),
+                            CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT)
+                    setVenueInfoUrl(Uri.parse("https://venue.example.com/passpoint"),
+                            CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT)
                 }
             }
             .build()
-
-    private val optInData = CaptivePortalData.Builder().apply {
-        setCaptive(true)
-        if (SdkLevel.isAtLeastS()) {
-            setUserPortalUrl(
-                Uri.parse("https://tc.example.passpoint"),
-                CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_CAPPORT_WITH_CUSTOM_TABS_OPTIN
-            )
-        }
-    }.build()
 
     private fun makeBuilder() = CaptivePortalData.Builder(data)
 
@@ -85,7 +71,6 @@ class CaptivePortalDataTest {
     fun testParcelUnparcel() {
         assertParcelingIsLossless(data)
         assertParcelingIsLossless(dataFromPasspoint)
-        if (SdkLevel.isAtLeastS()) assertParcelingIsLossless(optInData)
 
         assertParcelingIsLossless(makeBuilder().setUserPortalUrl(null).build())
         assertParcelingIsLossless(makeBuilder().setVenueInfoUrl(null).build())
@@ -111,35 +96,24 @@ class CaptivePortalDataTest {
 
             assertEquals(dataFromPasspoint, CaptivePortalData.Builder(dataFromPasspoint).build())
             assertNotEqualsAfterChange { it.setUserPortalUrl(
-                    Uri.parse("https://tc.example.com/passpoint")
-            ) }
+                    Uri.parse("https://tc.example.com/passpoint")) }
             assertNotEqualsAfterChange { it.setUserPortalUrl(
                     Uri.parse("https://tc.example.com/passpoint"),
-                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER
-            ) }
+                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER) }
             assertNotEqualsAfterChange { it.setUserPortalUrl(
                     Uri.parse("https://tc.example.com/other"),
-                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT
-            ) }
+                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT) }
             assertNotEqualsAfterChange { it.setUserPortalUrl(
-                Uri.parse("https://tc.example.com/passpoint"),
-                CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER
-            ) }
-            assertNotEqualsAfterChange { it.setUserPortalUrl(
-                Uri.parse("https://tc.example.com/passpoint"),
-                CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_CAPPORT_WITH_CUSTOM_TABS_OPTIN
-            ) }
+                    Uri.parse("https://tc.example.com/passpoint"),
+                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER) }
             assertNotEqualsAfterChange { it.setVenueInfoUrl(
-                    Uri.parse("https://venue.example.com/passpoint")
-            ) }
+                    Uri.parse("https://venue.example.com/passpoint")) }
             assertNotEqualsAfterChange { it.setVenueInfoUrl(
                     Uri.parse("https://venue.example.com/other"),
-                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT
-            ) }
+                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT) }
             assertNotEqualsAfterChange { it.setVenueInfoUrl(
                     Uri.parse("https://venue.example.com/passpoint"),
-                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER
-            ) }
+                    CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER) }
         }
     }
 
@@ -190,32 +164,18 @@ class CaptivePortalDataTest {
 
     @Test @IgnoreUpTo(Build.VERSION_CODES.R)
     fun testGetVenueInfoUrlSource() {
-        assertEquals(
-            CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER,
-                data.venueInfoUrlSource
-        )
-        assertEquals(
-            CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT,
-            dataFromPasspoint.venueInfoUrlSource
-        )
+        assertEquals(CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER,
+                data.venueInfoUrlSource)
+        assertEquals(CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT,
+                dataFromPasspoint.venueInfoUrlSource)
     }
 
     @Test @IgnoreUpTo(Build.VERSION_CODES.R)
     fun testGetUserPortalUrlSource() {
-        assertEquals(
-            CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER,
-                data.userPortalUrlSource
-        )
-        assertEquals(
-            CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT,
-                dataFromPasspoint.userPortalUrlSource
-        )
-        if (SdkLevel.isAtLeastS()) {
-            assertEquals(
-                CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_CAPPORT_WITH_CUSTOM_TABS_OPTIN,
-                optInData.userPortalUrlSource
-            )
-        }
+        assertEquals(CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER,
+                data.userPortalUrlSource)
+        assertEquals(CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_PASSPOINT,
+                dataFromPasspoint.userPortalUrlSource)
     }
 
     private fun CaptivePortalData.mutate(mutator: (CaptivePortalData.Builder) -> Unit) =
