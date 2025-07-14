@@ -24,10 +24,7 @@ import android.content.Context.BIND_AUTO_CREATE
 import android.content.Context.BIND_IMPORTANT
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.pm.PackageManager
 import android.content.res.Resources
-import android.net.CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_CAPPORT_WITH_CUSTOM_TABS_OPTIN
-import android.net.CaptivePortalData.CAPTIVE_PORTAL_DATA_SOURCE_OTHER
 import android.net.ConnectivityManager
 import android.net.IDnsResolver
 import android.net.INetd
@@ -239,7 +236,7 @@ class ConnectivityServiceIntegrationTest {
     }
 
     private inner class TestConnectivityService(deps: Dependencies) : ConnectivityService(
-        context,
+            context,
         dnsResolver,
         log,
         netd,
@@ -256,7 +253,7 @@ class ConnectivityServiceIntegrationTest {
         override fun getBpfNetMaps(
             context: Context?,
             netd: INetd?,
-            interfaceTracker: InterfaceTracker?
+                                   interfaceTracker: InterfaceTracker?
         ) = mock(BpfNetMaps::class.java)
                 .also {
                     doReturn(PERMISSION_INTERNET).`when`(it).getNetPermForUid(anyInt())
@@ -287,7 +284,7 @@ class ConnectivityServiceIntegrationTest {
                 tm: TelephonyManager,
                 requestRestrictedWifiEnabled: Boolean,
                 listener: BiConsumer<Int, Int>,
-                handler: Handler,
+                handler: Handler
         ): CarrierPrivilegeAuthenticator {
             return CarrierPrivilegeAuthenticator(
                 context,
@@ -366,44 +363,8 @@ class ConnectivityServiceIntegrationTest {
         }
     }
 
-    private fun getModuleVersion(): Long {
-        val captivePortalActivity = Intent(ConnectivityManager.ACTION_CAPTIVE_PORTAL_SIGN_IN)
-            .resolveActivity(context.packageManager)
-        val captivePortalInfo = context.packageManager.getPackageInfo(
-            captivePortalActivity.packageName,
-            PackageManager.GET_ACTIVITIES
-        )
-        return captivePortalInfo.longVersionCode
-    }
-
-    val OPT_IN = true
-    var OPT_OUT = false
-
     @Test
-    fun testCapportApiWithoutOptInToCustomTabs() = testCapportApi(
-        optInToCustomTabsString = null,
-        expectedOptIn = OPT_OUT
-    )
-
-    @Test
-    fun testCapportApiWithFullOptInToCustomTabs() = testCapportApi(
-        optInToCustomTabsString = "true",
-        expectedOptIn = OPT_IN
-    )
-
-    @Test
-    fun testCapportApiWithHighVersionOptInToCustomTabs() = testCapportApi(
-        optInToCustomTabsString = (getModuleVersion() + 10).toString(),
-        expectedOptIn = OPT_OUT
-    )
-
-    @Test
-    fun testCapportApiWithLowVersionOptInToCustomTabs() = testCapportApi(
-        optInToCustomTabsString = (getModuleVersion() - 10).toString(),
-        expectedOptIn = OPT_IN
-    )
-
-    fun testCapportApi(optInToCustomTabsString: String?, expectedOptIn: Boolean) {
+    fun testCapportApi() {
         val request = NetworkRequest.Builder()
                 .clearCapabilities()
                 .addCapability(NET_CAPABILITY_INTERNET)
@@ -412,17 +373,11 @@ class ConnectivityServiceIntegrationTest {
         val apiUrl = "https://capport.android.com"
 
         cm.registerNetworkCallback(request, testCb)
-        val optInString = if (optInToCustomTabsString != null) {
-            "\"x-android-use-custom-tabs\": $optInToCustomTabsString,"
-        } else {
-            ""
-        }
         nsInstrumentation.addHttpResponse(HttpResponse(
                 apiUrl,
                 """
                     |{
                     |  "captive": true,
-                    |  $optInString
                     |  "user-portal-url": "https://login.capport.android.com",
                     |  "venue-info-url": "https://venueinfo.capport.android.com"
                     |}
@@ -456,14 +411,6 @@ class ConnectivityServiceIntegrationTest {
             assertEquals(
                 Uri.parse("https://venueinfo.capport.android.com"),
                 capportData.venueInfoUrl
-            )
-            assertEquals(
-                if (expectedOptIn == OPT_IN) {
-                    CAPTIVE_PORTAL_DATA_SOURCE_CAPPORT_WITH_CUSTOM_TABS_OPTIN
-                } else {
-                    CAPTIVE_PORTAL_DATA_SOURCE_OTHER
-                },
-                capportData.userPortalUrlSource
             )
 
             testCb.expectCaps(na, TEST_TIMEOUT_MS) {
