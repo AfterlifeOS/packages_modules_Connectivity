@@ -56,6 +56,8 @@ class ApfV6Test(apf_test_base.ApfTestBase):
     super().teardown_class()
 
   def test_unicast_arp_request_offload(self):
+    self.get_and_expect_ipv4_addresses_exist()
+
     # Longer wait time is required for APF to become active in CTS test suite.
     time.sleep(apf_test_base.APF_ACTIVATION_WAIT_TIME_SEC)
     self.expect_apf_offload_enabled('ARP')
@@ -89,6 +91,8 @@ class ApfV6Test(apf_test_base.ApfTestBase):
     )
 
   def test_non_dad_ipv6_neighbor_solicitation_offload(self):
+    self.get_and_expect_ipv6_addresses_exist()
+
     # Longer wait time is required for APF to become active in CTS test suite.
     time.sleep(apf_test_base.APF_ACTIVATION_WAIT_TIME_SEC)
     self.expect_apf_offload_enabled('ND')
@@ -116,6 +120,8 @@ class ApfV6Test(apf_test_base.ApfTestBase):
 
   @apf_utils.at_least_B()
   def test_ipv4_icmp_echo_request_offload(self):
+    self.get_and_expect_ipv4_addresses_exist()
+
     # Longer wait time is required for APF to become active in CTS test suite.
     time.sleep(apf_test_base.APF_ACTIVATION_WAIT_TIME_SEC)
     self.expect_apf_offload_enabled('Ping4')
@@ -140,6 +146,8 @@ class ApfV6Test(apf_test_base.ApfTestBase):
   @apf_utils.at_least_B()
   @apf_utils.apf_ram_at_least(3000)
   def test_ipv6_icmp_echo_request_offload(self):
+    self.get_and_expect_ipv6_addresses_exist()
+
     # Longer wait time is required for APF to become active in CTS test suite.
     time.sleep(apf_test_base.APF_ACTIVATION_WAIT_TIME_SEC)
     self.expect_apf_offload_enabled('Ping6')
@@ -166,6 +174,8 @@ class ApfV6Test(apf_test_base.ApfTestBase):
 
   @apf_utils.at_least_B()
   def test_igmpv3_general_query_offload(self):
+    self.get_and_expect_ipv4_addresses_exist()
+
     mcast_addrs = ['239.0.0.1', '239.0.0.2', '239.0.0.3']
 
     self.client.createMulticastSocket(self.client_iface_name)
@@ -214,6 +224,8 @@ class ApfV6Test(apf_test_base.ApfTestBase):
   @apf_utils.at_least_B()
   @apf_utils.apf_ram_at_least(3000)
   def test_mldv2_general_query_offload(self):
+    self.get_and_expect_ipv6_addresses_exist()
+
     # Longer wait time is required for APF to become active in CTS test suite.
     time.sleep(apf_test_base.APF_ACTIVATION_WAIT_TIME_SEC)
     self.expect_apf_offload_enabled('MLD')
