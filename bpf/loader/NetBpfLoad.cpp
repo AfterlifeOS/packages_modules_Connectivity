@@ -985,13 +985,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             if (max_entries < page_size) max_entries = page_size;
         }
 
-        domain selinux_context = getDomainFromSelinuxContext(md[i].selinux_context);
-        if (specified(selinux_context)) {
-            ALOGV("map %s selinux_context [%-32s] -> %d -> '%s' (%s)", mapNames[i].c_str(),
-                  md[i].selinux_context, static_cast<int>(selinux_context),
-                  lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
-        }
-
         domain pin_subdir = getDomainFromPinSubdir(md[i].pin_subdir);
         if (specified(pin_subdir)) {
             ALOGV("map %s pin_subdir [%-32s] -> %d -> '%s'", mapNames[i].c_str(), md[i].pin_subdir,
@@ -1052,7 +1045,11 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
         if (!mapMatchesExpectations(fd, mapNames[i], md[i], type)) return -ENOTUNIQ;
 
+        domain selinux_context = getDomainFromSelinuxContext(md[i].selinux_context);
         if (specified(selinux_context)) {
+            ALOGV("map %s selinux_context [%-32s] -> %d -> '%s' (%s)", mapNames[i].c_str(),
+                  md[i].selinux_context, static_cast<int>(selinux_context),
+                  lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
             string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
                                "tmp_map_" + objName + "_" + mapNames[i];
             ret = bpfFdPin(fd, createLoc.c_str());
