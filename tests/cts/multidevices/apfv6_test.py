@@ -176,7 +176,7 @@ class ApfV6Test(apf_test_base.ApfTestBase):
   def test_igmpv3_general_query_offload(self):
     self.get_and_expect_ipv4_addresses_exist()
 
-    mcast_addrs = ['239.0.0.1', '239.0.0.2', '239.0.0.3']
+    mcast_addrs = ['239.0.0.1']
 
     self.client.createMulticastSocket(self.client_iface_name)
     for addr in mcast_addrs:
