@@ -40,7 +40,6 @@ import android.util.ArrayMap;
 import androidx.annotation.Nullable;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.modules.utils.build.SdkLevel;
 
 import java.io.PrintWriter;
 import java.net.Inet4Address;
@@ -109,31 +108,23 @@ public class PrivateAddressCoordinator {
         public boolean isFeatureNotChickenedOut(String featureName) {
             return DeviceConfigUtils.isTetheringFeatureNotChickenedOut(mContext, featureName);
         }
-
-        /**
-         * Whether to randomize the tethering prefix for bluetooth as well. Requires T+ because
-         * in S this code is in the platform.
-         */
-        public boolean shouldBluetoothUseRandomAddress() {
-            // TODO: add a mainline beta flag to enable the new behaviour.
-            return SdkLevel.isAtLeastT() && false;
-        }
     }
 
-    public PrivateAddressCoordinator(Supplier<Network[]> getAllNetworksSupplier, Context context) {
-        this(getAllNetworksSupplier, new Dependencies(context));
+    public PrivateAddressCoordinator(Supplier<Network[]> getAllNetworksSupplier, Context context,
+            boolean bluetoothTetheringUseRandomAddress) {
+        this(getAllNetworksSupplier, new Dependencies(context), bluetoothTetheringUseRandomAddress);
     }
 
     @VisibleForTesting
     public PrivateAddressCoordinator(Supplier<Network[]> getAllNetworksSupplier,
-                                     Dependencies deps) {
+            Dependencies deps, boolean bluetoothTetheringUseRandomAddress) {
         mDownstreams = new ArrayMap<>();
         mUpstreamPrefixMap = new ArrayMap<>();
         mGetAllNetworksSupplier = getAllNetworksSupplier;
         mDeps = deps;
         mCachedAddresses = new ArrayMap<AddressKey, LinkAddress>();
         // Reserved static addresses for BLUETOOTH pre-T and WIFI_P2P.
-        if (!mDeps.shouldBluetoothUseRandomAddress()) {
+        if (!bluetoothTetheringUseRandomAddress) {
             mCachedAddresses.put(new AddressKey(TETHERING_BLUETOOTH, CONNECTIVITY_SCOPE_GLOBAL),
                     new LinkAddress(LEGACY_BLUETOOTH_IFACE_ADDRESS));
         }

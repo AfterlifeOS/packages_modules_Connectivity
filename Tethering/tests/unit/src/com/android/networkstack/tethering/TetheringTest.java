@@ -544,7 +544,8 @@ public class TetheringTest {
             RoutingCoordinatorService service = new RoutingCoordinatorService(
                     getINetd(context, log),
                             cm::getAllNetworks,
-                            mPrivateAddressCoordinatorDependencies);
+                            mPrivateAddressCoordinatorDependencies,
+                            false /* bluetoothTetheringUseRandomAddress */);
             mRoutingCoordinatorManager = spy(new RoutingCoordinatorManager(context, service));
             return mRoutingCoordinatorManager;
         }
