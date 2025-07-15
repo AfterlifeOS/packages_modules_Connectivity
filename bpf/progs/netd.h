@@ -95,9 +95,8 @@ typedef struct {
 } SkStorageValue;
 STRUCT_SIZE(SkStorageValue, 8);
 
-// 'static' - otherwise these constants end up in .rodata in the resulting .o post compilation
-static const int STATS_MAP_SIZE = 5000;
-static const int CONFIGURATION_MAP_SIZE = 2;
+#define STATS_MAP_SIZE 5000
+#define CONFIGURATION_MAP_SIZE 2
 
 #ifdef __cplusplus
 
