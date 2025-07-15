@@ -897,7 +897,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     vector<string> mapNames;
     string objName = pathToObjName(string(elfPath));
 
-    ret = readSectionByName("maps", elfFile, mdData);
+    ret = readSectionByName(".android_maps", elfFile, mdData);
     if (ret == -2) return 0;  // no maps to read
     if (ret) return ret;
 
@@ -916,7 +916,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         dataPtr += sizeof(struct bpf_map_def);
     }
 
-    ret = getSectionSymNames(elfFile, "maps", mapNames);
+    ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
     if (ret) return ret;
 
     struct btf *btf = NULL;
@@ -1162,7 +1162,7 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
 static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<codeSection>& cs) {
     vector<string> mapNames;
 
-    int ret = getSectionSymNames(elfFile, "maps", mapNames);
+    int ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
     if (ret) return;
 
     for (int k = 0; k != (int)cs.size(); k++) {

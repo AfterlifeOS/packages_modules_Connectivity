@@ -220,7 +220,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, \
                             usr, grp, md, selinux, pindir, share, minkver,  \
                             maxkver, minloader, maxloader, mapflags)        \
-    const struct bpf_map_def SECTION("maps") the_map = {                    \
+    const struct bpf_map_def SECTION(".android_maps") the_map = {           \
         .type = BPF_MAP_TYPE_##TYPE,                                        \
         .key_size = (keysize),                                              \
         .value_size = (valuesize),                                          \
