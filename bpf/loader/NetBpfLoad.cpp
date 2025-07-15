@@ -988,7 +988,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
         string mapPinLoc = string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "map_" +
                            (md[i].shared ? "" : objName) + "_" + mapNames[i];
-        bool reuse = false;
         unique_fd fd;
         int saved_errno;
 
@@ -996,7 +995,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             fd.reset(mapRetrieveRO(mapPinLoc.c_str()));
             saved_errno = errno;
             ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
-            reuse = true;
             abort();
         } else {
             union bpf_attr req = {
@@ -1038,46 +1036,44 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
         if (!mapMatchesExpectations(fd, mapNames[i], md[i], type)) return -ENOTUNIQ;
 
-        if (!reuse) {
-            if (specified(selinux_context)) {
-                string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
-                                   "tmp_map_" + objName + "_" + mapNames[i];
-                ret = bpfFdPin(fd, createLoc.c_str());
-                if (ret) {
-                    const int err = errno;
-                    ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
-                    return -err;
-                }
-                ret = renameat2(AT_FDCWD, createLoc.c_str(),
-                                AT_FDCWD, mapPinLoc.c_str(), RENAME_NOREPLACE);
-                if (ret) {
-                    const int err = errno;
-                    ALOGE("rename %s %s -> %d [%d:%s]", createLoc.c_str(), mapPinLoc.c_str(), ret,
-                          err, strerror(err));
-                    return -err;
-                }
-            } else {
-                ret = bpfFdPin(fd, mapPinLoc.c_str());
-                if (ret) {
-                    const int err = errno;
-                    ALOGE("pin %s -> %d [%d:%s]", mapPinLoc.c_str(), ret, err, strerror(err));
-                    return -err;
-                }
-            }
-            ret = chmod(mapPinLoc.c_str(), md[i].mode);
+        if (specified(selinux_context)) {
+            string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
+                               "tmp_map_" + objName + "_" + mapNames[i];
+            ret = bpfFdPin(fd, createLoc.c_str());
             if (ret) {
                 const int err = errno;
-                ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapPinLoc.c_str(), md[i].mode, ret, err,
-                      strerror(err));
+                ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
                 return -err;
             }
-            ret = chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid);
+            ret = renameat2(AT_FDCWD, createLoc.c_str(),
+                            AT_FDCWD, mapPinLoc.c_str(), RENAME_NOREPLACE);
             if (ret) {
                 const int err = errno;
-                ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), md[i].uid, md[i].gid,
-                      ret, err, strerror(err));
+                ALOGE("rename %s %s -> %d [%d:%s]", createLoc.c_str(), mapPinLoc.c_str(), ret,
+                      err, strerror(err));
                 return -err;
             }
+        } else {
+            ret = bpfFdPin(fd, mapPinLoc.c_str());
+            if (ret) {
+                const int err = errno;
+                ALOGE("pin %s -> %d [%d:%s]", mapPinLoc.c_str(), ret, err, strerror(err));
+                return -err;
+            }
+        }
+        ret = chmod(mapPinLoc.c_str(), md[i].mode);
+        if (ret) {
+            const int err = errno;
+            ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapPinLoc.c_str(), md[i].mode, ret, err,
+                  strerror(err));
+            return -err;
+        }
+        ret = chown(mapPinLoc.c_str(), (uid_t)md[i].uid, (gid_t)md[i].gid);
+        if (ret) {
+            const int err = errno;
+            ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), md[i].uid, md[i].gid,
+                  ret, err, strerror(err));
+            return -err;
         }
 
         if (isAtLeastKernelVersion(4, 14, 0)) {
