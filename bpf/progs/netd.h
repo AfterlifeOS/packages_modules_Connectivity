@@ -98,7 +98,6 @@ STRUCT_SIZE(SkStorageValue, 8);
 // 'static' - otherwise these constants end up in .rodata in the resulting .o post compilation
 static const int STATS_MAP_SIZE = 5000;
 static const int CONFIGURATION_MAP_SIZE = 2;
-static const int DATA_SAVER_ENABLED_MAP_SIZE = 1;
 
 #ifdef __cplusplus
 

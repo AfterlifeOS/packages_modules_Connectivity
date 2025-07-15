@@ -93,8 +93,7 @@ DEFINE_BPF_RINGBUF_EXT(packet_trace_ringbuf, PacketTrace, 32 * 1024,
                        AID_ROOT, AID_SYSTEM, 0060, "fs_bpf_net_shared", "", PRIVATE,
                        BPFLOADER_MAINLINE_U_VERSION, BPFLOADER_MAX_VER);
 
-DEFINE_BPF_MAP_RO_NETD(data_saver_enabled_map, ARRAY, uint32_t, bool,
-                       DATA_SAVER_ENABLED_MAP_SIZE)
+DEFINE_BPF_MAP_RO_NETD(data_saver_enabled_map, ARRAY, uint32_t, bool, 1)
 
 DEFINE_BPF_MAP_EXT(local_net_access_map, LPM_TRIE, LocalNetAccessKey, bool, 1000,
                    AID_ROOT, AID_NET_BW_ACCT, 0060, "fs_bpf_net_shared", "", PRIVATE,
