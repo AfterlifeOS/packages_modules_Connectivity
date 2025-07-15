@@ -107,7 +107,13 @@ class MultinetworkPolicyTrackerTest(private val supportCarrierConfigManager: Boo
         doReturn(0).`when`(it).getInteger(R.integer.config_activelyPreferBadWifi)
     }
 
-    private val telephonyManager = mock(TelephonyManager::class.java)
+    private val telephonyManager = mock(TelephonyManager::class.java).also {
+        // This will return the same object for all subscription IDs. This is
+        // fine for all tests at the time of this writing, but if the difference
+        // becomes important for all tests, then it may be necessary to create a
+        // new one per subId. See [CSTest#createContextAsUser] above for a model.
+        doReturn(it).`when`(it).createForSubscriptionId(anyInt())
+    }
     private val subscriptionManager = mock(SubscriptionManager::class.java).also {
         doReturn(null).`when`(it).getActiveSubscriptionInfo(anyInt())
     }

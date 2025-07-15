@@ -114,6 +114,7 @@ public class MultinetworkPolicyTracker {
     private final Context mContext;
     private final ConnectivityResources mResources;
     private final Handler mHandler;
+    private final HandlerExecutor mExecutor;
     private final Runnable mAvoidBadWifiCallback;
     private final List<Uri> mSettingsUris;
     private final ContentResolver mResolver;
@@ -128,6 +129,8 @@ public class MultinetworkPolicyTracker {
     private volatile int mMeteredMultipathPreference;
     private int mActiveSubId = SubscriptionManager.INVALID_SUBSCRIPTION_ID;
     private volatile long mTestAllowBadWifiUntilMs = 0;
+    // This field should only be accessed on the handler thread
+    private TelephonyCallback mTelephonyCallback;
 
     /**
      * Dependencies for testing
@@ -180,6 +183,36 @@ public class MultinetworkPolicyTracker {
     }
     private final Dependencies mDeps;
 
+    private void unregisterTelephonyCallback(
+            int subId, @NonNull final TelephonyCallback telephonyCallback
+    ) {
+        final TelephonyManager telephonyManager = mContext.getSystemService(TelephonyManager.class);
+        if (null == telephonyManager) return;
+
+        final TelephonyManager telephonyManagerForSubId =
+                telephonyManager.createForSubscriptionId(subId);
+
+        if (null == telephonyManagerForSubId) return;
+
+        Log.d(TAG, "unregisterTelephonyCallback for subId:" + subId);
+        telephonyManagerForSubId.unregisterTelephonyCallback(telephonyCallback);
+    }
+
+    private void registerTelephonyCallback(
+            int subId, @NonNull final TelephonyCallback telephonyCallback
+    ) {
+        final TelephonyManager telephonyManager = mContext.getSystemService(TelephonyManager.class);
+        if (null == telephonyManager) return;
+
+        final TelephonyManager telephonyManagerForSubId =
+                telephonyManager.createForSubscriptionId(subId);
+
+        if (null == telephonyManagerForSubId) return;
+
+        Log.d(TAG, "registerTelephonyCallback for subId:" + subId);
+        telephonyManagerForSubId.registerTelephonyCallback(mExecutor, telephonyCallback);
+    }
+
     /**
      * Whether to prefer bad wifi to a network that yields to bad wifis, even if it never validated
      *
@@ -223,7 +256,22 @@ public class MultinetworkPolicyTracker {
             implements TelephonyCallback.ActiveDataSubscriptionIdListener {
         @Override
         public void onActiveDataSubscriptionIdChanged(final int subId) {
+            if (mActiveSubId == subId) return;
+
+            if (subId == SubscriptionManager.INVALID_SUBSCRIPTION_ID) return;
+
+            Log.d(TAG, "onActiveDataSubscriptionIdChanged from " + mActiveSubId
+                    + " to " + subId);
+            // register new subId callback first to prevent subscription changes in between
+            final int oldSubId = mActiveSubId;
+            final TelephonyCallback oldCallback = mTelephonyCallback;
+
+            mTelephonyCallback =
+                    new MultinetworkPolicyTracker.ActiveDataSubscriptionIdListener();
+            registerTelephonyCallback(subId, mTelephonyCallback); // new
             mActiveSubId = subId;
+
+            unregisterTelephonyCallback(oldSubId, oldCallback); // old
             reevaluateInternal();
         }
     }
@@ -237,6 +285,7 @@ public class MultinetworkPolicyTracker {
         mContext = ctx;
         mResources = new ConnectivityResources(ctx);
         mHandler = handler;
+        mExecutor = new HandlerExecutor(mHandler);
         mAvoidBadWifiCallback = avoidBadWifiCallback;
         mDeps = deps;
         mSettingsUris = Arrays.asList(
@@ -280,19 +329,20 @@ public class MultinetworkPolicyTracker {
         mContext.registerReceiverForAllUsers(mBroadcastReceiver, intentFilter,
                 null /* broadcastPermission */, mHandler);
 
-        final Executor handlerExecutor = new HandlerExecutor(mHandler);
-        mContext.getSystemService(TelephonyManager.class).registerTelephonyCallback(
-                handlerExecutor, new ActiveDataSubscriptionIdListener());
+        mHandler.post(() -> {
+            mTelephonyCallback = new ActiveDataSubscriptionIdListener();
+            registerTelephonyCallback(mActiveSubId, mTelephonyCallback);
+        });
 
         if (mCarrierConfigManager != null) {
             mCarrierConfigManager.registerCarrierConfigChangeListener(
-                    handlerExecutor, mCarrierConfigChangeListener
+                    mExecutor, mCarrierConfigChangeListener
             );
 
             // This ensures the latest carrier configuration is read.
             mHandler.post(() -> reevaluateInternal());
         } else {
-            mDeps.addOnDevicePropertiesChangedListener(handlerExecutor,
+            mDeps.addOnDevicePropertiesChangedListener(mExecutor,
                 properties -> reevaluateInternal());
         }
 

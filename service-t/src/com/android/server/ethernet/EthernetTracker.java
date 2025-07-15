@@ -287,6 +287,8 @@ public class EthernetTracker {
             // (for existing interfaces). Up until then, this code runs for every network interface
             // on the system.
             final String ifname = msg.getInterfaceName();
+            if (TextUtils.isEmpty(ifname)) return;  // TODO: can this happen?
+
             final EthernetPort port = new EthernetPort(ifname, mac, ifinfomsg.index);
 
             switch (msg.getHeader().nlmsg_type) {

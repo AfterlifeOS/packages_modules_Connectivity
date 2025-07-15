@@ -96,7 +96,13 @@ public final class PrivateAddressCoordinatorTest {
             mMobileNetwork2, mMobileNetwork3, mMobileNetwork4, mMobileNetwork5, mMobileNetwork6};
 
     private PrivateAddressCoordinator makePrivateAddressCoordinator() {
-        return spy(new PrivateAddressCoordinator(mConnectivityMgr::getAllNetworks, mDeps));
+        return makePrivateAddressCoordinator(false);
+    }
+
+    private PrivateAddressCoordinator makePrivateAddressCoordinator(
+            boolean bluetoothTetheringUseRandomAddress) {
+        return spy(new PrivateAddressCoordinator(
+                mConnectivityMgr::getAllNetworks, mDeps, bluetoothTetheringUseRandomAddress));
     }
 
     private void setUpIpServer(IpServer ipServer, int interfaceType) throws Exception {
@@ -352,8 +358,8 @@ public final class PrivateAddressCoordinatorTest {
 
     @Test
     public void testBluetoothPrefix_legacy() throws Exception {
-        when(mDeps.shouldBluetoothUseRandomAddress()).thenReturn(false);
-        mPrivateAddressCoordinator = makePrivateAddressCoordinator();
+        mPrivateAddressCoordinator =
+                makePrivateAddressCoordinator(false /* bluetoothTetheringUseRandomAddress */);
         final LinkAddress bluetoothAddress = requestStickyDownstreamAddress(mBluetoothIpServer,
                 CONNECTIVITY_SCOPE_GLOBAL);
         assertEquals(mLegacyBluetoothAddress, bluetoothAddress);
@@ -361,8 +367,8 @@ public final class PrivateAddressCoordinatorTest {
 
     @Test
     public void testBluetoothPrefix_randomized() throws Exception {
-        when(mDeps.shouldBluetoothUseRandomAddress()).thenReturn(true);
-        mPrivateAddressCoordinator = makePrivateAddressCoordinator();
+        mPrivateAddressCoordinator =
+                makePrivateAddressCoordinator(true /* bluetoothTetheringUseRandomAddress */);
         final LinkAddress bluetoothAddress = requestStickyDownstreamAddress(mBluetoothIpServer,
                 CONNECTIVITY_SCOPE_GLOBAL);
         assertNotEquals(mLegacyBluetoothAddress, bluetoothAddress);
