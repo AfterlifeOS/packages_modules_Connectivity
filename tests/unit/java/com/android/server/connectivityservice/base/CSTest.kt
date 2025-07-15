@@ -231,6 +231,11 @@ open class CSTest {
     val appOpsManager = mock<AppOpsManager>()
     val telephonyManager = mock<TelephonyManager>().also {
         doReturn(true).`when`(it).isDataCapable()
+        // This will return the same object for all subscription IDs. This is
+        // fine for all tests at the time of this writing, but if the difference
+        // becomes important for all tests, then it may be necessary to create a
+        // new one per subId. See [createContextAsUser] above for a model.
+        doReturn(it).`when`(it).createForSubscriptionId(any())
     }
     val subscriptionManager = mock<SubscriptionManager>()
     val bluetoothManager = mock<BluetoothManager>()
