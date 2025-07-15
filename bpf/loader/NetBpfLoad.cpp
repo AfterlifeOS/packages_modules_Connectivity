@@ -1397,25 +1397,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver,
               elfPath, (char*)license.data());
     }
 
-    unsigned int bpfLoaderMinVer = readSectionUint("bpfloader_min_ver", elfFile);
-    unsigned int bpfLoaderMaxVer = readSectionUint("bpfloader_max_ver", elfFile);
-
-    // inclusive lower bound check
-    if (bpfloader_ver < bpfLoaderMinVer) {
-        ALOGD("BpfLoader version 0x%05x ignoring ELF object %s with min ver 0x%05x",
-              bpfloader_ver, elfPath, bpfLoaderMinVer);
-        return 0;
-    }
-
-    // exclusive upper bound check
-    if (bpfloader_ver >= bpfLoaderMaxVer) {
-        ALOGD("BpfLoader version 0x%05x ignoring ELF object %s with max ver 0x%05x",
-              bpfloader_ver, elfPath, bpfLoaderMaxVer);
-        return 0;
-    }
-
-    ALOGD("BpfLoader version 0x%05x processing ELF object %s with ver [0x%05x,0x%05x)",
-          bpfloader_ver, elfPath, bpfLoaderMinVer, bpfLoaderMaxVer);
+    ALOGD("BpfLoader ver 0x%05x processing ELF object %s", bpfloader_ver, elfPath);
 
     ret = createMaps(elfPath, elfFile, mapFds, prefix, bpfloader_ver);
     if (ret) {
