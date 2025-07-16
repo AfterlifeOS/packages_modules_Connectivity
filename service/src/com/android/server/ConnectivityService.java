@@ -507,6 +507,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
     private static final int ACTIVELY_PREFER_BAD_WIFI_INITIAL_TIMEOUT_MS = 20 * 1000;
     // Timeout in case the "actively prefer bad wifi" feature is off
     private static final int DEFAULT_EVALUATION_TIMEOUT_MS = 8 * 1000;
+    // Timeout threshold on how long a network is allowed to stay at SUSPENDED state. When the
+    // timeout is reached, the network will be torn down.
+    private static final int DEFAULT_NETWORK_SUSPENDED_TIMEOUT_MS = 5 * 60 * 1000;
 
     // Default to 30s linger time-out, and 5s for nascent network. Modifiable only for testing.
     private static final String LINGER_DELAY_PROPERTY = "persist.netmon.linger";
@@ -977,6 +980,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
      * arg1 = socketDestroyReason
      */
     private static final int EVENT_CLEAR_FIREWALL_DESTROY_SOCKET_REASONS = 63;
+
+    /**
+     * indicates a timeout period to wait for the network leaving suspended state is over.
+     * The network should be torn down now.
+     */
+    private static final int EVENT_TIMEOUT_NETWORK_SUSPENDED = 64;
 
     /**
      * Argument for {@link #EVENT_PROVISIONING_NOTIFICATION} to indicate that the notification
@@ -1758,6 +1767,21 @@ public class ConnectivityService extends IConnectivityManager.Stub
         public int getDefaultWifiDataInactivityTimeout() {
             return DeviceConfigUtils.getDeviceConfigPropertyInt(NAMESPACE_TETHERING_BOOT,
                     WIFI_DATA_INACTIVITY_TIMEOUT, 15);
+        }
+
+        /** Returns the timeout duration for a network to stay in SUSPENDED state before being torn
+         * down.
+         */
+        public int getNetworkSuspendedTimeoutMs() {
+            return DEFAULT_NETWORK_SUSPENDED_TIMEOUT_MS;
+        }
+
+        /**
+         * Whether the enforcement of short network suspension duration should be enabled.
+         */
+        public boolean isShortNetworkSuspensionEnforced(Context context) {
+            // The feature is only enabled on watch for now. See b/422119228 for details.
+            return context.getPackageManager().hasSystemFeature(FEATURE_WATCH);
         }
 
         /**
@@ -3755,6 +3779,11 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (!mDelayDestroySockets || !isCellNetworkIdle()) {
             destroyPendingSockets();
         }
+    }
+
+    private void handleNetwokSuspendedTimeout(NetworkAgentInfo nai) {
+        // Tear down the network if it has stayed in SUSPENDED state for longer than intended.
+        disconnectAndDestroyNetwork(nai);
     }
 
     private void handleFreezeNetworkCallbacks(int[] uids, int[] frozenStates) {
@@ -5833,6 +5862,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
         nai.networkMonitor().notifyNetworkDisconnected();
         mNetworkAgentInfos.remove(nai);
+        if (mDeps.isShortNetworkSuspensionEnforced(mContext)) {
+            // Remove the message to disconnect the network if it's in suspended state for too long,
+            // this is to allow the system to reclaim the memory associated with this NAI earlier,
+            // rather than unnecessarily waiting for the timeout period.
+            mHandler.removeMessages(EVENT_TIMEOUT_NETWORK_SUSPENDED, nai);
+        }
         nai.clatd.update();
         synchronized (mNetworkForNetId) {
             // Remove the NetworkAgent, but don't mark the netId as
@@ -7346,6 +7381,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
                     break;
                 case EVENT_CLEAR_FIREWALL_DESTROY_SOCKET_REASONS:
                     handleClearFirewallDestroySocketReasons(msg.arg1);
+                    break;
+                case EVENT_TIMEOUT_NETWORK_SUSPENDED:
+                    handleNetwokSuspendedTimeout((NetworkAgentInfo) msg.obj);
                     break;
             }
         }
@@ -10912,6 +10950,15 @@ public class ConnectivityService extends IConnectivityManager.Stub
             // TODO (b/73132094) : remove this call once the few users of onSuspended and
             // onResumed have been removed.
             notifyNetworkCallbacks(nai, suspended ? CALLBACK_SUSPENDED : CALLBACK_RESUMED);
+            if (mDeps.isShortNetworkSuspensionEnforced(mContext)) {
+                if (suspended) {
+                    mHandler.sendMessageDelayed(
+                            mHandler.obtainMessage(EVENT_TIMEOUT_NETWORK_SUSPENDED,
+                                    nai), mDeps.getNetworkSuspendedTimeoutMs());
+                } else {
+                    mHandler.removeMessages(EVENT_TIMEOUT_NETWORK_SUSPENDED, nai);
+                }
+            }
         }
         if (prevSuspended != suspended || prevRoaming != roaming) {
             // updateNetworkInfo will mix in the suspended info from the capabilities and

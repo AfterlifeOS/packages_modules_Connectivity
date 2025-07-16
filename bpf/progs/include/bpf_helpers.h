@@ -37,13 +37,8 @@
 // Android Mainline BpfLoader when running on Android 26Q2 (sdk 37.0)
 #define BPFLOADER_MAINLINE_26Q2_VERSION (BPFLOADER_MAINLINE_26Q1_VERSION + 1u)
 
-/* For mainline module use, you can #define BPFLOADER_{MIN/MAX}_VER
- * before #include "bpf_helpers.h" to change which bpfloaders will
- * process the resulting .o file.
- *
- * While this will work outside of mainline too, there just is no point to
- * using it when the .o and the bpfloader ship in sync with each other.
- * In which case it's just best to use the default.
+/* You should #define BPFLOADER_{MIN/MAX}_VER before #include "bpf_helpers.h"
+ * to change which bpfloaders will process the resulting .o file.
  */
 #ifndef BPFLOADER_MIN_VER
 #define BPFLOADER_MIN_VER NEED_TO_DEFINE_BPFLOADER_MIN_VER  // inclusive, ie. >=
@@ -58,29 +53,8 @@
 
 /* Must be present in every program, example usage:
  *   LICENSE("GPL"); or LICENSE("Apache 2.0");
- *
- * We also take this opportunity to embed a bunch of other useful values in
- * the resulting .o (This is to enable some limited forward compatibility
- * with mainline module shipped ebpf programs)
- *
- * The bpfloader_{min/max}_ver defines the [min, max) range of bpfloader
- * versions that should load this .o file (bpfloaders outside of this range
- * will simply ignore/skip this *entire* .o)
- * The [inclusive,exclusive) matches what we do for kernel ver dependencies.
- *
- * The size_of_bpf_{map,prog}_def allow the bpfloader to load programs where
- * these structures have been extended with additional fields (they will of
- * course simply be ignored then).
- *
- * If missing, bpfloader_{min/max}_ver default to 0/0x10000 ie. [v0.0, v1.0),
- * while size_of_bpf_{map/prog}_def default to 32/20 which are the v0.0 sizes.
  */
-#define LICENSE(NAME)                                                                              \
-    unsigned int _bpfloader_min_ver SECTION("bpfloader_min_ver") = BPFLOADER_MIN_VER;              \
-    unsigned int _bpfloader_max_ver SECTION("bpfloader_max_ver") = BPFLOADER_MAX_VER;              \
-    size_t _size_of_bpf_map_def SECTION("size_of_bpf_map_def") = sizeof(struct bpf_map_def);       \
-    size_t _size_of_bpf_prog_def SECTION("size_of_bpf_prog_def") = sizeof(struct bpf_prog_def);    \
-    char _license[] SECTION("license") = (NAME)
+#define LICENSE(NAME) char _license[] SECTION("license") = (NAME)
 
 // Helpers for writing kernel version specific bpf programs
 
@@ -246,7 +220,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, \
                             usr, grp, md, selinux, pindir, share, minkver,  \
                             maxkver, minloader, maxloader, mapflags)        \
-    const struct bpf_map_def SECTION("maps") the_map = {                    \
+    const struct bpf_map_def SECTION(".android_maps") the_map = {           \
         .type = BPF_MAP_TYPE_##TYPE,                                        \
         .key_size = (keysize),                                              \
         .value_size = (valuesize),                                          \

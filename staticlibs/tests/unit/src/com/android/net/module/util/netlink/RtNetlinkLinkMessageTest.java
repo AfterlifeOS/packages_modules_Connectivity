@@ -336,4 +336,26 @@ public class RtNetlinkLinkMessageTest {
                 + "}";
         assertEquals(expected, linkMsg.toString());
     }
+
+    @Test
+    public void testParseRtNetlinkMessageWithNullInterfaceName() {
+        // Invalid NetlinkMessage bytes without IFLA_IFNAME attribute.
+        final String msgBytes = "34000000100000000000000000000000000001001E0000000210000000000000"
+                + "08000400DC0500000A00010092C3E3C9374E0000";
+        final ByteBuffer byteBuffer = toByteBuffer(msgBytes);
+        byteBuffer.order(ByteOrder.LITTLE_ENDIAN);  // For testing.
+        final NetlinkMessage msg = NetlinkMessage.parse(byteBuffer, NETLINK_ROUTE);
+        assertNull(msg);
+    }
+
+    @Test
+    public void testParseRtNetlinkMessageWithEmptyInterfaceName() {
+        // Invalid NetlinkMessage bytes with empty IFLA_IFNAME attribute.
+        final String msgBytes = "3C000000100000000000000000000000000001001E0000000210000000000000"
+                + "08000400DC0500000A00010092C3E3C9374E00000500030000000000";
+        final ByteBuffer byteBuffer = toByteBuffer(msgBytes);
+        byteBuffer.order(ByteOrder.LITTLE_ENDIAN);  // For testing.
+        final NetlinkMessage msg = NetlinkMessage.parse(byteBuffer, NETLINK_ROUTE);
+        assertNull(msg);
+    }
 }

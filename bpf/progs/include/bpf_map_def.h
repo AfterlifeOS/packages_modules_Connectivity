@@ -118,10 +118,10 @@ struct optional_bool { bool optional; };
  * uses this structure from eBPF object to create maps at boot time.
  *
  * The eBPF C program should define structure in the maps section using
- * SECTION("maps") otherwise it will be ignored by the eBPF loader.
+ * SECTION(".android_maps") otherwise it will be ignored by the eBPF loader.
  *
  * For example:
- *   const struct bpf_map_def SECTION("maps") mymap { .type=... , .key_size=... }
+ *   const struct bpf_map_def SECTION(".android_maps") mymap { .type=... , .key_size=... }
  *
  * See 'bpf_helpers.h' for helpful macros for eBPF program use.
  */
@@ -136,7 +136,7 @@ struct bpf_map_def {
     //   unsigned int inner_map_idx;
     //   unsigned int numa_node;
 
-    unsigned int zero;  // uid_t, for compat with old (buggy) bpfloader must be AID_ROOT == 0
+    unsigned int uid;   // uid_t
     unsigned int gid;   // gid_t
     unsigned int mode;  // mode_t
 
@@ -158,13 +158,11 @@ struct bpf_map_def {
     bool shared;  // use empty string as 'file' component of pin path - allows cross .o map sharing
 
     char pad0[3];  // manually pad up to 4 byte alignment, may be used for extensions in the future
-
-    unsigned int uid;   // uid_t
 };
 
 // This needs to be updated whenever the above structure definition is expanded.
 // These asserts are here to make sure we have cross-6-arch consistency.
-_Static_assert(sizeof(struct bpf_map_def) == 120, "sizeof struct bpf_map_def != 120");
+_Static_assert(sizeof(struct bpf_map_def) == 116, "sizeof struct bpf_map_def != 116");
 _Static_assert(__alignof__(struct bpf_map_def) == 4, "__alignof__ struct bpf_map_def != 4");
 _Static_assert(_Alignof(struct bpf_map_def) == 4, "_Alignof struct bpf_map_def != 4");
 
