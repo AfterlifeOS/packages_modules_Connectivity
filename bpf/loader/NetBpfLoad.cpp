@@ -1167,6 +1167,53 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
+static int pinProg(const unique_fd& fd, string& name, struct bpf_prog_def& progDef,
+                   const string& objName, string& progPinLoc) {
+    int ret;
+    domain selinux_context = getDomainFromSelinuxContext(progDef.selinux_context);
+    if (specified(selinux_context)) {
+        ALOGV("prog %s selinux_context [%-32s] -> %d -> '%s' (%s)", name.c_str(),
+              progDef.selinux_context, static_cast<int>(selinux_context),
+              lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
+        string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
+                           "tmp_prog_" + objName + '_' + string(name);
+        ret = bpfFdPin(fd, createLoc.c_str());
+        if (ret) {
+            const int err = errno;
+            ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
+            return -err;
+        }
+        ret = renameat2(AT_FDCWD, createLoc.c_str(),
+                        AT_FDCWD, progPinLoc.c_str(), RENAME_NOREPLACE);
+        if (ret) {
+            const int err = errno;
+            ALOGE("rename %s %s -> %d [%d:%s]", createLoc.c_str(), progPinLoc.c_str(), ret,
+                  err, strerror(err));
+            return -err;
+        }
+    } else {
+        ret = bpfFdPin(fd, progPinLoc.c_str());
+        if (ret) {
+            const int err = errno;
+            ALOGE("create %s -> %d [%d:%s]", progPinLoc.c_str(), ret, err, strerror(err));
+            return -err;
+        }
+    }
+    if (chmod(progPinLoc.c_str(), 0440)) {
+        const int err = errno;
+        ALOGE("chmod %s 0440 -> [%d:%s]", progPinLoc.c_str(), err, strerror(err));
+        return -err;
+    }
+    if (chown(progPinLoc.c_str(), (uid_t)progDef.uid,
+              (gid_t)progDef.gid)) {
+        const int err = errno;
+        ALOGE("chown %s %d %d -> [%d:%s]", progPinLoc.c_str(), progDef.uid,
+              progDef.gid, err, strerror(err));
+        return -err;
+    }
+    return 0;
+}
+
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
                             const char* prefix, const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
@@ -1279,47 +1326,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (!fd.ok()) return fd.get();
 
         if (!reuse) {
-            domain selinux_context = getDomainFromSelinuxContext(cs[i].prog_def->selinux_context);
-            if (specified(selinux_context)) {
-                ALOGV("prog %s selinux_context [%-32s] -> %d -> '%s' (%s)", name.c_str(),
-                      cs[i].prog_def->selinux_context, static_cast<int>(selinux_context),
-                      lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
-                string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
-                                   "tmp_prog_" + objName + '_' + string(name);
-                ret = bpfFdPin(fd, createLoc.c_str());
-                if (ret) {
-                    const int err = errno;
-                    ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
-                    return -err;
-                }
-                ret = renameat2(AT_FDCWD, createLoc.c_str(),
-                                AT_FDCWD, progPinLoc.c_str(), RENAME_NOREPLACE);
-                if (ret) {
-                    const int err = errno;
-                    ALOGE("rename %s %s -> %d [%d:%s]", createLoc.c_str(), progPinLoc.c_str(), ret,
-                          err, strerror(err));
-                    return -err;
-                }
-            } else {
-                ret = bpfFdPin(fd, progPinLoc.c_str());
-                if (ret) {
-                    const int err = errno;
-                    ALOGE("create %s -> %d [%d:%s]", progPinLoc.c_str(), ret, err, strerror(err));
-                    return -err;
-                }
-            }
-            if (chmod(progPinLoc.c_str(), 0440)) {
-                const int err = errno;
-                ALOGE("chmod %s 0440 -> [%d:%s]", progPinLoc.c_str(), err, strerror(err));
-                return -err;
-            }
-            if (chown(progPinLoc.c_str(), (uid_t)cs[i].prog_def->uid,
-                      (gid_t)cs[i].prog_def->gid)) {
-                const int err = errno;
-                ALOGE("chown %s %d %d -> [%d:%s]", progPinLoc.c_str(), cs[i].prog_def->uid,
-                      cs[i].prog_def->gid, err, strerror(err));
-                return -err;
-            }
+            ret = pinProg(fd, name, cs[i].prog_def.value(), objName, progPinLoc);
+            if (ret) return ret;
         }
 
         if (isAtLeastKernelVersion(4, 14, 0)) {
