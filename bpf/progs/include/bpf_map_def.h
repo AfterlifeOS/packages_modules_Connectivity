@@ -118,10 +118,10 @@ struct optional_bool { bool optional; };
  * uses this structure from eBPF object to create maps at boot time.
  *
  * The eBPF C program should define structure in the maps section using
- * SECTION("maps") otherwise it will be ignored by the eBPF loader.
+ * SECTION(".android_maps") otherwise it will be ignored by the eBPF loader.
  *
  * For example:
- *   const struct bpf_map_def SECTION("maps") mymap { .type=... , .key_size=... }
+ *   const struct bpf_map_def SECTION(".android_maps") mymap { .type=... , .key_size=... }
  *
  * See 'bpf_helpers.h' for helpful macros for eBPF program use.
  */

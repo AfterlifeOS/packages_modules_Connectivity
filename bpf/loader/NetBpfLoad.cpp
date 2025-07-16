@@ -897,7 +897,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     vector<string> mapNames;
     string objName = pathToObjName(string(elfPath));
 
-    ret = readSectionByName("maps", elfFile, mdData);
+    ret = readSectionByName(".android_maps", elfFile, mdData);
     if (ret == -2) return 0;  // no maps to read
     if (ret) return ret;
 
@@ -916,7 +916,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         dataPtr += sizeof(struct bpf_map_def);
     }
 
-    ret = getSectionSymNames(elfFile, "maps", mapNames);
+    ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
     if (ret) return ret;
 
     struct btf *btf = NULL;
@@ -1162,7 +1162,7 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
 static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<codeSection>& cs) {
     vector<string> mapNames;
 
-    int ret = getSectionSymNames(elfFile, "maps", mapNames);
+    int ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
     if (ret) return;
 
     for (int k = 0; k != (int)cs.size(); k++) {
@@ -1397,25 +1397,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver,
               elfPath, (char*)license.data());
     }
 
-    unsigned int bpfLoaderMinVer = readSectionUint("bpfloader_min_ver", elfFile);
-    unsigned int bpfLoaderMaxVer = readSectionUint("bpfloader_max_ver", elfFile);
-
-    // inclusive lower bound check
-    if (bpfloader_ver < bpfLoaderMinVer) {
-        ALOGD("BpfLoader version 0x%05x ignoring ELF object %s with min ver 0x%05x",
-              bpfloader_ver, elfPath, bpfLoaderMinVer);
-        return 0;
-    }
-
-    // exclusive upper bound check
-    if (bpfloader_ver >= bpfLoaderMaxVer) {
-        ALOGD("BpfLoader version 0x%05x ignoring ELF object %s with max ver 0x%05x",
-              bpfloader_ver, elfPath, bpfLoaderMaxVer);
-        return 0;
-    }
-
-    ALOGD("BpfLoader version 0x%05x processing ELF object %s with ver [0x%05x,0x%05x)",
-          bpfloader_ver, elfPath, bpfLoaderMinVer, bpfLoaderMaxVer);
+    ALOGD("BpfLoader ver 0x%05x processing ELF object %s", bpfloader_ver, elfPath);
 
     ret = createMaps(elfPath, elfFile, mapFds, prefix, bpfloader_ver);
     if (ret) {
