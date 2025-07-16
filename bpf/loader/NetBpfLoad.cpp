@@ -941,8 +941,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     unsigned kvers = kernelVersion();
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
-        if (md[i].zero != 0) abort();
-
         if (bpfloader_ver < md[i].bpfloader_min_ver) {
             ALOGD("skipping map %s which requires bpfloader min ver 0x%05x", mapNames[i].c_str(),
                   md[i].bpfloader_min_ver);
