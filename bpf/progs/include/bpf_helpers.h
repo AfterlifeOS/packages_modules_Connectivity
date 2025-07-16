@@ -68,18 +68,11 @@
  * will simply ignore/skip this *entire* .o)
  * The [inclusive,exclusive) matches what we do for kernel ver dependencies.
  *
- * The size_of_bpf_{map,prog}_def allow the bpfloader to load programs where
- * these structures have been extended with additional fields (they will of
- * course simply be ignored then).
- *
- * If missing, bpfloader_{min/max}_ver default to 0/0x10000 ie. [v0.0, v1.0),
- * while size_of_bpf_{map/prog}_def default to 32/20 which are the v0.0 sizes.
+ * If missing, bpfloader_{min/max}_ver default to 0/0x10000 ie. [v0.0, v1.0)
  */
 #define LICENSE(NAME)                                                                              \
     unsigned int _bpfloader_min_ver SECTION("bpfloader_min_ver") = BPFLOADER_MIN_VER;              \
     unsigned int _bpfloader_max_ver SECTION("bpfloader_max_ver") = BPFLOADER_MAX_VER;              \
-    size_t _size_of_bpf_map_def SECTION("size_of_bpf_map_def") = sizeof(struct bpf_map_def);       \
-    size_t _size_of_bpf_prog_def SECTION("size_of_bpf_prog_def") = sizeof(struct bpf_prog_def);    \
     char _license[] SECTION("license") = (NAME)
 
 // Helpers for writing kernel version specific bpf programs
