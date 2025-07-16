@@ -61,18 +61,6 @@ class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
     self.client_mac_address = apf_utils.get_hardware_address(
         self.clientDevice, self.client_iface_name
     )
-    self.server_ipv4_addresses = apf_utils.get_ipv4_addresses(
-        self.serverDevice, self.server_iface_name
-    )
-    self.client_ipv4_addresses = apf_utils.get_ipv4_addresses(
-        self.clientDevice, self.client_iface_name
-    )
-    self.server_ipv6_addresses = apf_utils.get_non_tentative_ipv6_addresses(
-        self.serverDevice, self.server_iface_name
-    )
-    self.client_ipv6_addresses = apf_utils.get_non_tentative_ipv6_addresses(
-        self.clientDevice, self.client_iface_name
-    )
 
     # Enable doze mode to activate APF.
     adb_utils.set_doze_mode(self.clientDevice, True)
@@ -81,6 +69,42 @@ class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
     adb_utils.set_doze_mode(self.clientDevice, False)
     tether_utils.cleanup_tethering_for_upstream_type(
         self.serverDevice, UpstreamType.NONE
+    )
+
+  def get_and_expect_ipv4_addresses_exist(self):
+    self.server_ipv4_addresses = apf_utils.get_ipv4_addresses(
+        self.serverDevice, self.server_iface_name
+    )
+
+    asserts.assert_true(
+        self.server_ipv4_addresses,
+        'Server does not have IPv4 address, fail the test.',
+    )
+
+    self.client_ipv4_addresses = apf_utils.get_ipv4_addresses(
+        self.clientDevice, self.client_iface_name
+    )
+    asserts.assert_true(
+        self.client_ipv4_addresses,
+        'Client does not have IPv4 address, fail the test.',
+    )
+
+  def get_and_expect_ipv6_addresses_exist(self):
+    self.server_ipv6_addresses = apf_utils.get_non_tentative_ipv6_addresses(
+        self.serverDevice, self.server_iface_name
+    )
+
+    asserts.assert_true(
+        self.server_ipv6_addresses,
+        'Server does not have IPv6 address, fail the test.',
+    )
+
+    self.client_ipv6_addresses = apf_utils.get_non_tentative_ipv6_addresses(
+        self.clientDevice, self.client_iface_name
+    )
+    asserts.assert_true(
+        self.client_ipv6_addresses,
+        'Client does not have IPv6 address, fail the test.',
     )
 
   def send_packet_and_expect_counter_increased(
