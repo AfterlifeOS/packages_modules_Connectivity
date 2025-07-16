@@ -1284,7 +1284,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
             if (!fd.ok()) {
                 // kernel NULL terminates log_buf, so this checks for non-empty string
-                if (log_buf[0]) {
+                if (log_buf[0] && !isUser()) {
                     vector<string> lines = Split(log_buf, "\n");
 
                     ALOGW("BPF_PROG_LOAD - BEGIN log_buf contents:");
