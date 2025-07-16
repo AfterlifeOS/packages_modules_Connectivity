@@ -1214,6 +1214,39 @@ static int pinProg(const unique_fd& fd, string& name, struct bpf_prog_def& progD
     return 0;
 }
 
+static int validateProg(unique_fd& fd, string& progPinLoc, const unsigned int bpfloader_ver) {
+    if (!isAtLeastKernelVersion(4, 14, 0)) {
+        return 0;
+    }
+    int progId = bpfGetFdProgId(fd);
+    if (progId == -1) {
+        const int err = errno;
+        ALOGE("bpfGetFdProgId failed, errno: %d", err);
+        return -err;
+    }
+
+    int jitLen = bpfGetFdJitProgLen(fd);
+    if (jitLen == -1) {
+        const int err = errno;
+        ALOGE("bpfGetFdJitProgLen failed, ret: %d", err);
+        return -err;
+    }
+
+    int xlatLen = bpfGetFdXlatProgLen(fd);
+    if (xlatLen == -1) {
+        const int err = errno;
+        ALOGE("bpfGetFdXlatProgLen failed, ret: %d", err);
+        return -err;
+    }
+    ALOGI("prog %s id %d len jit:%d xlat:%d", progPinLoc.c_str(), progId, jitLen, xlatLen);
+
+    if (!jitLen && bpfloader_ver >= BPFLOADER_MAINLINE_25Q2_VERSION) {
+        ALOGE("Kernel eBPF JIT failure for %s", progPinLoc.c_str());
+        return -ENOTSUP;
+    }
+    return 0;
+}
+
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
                             const char* prefix, const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
@@ -1329,35 +1362,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
             ret = pinProg(fd, name, cs[i].prog_def.value(), objName, progPinLoc);
             if (ret) return ret;
         }
-
-        if (isAtLeastKernelVersion(4, 14, 0)) {
-            int progId = bpfGetFdProgId(fd);
-            if (progId == -1) {
-                const int err = errno;
-                ALOGE("bpfGetFdProgId failed, errno: %d", err);
-                return -err;
-            }
-
-            int jitLen = bpfGetFdJitProgLen(fd);
-            if (jitLen == -1) {
-                const int err = errno;
-                ALOGE("bpfGetFdJitProgLen failed, ret: %d", err);
-                return -err;
-            }
-
-            int xlatLen = bpfGetFdXlatProgLen(fd);
-            if (xlatLen == -1) {
-                const int err = errno;
-                ALOGE("bpfGetFdXlatProgLen failed, ret: %d", err);
-                return -err;
-            }
-            ALOGI("prog %s id %d len jit:%d xlat:%d", progPinLoc.c_str(), progId, jitLen, xlatLen);
-
-            if (!jitLen && bpfloader_ver >= BPFLOADER_MAINLINE_25Q2_VERSION) {
-                ALOGE("Kernel eBPF JIT failure for %s", progPinLoc.c_str());
-                return -ENOTSUP;
-            }
-        }
+        ret = validateProg(fd, progPinLoc, bpfloader_ver);
+        if (ret) return ret;
     }
 
     return 0;
