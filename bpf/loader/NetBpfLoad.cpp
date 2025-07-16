@@ -1197,19 +1197,12 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
         unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
         unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
-        domain selinux_context = getDomainFromSelinuxContext(cs[i].prog_def->selinux_context);
         domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
 
         ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)", i, name.c_str(),
               bpfMinVer, bpfMaxVer);
         if (bpfloader_ver < bpfMinVer) continue;
         if (bpfloader_ver >= bpfMaxVer) continue;
-
-        if (specified(selinux_context)) {
-            ALOGV("prog %s selinux_context [%-32s] -> %d -> '%s' (%s)", name.c_str(),
-                  cs[i].prog_def->selinux_context, static_cast<int>(selinux_context),
-                  lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
-        }
 
         if (specified(pin_subdir)) {
             ALOGV("prog %s pin_subdir [%-32s] -> %d -> '%s'", name.c_str(),
@@ -1286,7 +1279,11 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (!fd.ok()) return fd.get();
 
         if (!reuse) {
+            domain selinux_context = getDomainFromSelinuxContext(cs[i].prog_def->selinux_context);
             if (specified(selinux_context)) {
+                ALOGV("prog %s selinux_context [%-32s] -> %d -> '%s' (%s)", name.c_str(),
+                      cs[i].prog_def->selinux_context, static_cast<int>(selinux_context),
+                      lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
                 string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
                                    "tmp_prog_" + objName + '_' + string(name);
                 ret = bpfFdPin(fd, createLoc.c_str());
