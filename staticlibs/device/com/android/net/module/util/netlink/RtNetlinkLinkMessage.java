@@ -26,6 +26,7 @@ import static com.android.net.module.util.netlink.StructNlMsgHdr.NLM_F_REQUEST_A
 
 import android.net.MacAddress;
 import android.system.OsConstants;
+import android.text.TextUtils;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
@@ -122,7 +123,7 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
         return mHardwareAddress;
     }
 
-    @Nullable
+    @NonNull
     public String getInterfaceName() {
         return mInterfaceName;
     }
@@ -164,6 +165,10 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
         nlAttr = StructNlAttr.findNextAttrOfType(IFLA_IFNAME, byteBuffer);
         if (nlAttr != null) {
             interfaceName = nlAttr.getValueAsString();
+        }
+        // Theoretically this should not happen, added a check just for safety.
+        if (TextUtils.isEmpty(interfaceName)) {
+            return null;
         }
 
         return new RtNetlinkLinkMessage(header, ifinfoMsg, mtu, hardwareAddress, interfaceName);
