@@ -7,3 +7,10 @@ flag {
     description: "bluetooth tethering use randomized address"
     bug: "287177081"
 }
+
+flag {
+    name: "lnp_developer_opt_in"
+    namespace: "com_android_tethering"
+    description: "The flag enables the developer opt-in for LNP."
+    bug: "421952907"
+}
