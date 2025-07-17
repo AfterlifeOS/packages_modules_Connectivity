@@ -38,6 +38,23 @@ java_aconfig_library {
 }
 
 aconfig_declarations {
+    name: "tethering.mainline.beta.flags",
+    package: "com.android.tethering.mainline.beta",
+    container: "com.android.tethering",
+    srcs: ["mainline_beta.aconfig"],
+}
+
+java_aconfig_library {
+    name: "com.android.tethering.mainline.beta.flags-aconfig-java",
+    aconfig_declarations: "tethering.mainline.beta.flags",
+    defaults: ["framework-minus-apex-aconfig-java-defaults"],
+    min_sdk_version: "30",
+    apex_available: [
+        "com.android.tethering",
+    ],
+}
+
+aconfig_declarations {
     name: "com.android.net.flags-aconfig",
     package: "com.android.net.flags",
     exportable: true,

@@ -189,6 +189,7 @@ java_library {
         // in framework-connectivity
         "android.net.platform.flags-aconfig-java-export",
         "androidx.annotation_annotation",
+        "com.android.tethering.mainline.beta.flags-aconfig-java",
         "connectivity-net-module-utils-bpf",
         "connectivity_native_aidl_interface-lateststable-java",
         "dnsresolver_aidl_interface-V16-java",

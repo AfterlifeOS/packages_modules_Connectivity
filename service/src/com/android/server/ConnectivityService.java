@@ -2023,8 +2023,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
          * The flag value can change at runtime via a server push.
          */
         public boolean shouldBluetoothTetheringUseRandomAddress() {
-            // TODO: add a mainline beta flag to enable the new behaviour.
-            return SdkLevel.isAtLeastT() && false;
+            return SdkLevel.isAtLeastT() &&
+                    com.android.tethering.mainline.beta.Flags.bluetoothTetheringRandomizedAddress();
         }
     }
 
