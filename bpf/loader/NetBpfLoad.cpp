@@ -333,7 +333,8 @@ static int getSymName(ifstream& elfFile, int nameOff, string& name) {
 }
 
 // Reads a full section by name - example to get the GPL license
-static int readSectionByName(const char* name, ifstream& elfFile, vector<char>& data) {
+template <typename T>
+static int readSectionByName(const char* name, ifstream& elfFile, vector<T>& data) {
     vector<char> secStrTab;
     vector<Elf64_Shdr> shTable;
     int ret;
@@ -349,15 +350,14 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<char>& 
         if (!secname) continue;
 
         if (!strcmp(secname, name)) {
-            vector<char> dataTmp;
-            dataTmp.resize(shTable[i].sh_size);
-
             elfFile.seekg(shTable[i].sh_offset);
             if (elfFile.fail()) return -1;
 
-            if (!elfFile.read((char*)dataTmp.data(), shTable[i].sh_size)) return -1;
+            if (shTable[i].sh_size % sizeof(T)) return -1;
+            data.resize(shTable[i].sh_size / sizeof(T));
+            if (!elfFile.read(reinterpret_cast<char*>(data.data()), shTable[i].sh_size))
+                return -1;
 
-            data = dataTmp;
             return 0;
         }
     }
@@ -397,15 +397,12 @@ static int readSectionByType(ifstream& elfFile, int type, vector<char>& data) {
     for (int i = 0; i < (int)shTable.size(); i++) {
         if ((int)shTable[i].sh_type != type) continue;
 
-        vector<char> dataTmp;
-        dataTmp.resize(shTable[i].sh_size);
-
         elfFile.seekg(shTable[i].sh_offset);
         if (elfFile.fail()) return -1;
 
-        if (!elfFile.read((char*)dataTmp.data(), shTable[i].sh_size)) return -1;
+        data.resize(shTable[i].sh_size);
+        if (!elfFile.read(data.data(), shTable[i].sh_size)) return -1;
 
-        data = dataTmp;
         return 0;
     }
     return -2;
@@ -439,25 +436,7 @@ static enum bpf_prog_type getSectionType(string& name) {
 }
 
 static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd) {
-    vector<char> pdData;
-    int ret = readSectionByName("progs", elfFile, pdData);
-    if (ret) return ret;
-
-    if (pdData.size() % sizeof(struct bpf_prog_def)) {
-        ALOGE("readProgDefs failed due to improper sized progs section, %zu %% %zu != 0",
-              pdData.size(), sizeof(struct bpf_prog_def));
-        return -1;
-    };
-
-    pd.resize(pdData.size() / sizeof(struct bpf_prog_def));
-
-    const char* dataPtr = pdData.data();
-    for (auto& p : pd) {
-        // Copy the structure from the ELF file and move to the next one.
-        memcpy(&p, dataPtr, sizeof(struct bpf_prog_def));
-        dataPtr += sizeof(struct bpf_prog_def);
-    }
-    return 0;
+    return readSectionByName("progs", elfFile, pd);
 }
 
 static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vector<string>& names,
@@ -892,29 +871,14 @@ static bool isBtfSupported(enum bpf_map_type type) {
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
                       const char* prefix, const unsigned int bpfloader_ver) {
     int ret;
-    vector<char> mdData, btfData;
+    vector<char> btfData;
     vector<struct bpf_map_def> md;
     vector<string> mapNames;
     string objName = pathToObjName(string(elfPath));
 
-    ret = readSectionByName(".android_maps", elfFile, mdData);
+    ret = readSectionByName(".android_maps", elfFile, md);
     if (ret == -2) return 0;  // no maps to read
     if (ret) return ret;
-
-    if (mdData.size() % sizeof(struct bpf_map_def)) {
-        ALOGE("createMaps failed due to improper sized maps section, %zu %% %zu != 0",
-              mdData.size(), sizeof(struct bpf_map_def));
-        return -1;
-    };
-
-    md.resize(mdData.size() / sizeof(struct bpf_map_def));
-
-    const char* dataPtr = mdData.data();
-    for (auto& m : md) {
-        // Copy the structure from the ELF file and move to the next one.
-        memcpy(&m, dataPtr, sizeof(struct bpf_map_def));
-        dataPtr += sizeof(struct bpf_map_def);
-    }
 
     ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
     if (ret) return ret;
