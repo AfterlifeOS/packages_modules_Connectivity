@@ -964,6 +964,9 @@ class EthernetManagerTest {
 
     @Test
     fun testEnableDisableInterface_disableEnableEthernet() {
+        // The test calls setEthernetEnabled(false).
+        assumeFalse(isAdbOverEthernet())
+
         val iface = createInterface()
         val listener = EthernetStateListener()
         addInterfaceStateListener(listener)
@@ -975,7 +978,7 @@ class EthernetManagerTest {
         listener.eventuallyExpect(iface, STATE_LINK_DOWN, ROLE_CLIENT)
         enableInterface(iface).expectError()
         disableInterface(iface).expectError()
-        listener.assertNoCallback()
+        // Note: don't call listener.assertNoCallback() as additional interfaces may be present
 
         // When ethernet is enabled, enable/disableInterface() should succeed.
         setEthernetEnabled(true)
@@ -1127,6 +1130,8 @@ class EthernetManagerTest {
 
     @Test
     fun testRemoveInterface_disableEnableEthernet() {
+        assumeNoInterfaceForTetheringAvailable()
+
         // Set up 2 interfaces for testing
         val iface1 = createInterface()
         val listener = EthernetStateListener()
