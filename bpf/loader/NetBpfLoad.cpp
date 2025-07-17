@@ -444,13 +444,7 @@ static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd) {
     };
 
     pd.resize(pdData.size() / sizeof(struct bpf_prog_def));
-
-    const char* dataPtr = pdData.data();
-    for (auto& p : pd) {
-        // Copy the structure from the ELF file and move to the next one.
-        memcpy(&p, dataPtr, sizeof(struct bpf_prog_def));
-        dataPtr += sizeof(struct bpf_prog_def);
-    }
+    memcpy(pd.data(), pdData.data(), pdData.size());
     return 0;
 }
 
@@ -902,13 +896,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
     };
 
     md.resize(mdData.size() / sizeof(struct bpf_map_def));
-
-    const char* dataPtr = mdData.data();
-    for (auto& m : md) {
-        // Copy the structure from the ELF file and move to the next one.
-        memcpy(&m, dataPtr, sizeof(struct bpf_map_def));
-        dataPtr += sizeof(struct bpf_map_def);
-    }
+    memcpy(md.data(), mdData.data(), mdData.size());
 
     ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
     if (ret) return ret;
