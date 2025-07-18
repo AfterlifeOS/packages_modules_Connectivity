@@ -944,6 +944,39 @@ static int readMapNames(ifstream& elfFile, vector<string>& mapNames) {
     return 0;
 }
 
+static bool isMapTypeSupported(enum bpf_map_type type) {
+    if (type == BPF_MAP_TYPE_LPM_TRIE && !isAtLeastKernelVersion(4, 14, 0)) {
+        // On Linux Kernels older than 4.14 this map type doesn't exist - autoskip.
+        return false;
+    }
+    return true;
+}
+
+static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
+    if (type == BPF_MAP_TYPE_DEVMAP && !isAtLeastKernelVersion(4, 14, 0)) {
+        // On Linux Kernels older than 4.14 this map type doesn't exist, but it can kind
+        // of be approximated: ARRAY has the same userspace api, though it is not usable
+        // by the same ebpf programs.  However, that's okay because the bpf_redirect_map()
+        // helper doesn't exist on 4.9-T anyway (so the bpf program would fail to load,
+        // and thus needs to be tagged as 4.14+ either way), so there's nothing useful you
+        // could do with a DEVMAP anyway (that isn't already provided by an ARRAY)...
+        // Hence using an ARRAY instead of a DEVMAP simply makes life easier for userspace.
+        return BPF_MAP_TYPE_ARRAY;
+    }
+    if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
+        // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
+        // of be approximated: HASH has the same userspace visible api.
+        // However it cannot be used by ebpf programs in the same way.
+        // Since bpf_redirect_map() only requires 4.14, a program using a DEVMAP_HASH map
+        // would fail to load (due to trying to redirect to a HASH instead of DEVMAP_HASH).
+        // One must thus tag any BPF_MAP_TYPE_DEVMAP_HASH + bpf_redirect_map() using
+        // programs as being 5.4+...
+        return  BPF_MAP_TYPE_HASH;
+    }
+    // No sanitization is required.
+    return type;
+}
+
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
                       const char* prefix, const unsigned int bpfloader_ver) {
     int ret;
@@ -1009,33 +1042,12 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             continue;
         }
 
-        enum bpf_map_type type = md[i].type;
-        if (type == BPF_MAP_TYPE_LPM_TRIE && !isAtLeastKernelVersion(4, 14, 0)) {
-            // On Linux Kernels older than 4.14 this map type doesn't exist - autoskip.
-            ALOGD("skipping LPM_TRIE map %s - requires kver 4.14+", mapNames[i].c_str());
+        if (!isMapTypeSupported(md[i].type)) {
+            ALOGD("skipping unsupported map type(%d): %s", md[i].type, mapNames[i].c_str());
             mapFds.push_back(unique_fd());
             continue;
         }
-        if (type == BPF_MAP_TYPE_DEVMAP && !isAtLeastKernelVersion(4, 14, 0)) {
-            // On Linux Kernels older than 4.14 this map type doesn't exist, but it can kind
-            // of be approximated: ARRAY has the same userspace api, though it is not usable
-            // by the same ebpf programs.  However, that's okay because the bpf_redirect_map()
-            // helper doesn't exist on 4.9-T anyway (so the bpf program would fail to load,
-            // and thus needs to be tagged as 4.14+ either way), so there's nothing useful you
-            // could do with a DEVMAP anyway (that isn't already provided by an ARRAY)...
-            // Hence using an ARRAY instead of a DEVMAP simply makes life easier for userspace.
-            type = BPF_MAP_TYPE_ARRAY;
-        }
-        if (type == BPF_MAP_TYPE_DEVMAP_HASH && !isAtLeastKernelVersion(5, 4, 0)) {
-            // On Linux Kernels older than 5.4 this map type doesn't exist, but it can kind
-            // of be approximated: HASH has the same userspace visible api.
-            // However it cannot be used by ebpf programs in the same way.
-            // Since bpf_redirect_map() only requires 4.14, a program using a DEVMAP_HASH map
-            // would fail to load (due to trying to redirect to a HASH instead of DEVMAP_HASH).
-            // One must thus tag any BPF_MAP_TYPE_DEVMAP_HASH + bpf_redirect_map() using
-            // programs as being 5.4+...
-            type = BPF_MAP_TYPE_HASH;
-        }
+        enum bpf_map_type type = sanitizeMapType(md[i].type);
 
         // The .h file enforces that this is a power of two, and page size will
         // also always be a power of two, so this logic is actually enough to
