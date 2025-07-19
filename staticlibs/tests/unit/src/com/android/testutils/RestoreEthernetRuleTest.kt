@@ -27,7 +27,6 @@ import org.mockito.kotlin.doCallRealMethod
 import org.mockito.kotlin.doReturn
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
-import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 
 // EthernetManager#addEthernetStateListener is not supported before T.
@@ -42,15 +41,6 @@ class RestoreEthernetRuleTest {
         on { apply(any(), any()) }.thenCallRealMethod()
     }
 
-    private fun doTestApply_stateUnchanged(initialState: Boolean) {
-        doReturn(initialState, initialState).`when`(rule).isEthernetEnabled()
-
-        rule.apply(mockStatement, mockDescription).evaluate()
-
-        verify(mockStatement).evaluate()
-        verify(rule, never()).setEthernetEnabled(any())
-    }
-
     private fun doTestApply_restoresInitialState(initialState: Boolean) {
         doReturn(initialState, !initialState).`when`(rule).isEthernetEnabled()
 
@@ -60,12 +50,6 @@ class RestoreEthernetRuleTest {
         inOrder.verify(mockStatement).evaluate()
         inOrder.verify(rule).setEthernetEnabled(initialState)
     }
-
-    @Test
-    fun testApply_stateUnchanged_wasEnabled() = doTestApply_stateUnchanged(initialState = true)
-
-    @Test
-    fun testApply_stateUnchanged_wasDisabled() = doTestApply_stateUnchanged(initialState = false)
 
     @Test
     fun testApply_restoresInitialState_wasEnabled() =

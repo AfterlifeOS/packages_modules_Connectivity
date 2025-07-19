@@ -15,6 +15,7 @@
  */
 package com.android.testutils
 
+import android.Manifest.permission.ACCESS_NETWORK_STATE
 import android.Manifest.permission.NETWORK_SETTINGS
 import android.annotation.SuppressLint
 import android.content.Context
@@ -23,8 +24,7 @@ import android.net.EthernetManager.ETHERNET_STATE_DISABLED
 import android.net.EthernetManager.ETHERNET_STATE_ENABLED
 import android.os.SystemProperties
 import com.android.testutils.TestEthernetStateListener.EthernetStateChanged
-import java.lang.IllegalArgumentException
-import java.util.concurrent.Executor
+import java.util.function.IntConsumer
 import org.junit.rules.TestRule
 import org.junit.runner.Description
 import org.junit.runners.model.Statement
@@ -42,7 +42,6 @@ open class RestoreEthernetRule(private val context: Context) : TestRule {
     // Callers should ensure isEthernetSupported() before invoking anything needs
     // the EthernetManager instance. Otherwise, this would throw.
     private val em by lazy { context.getSystemService(EthernetManager::class.java)!! }
-    private val inlineExecutor = Executor { r -> r.run() }
 
     override fun apply(base: Statement, description: Description): Statement {
         return object : Statement() {
@@ -51,11 +50,21 @@ open class RestoreEthernetRule(private val context: Context) : TestRule {
                 try {
                     base.evaluate()
                 } finally {
-                    if (wasEnabled != isEthernetEnabled()) {
-                        setEthernetEnabled(wasEnabled)
-                    }
+                    setEthernetEnabled(wasEnabled)
                 }
             }
+        }
+    }
+
+    private fun addEthernetStateListener(listener: IntConsumer) {
+        runAsShell(ACCESS_NETWORK_STATE) {
+            em.addEthernetStateListener({ r -> r.run() }, listener)
+        }
+    }
+
+    private fun removeEthernetStateListener(listener: IntConsumer) {
+        runAsShell(ACCESS_NETWORK_STATE) {
+            em.removeEthernetStateListener(listener)
         }
     }
 
@@ -66,18 +75,17 @@ open class RestoreEthernetRule(private val context: Context) : TestRule {
      */
     @SuppressLint("MissingPermission")
     open fun setEthernetEnabled(enabled: Boolean) {
-        if (isAdbOverEthernet() && !enabled) {
-            throw IllegalArgumentException("Ethernet should not be disabled when adb over ethernet")
-        }
+        if (!enabled) require(!isAdbOverEthernet())
+
+        runAsShell(NETWORK_SETTINGS) { setEthernetEnabled(enabled) }
         val listener = TestEthernetStateListener()
-        em.addEthernetStateListener(inlineExecutor, listener)
+        addEthernetStateListener(listener)
         try {
-            runAsShell(NETWORK_SETTINGS) { em.setEthernetEnabled(enabled) }
             listener.eventuallyExpect<EthernetStateChanged> {
                 it.state == if (enabled) ETHERNET_STATE_ENABLED else ETHERNET_STATE_DISABLED
             }
         } finally {
-            em.removeEthernetStateListener(listener)
+            removeEthernetStateListener(listener)
         }
     }
 
@@ -100,16 +108,12 @@ open class RestoreEthernetRule(private val context: Context) : TestRule {
     @SuppressLint("MissingPermission")
     open fun isEthernetEnabled(): Boolean {
         val listener = TestEthernetStateListener()
-        runAsShell(NETWORK_SETTINGS) {
-            em.addEthernetStateListener(inlineExecutor, listener)
-        }
+        addEthernetStateListener(listener)
         try {
             val event = listener.expect<EthernetStateChanged>()
             return event.state == ETHERNET_STATE_ENABLED
         } finally {
-            runAsShell(NETWORK_SETTINGS) {
-                em.removeEthernetStateListener(listener)
-            }
+            removeEthernetStateListener(listener)
         }
     }
 }

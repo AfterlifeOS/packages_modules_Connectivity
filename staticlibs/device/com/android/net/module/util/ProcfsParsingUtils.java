@@ -78,7 +78,7 @@ public final class ProcfsParsingUtils {
                 lines.add(line);
             }
         } catch (IOException e) {
-            Log.wtf(TAG, "failed to read " + filePath, e);
+            Log.e(TAG, "failed to read " + filePath, e);
         }
 
         return lines;

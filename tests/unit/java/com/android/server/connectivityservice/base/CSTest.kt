@@ -538,6 +538,8 @@ open class CSTest {
             netlinkMessageUpdate = consumer
             return ConnectivityService.AddressUpdateMonitor(h, log, tag, consumer)
         }
+
+        override fun shouldBluetoothTetheringUseRandomAddress() = false
     }
 
     inner class PermDeps : PermissionMonitor.Dependencies() {
