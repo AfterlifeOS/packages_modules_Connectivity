@@ -178,25 +178,25 @@ struct sdk_level_uint { unsigned int sdk_level; };
  * the contents is only ever used during bpf program loading & map creation
  * by the bpf loader, and not by the eBPF program itself.
  */
-static void* (*bpf_map_lookup_elem_unsafe)(const struct bpf_map_def* map,
+static void* (*bpf_map_lookup_elem_unsafe)(const void* map,
                                            const void* key) = (void*)BPF_FUNC_map_lookup_elem;
-static int (*bpf_map_update_elem_unsafe)(const struct bpf_map_def* map, const void* key,
+static int (*bpf_map_update_elem_unsafe)(const void* map, const void* key,
                                          const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_map_update_elem;
-static int (*bpf_map_delete_elem_unsafe)(const struct bpf_map_def* map,
+static int (*bpf_map_delete_elem_unsafe)(const void* map,
                                          const void* key) = (void*)BPF_FUNC_map_delete_elem;
-static int (*bpf_ringbuf_output_unsafe)(const struct bpf_map_def* ringbuf,
+static int (*bpf_ringbuf_output_unsafe)(const void* ringbuf,
                                         const void* data, __u64 size, __u64 flags) = (void*)
         BPF_FUNC_ringbuf_output;
-static void* (*bpf_ringbuf_reserve_unsafe)(const struct bpf_map_def* ringbuf,
+static void* (*bpf_ringbuf_reserve_unsafe)(const void* ringbuf,
                                            __u64 size, __u64 flags) = (void*)
         BPF_FUNC_ringbuf_reserve;
 static void (*bpf_ringbuf_submit_unsafe)(const void* data, __u64 flags) = (void*)
         BPF_FUNC_ringbuf_submit;
-static void* (*bpf_sk_storage_get_unsafe) (const struct bpf_map_def* sk_storage, const void* sk,
+static void* (*bpf_sk_storage_get_unsafe) (const void* sk_storage, const void* sk,
                                            const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_sk_storage_get;
-static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage,
+static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
                                             const void* sk) = (void*) BPF_FUNC_sk_storage_delete;
 
 #define BPF_ANNOTATE_KV_PAIR(name, type_key, type_val)  \
@@ -220,7 +220,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, \
                             usr, grp, md, selinux, pindir, share, minkver,  \
                             maxkver, minloader, maxloader, mapflags)        \
-    const struct bpf_map_def SECTION(".android_maps") the_map = {           \
+    const struct bpf_map_def SECTION(".android_maps") the_map##_def = {     \
         .type = BPF_MAP_TYPE_##TYPE,                                        \
         .key_size = (keysize),                                              \
         .value_size = (valuesize),                                          \
@@ -238,6 +238,23 @@ static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage
         .shared = (share).shared,                                           \
     };
 
+#define __uint(name, val) int (*name)[val]
+#define __type(name, val) typeof(val) *name
+
+#define DEFINE_LIBBPF_MAP(the_map, TYPE, KeyType, ValueType, num_entries)  \
+    struct {                                                               \
+        __uint(type, BPF_MAP_TYPE_##TYPE);                                 \
+        __type(key, KeyType);                                              \
+        __type(value, ValueType);                                          \
+        __uint(max_entries, ABSOLUTE(num_entries));                        \
+    } the_map SECTION(".maps");
+
+#define DEFINE_LIBBPF_RINGBUF(the_map, num_entries)  \
+    struct {                                         \
+        __uint(type, BPF_MAP_TYPE_RINGBUF);          \
+        __uint(max_entries, ABSOLUTE(num_entries));  \
+    } the_map SECTION(".maps");
+
 // Type safe macro to declare a ring buffer and related output functions.
 // Compatibility:
 // * BPF ring buffers are only available kernels 5.8 and above. Any program
@@ -250,6 +267,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage
     DEFINE_BPF_MAP_BASE(the_map, RINGBUF, 0, 0, size_bytes, usr, grp, md,      \
                         selinux, pindir, share, KVER_5_10, KVER_INF,           \
                         min_loader, max_loader, 0);                            \
+    DEFINE_LIBBPF_RINGBUF(the_map, size_bytes);                                \
                                                                                \
     _Static_assert((size_bytes) >= 4096, "min 4 kiB ringbuffer size");         \
     _Static_assert((size_bytes) <= 0x10000000, "max 256 MiB ringbuffer size"); \
@@ -284,6 +302,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage
     DEFINE_BPF_MAP_BASE(the_map, SK_STORAGE, sizeof(uint32_t), sizeof(ValueType),       \
                         0, usr, grp, md, selinux, pindir, share,                        \
                         KVER_5_10, KVER_INF, min_loader, max_loader, mapFlags);         \
+    DEFINE_LIBBPF_MAP(the_map, SK_STORAGE, uint32_t, ValueType, 0);                     \
     BPF_ANNOTATE_KV_PAIR(the_map, uint32_t, ValueType);                                 \
                                                                                         \
     static inline __always_inline __unused ValueType* bpf_##the_map##_get(              \
@@ -324,6 +343,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const struct bpf_map_def* sk_storage
   DEFINE_BPF_MAP_BASE(the_map, TYPE, sizeof(KeyType), sizeof(ValueType),                         \
                       num_entries, usr, grp, md, selinux, pindir, share,                         \
                       KVER_NONE, KVER_INF, min_loader, max_loader, mapFlags);                    \
+    DEFINE_LIBBPF_MAP(the_map, TYPE, KeyType, ValueType, num_entries);                           \
     BPF_MAP_ASSERT_OK(BPF_MAP_TYPE_##TYPE, (num_entries), (md));                                 \
     _Static_assert(sizeof(KeyType) < 1024, "aosp/2370288 requires < 1024 byte keys");            \
     _Static_assert(sizeof(ValueType) < 65536, "aosp/2370288 requires < 65536 byte values");      \
