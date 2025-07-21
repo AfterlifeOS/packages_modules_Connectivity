@@ -16,6 +16,7 @@
 
 package com.android.server.ethernet;
 
+import static android.net.EthernetManager.TEST_INTERFACE_MODE_NONE;
 import static android.net.NetworkCapabilities.TRANSPORT_ETHERNET;
 import static android.net.NetworkCapabilities.TRANSPORT_TEST;
 
@@ -25,6 +26,7 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.EthernetManager;
+import android.net.EthernetManager.TestInterfaceMode;
 import android.net.EthernetNetworkSpecifier;
 import android.net.EthernetNetworkUpdateRequest;
 import android.net.IEthernetServiceListener;
@@ -208,7 +210,8 @@ public class EthernetServiceImpl extends BaseEthernetServiceImpl {
     }
 
     @Override
-    public void setIncludeTestInterfaces(boolean include) {
+    public void setIncludeTestInterfaces(@TestInterfaceMode int mode) {
+        final boolean include = (mode != TEST_INTERFACE_MODE_NONE);
         PermissionUtils.enforceNetworkStackPermissionOr(mContext,
                 android.Manifest.permission.NETWORK_SETTINGS);
 
