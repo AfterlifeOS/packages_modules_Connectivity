@@ -294,6 +294,7 @@ public class TetheringTest {
     private static final int CELLULAR_NETID = 100;
     private static final int WIFI_NETID = 101;
     private static final int DUN_NETID = 102;
+    private static final int TEST_SUBID = 1;
 
     private static final int TETHER_USB_RNDIS_NCM_FUNCTIONS = 2;
 
@@ -3531,6 +3532,7 @@ public class TetheringTest {
     @Test
     public void testExemptFromEntitlementCheck() throws Exception {
         initTetheringOnTestThread();
+        mPhoneStateListener.onActiveDataSubscriptionIdChanged(TEST_SUBID);
         setupForRequiredProvisioning();
         final TetheringRequest wifiNotExemptRequest =
                 createTetheringRequest(TETHERING_WIFI, null, null, false,
@@ -3566,6 +3568,7 @@ public class TetheringTest {
         // requests of the same type that are subject to carrier entitlement due to fuzzy-matching.
         mTetheringWithSoftApConfigEnabled = false;
         initTetheringOnTestThread();
+        mPhoneStateListener.onActiveDataSubscriptionIdChanged(TEST_SUBID);
         setupForRequiredProvisioning();
         final TetheringRequest wifiExemptRequest =
                 createTetheringRequest(TETHERING_WIFI, null, null, true,
@@ -3727,6 +3730,7 @@ public class TetheringTest {
     @Test
     public void testProvisioningNeededButUnavailable() throws Exception {
         initTetheringOnTestThread();
+        mPhoneStateListener.onActiveDataSubscriptionIdChanged(TEST_SUBID);
         assertTrue(mTethering.isTetheringSupported());
         verify(mPackageManager, never()).getPackageInfo(PROVISIONING_APP_NAME[0], GET_ACTIVITIES);
 
