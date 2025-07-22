@@ -1329,7 +1329,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
               .log_level = 1,
               .log_size = sizeof(log_buf),
               .log_buf = ptr_to_u64(log_buf),
-              .kern_version = kvers,
               .expected_attach_type = cs[i].attach_type,
             };
             if (isAtLeastKernelVersion(4, 15, 0))
