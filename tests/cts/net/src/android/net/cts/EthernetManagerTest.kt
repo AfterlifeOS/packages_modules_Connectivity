@@ -1236,6 +1236,8 @@ class EthernetManagerTest {
 
     @Test
     fun testNcmOnlyNetwork() {
+        assumeNoInterfaceForTetheringAvailable()
+
         setIncludeTestInterfaces(TEST_INTERFACE_MODE_NCM)
         val iface = createInterface()
 
@@ -1248,6 +1250,8 @@ class EthernetManagerTest {
 
     @Test
     fun testNonNcmNetwork() {
+        assumeNoInterfaceForTetheringAvailable()
+
         setIncludeTestInterfaces(TEST_INTERFACE_MODE_ETHERNET)
         val iface = createInterface()
 
