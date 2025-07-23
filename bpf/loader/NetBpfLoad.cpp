@@ -1483,6 +1483,39 @@ __unused static int prepareLoadProgs(const struct bpf_object* obj, const vector<
     return 0;
 }
 
+__unused static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
+                            const vector<struct bpf_map_def>& md, const vector<string>& mapNames,
+                            const char* const prefix) {
+    int ret;
+    string objName = pathToObjName(string(elfPath));
+
+    for (int i = 0; i < (int)mapNames.size(); i++) {
+        struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
+        if (!m) {
+            ALOGE("bpf_object does not contain map: %s", mapNames[i].c_str());
+            return -1;
+        }
+        // This map was skipped
+        if (!bpf_map__autocreate(m)) continue;
+
+        domain pin_subdir = getDomainFromPinSubdir(md[i].pin_subdir);
+        if (specified(pin_subdir)) {
+            ALOGE("map %s pin_subdir [%-32s] -> %d -> '%s'", mapNames[i].c_str(), md[i].pin_subdir,
+                  static_cast<int>(pin_subdir), lookupPinSubdir(pin_subdir));
+            return -1;
+        }
+        string mapPinLoc = buildMapPinLoc(pin_subdir, prefix, md[i], objName, mapNames[i]);
+        if (access(mapPinLoc.c_str(), F_OK) == 0) {
+            ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
+            return -1;
+        }
+
+        ret = pinMap(bpf_map__fd(m), mapNames[i], md[i], objName, mapPinLoc);
+        if (ret) return ret;
+    }
+    return 0;
+}
+
 int loadProg(const char* const elfPath, const unsigned int bpfloader_ver,
              const char* const prefix) {
     vector<char> license;
