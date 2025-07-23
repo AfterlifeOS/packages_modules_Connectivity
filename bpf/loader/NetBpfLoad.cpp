@@ -1188,7 +1188,7 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
-static int pinProg(const borrowed_fd& fd, string& name, struct bpf_prog_def& progDef,
+static int pinProg(const borrowed_fd& fd, string& name, const struct bpf_prog_def& progDef,
                    const string& objName, string& progPinLoc) {
     int ret;
     domain selinux_context = getDomainFromSelinuxContext(progDef.selinux_context);
@@ -1511,6 +1511,47 @@ __unused static int pinMaps(const char* const elfPath, const struct bpf_object* 
         }
 
         ret = pinMap(bpf_map__fd(m), mapNames[i], md[i], objName, mapPinLoc);
+        if (ret) return ret;
+    }
+    return 0;
+}
+
+__unused static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
+                             const vector<codeSection>& cs, const char* const prefix,
+                             const unsigned int bpfloader_ver) {
+    int ret;
+    string objName = pathToObjName(string(elfPath));
+
+    for (int i = 0; i < (int)cs.size(); i++) {
+        string program_name = cs[i].program_name;
+        struct bpf_program* prog = bpf_object__find_program_by_name(obj, program_name.c_str());
+        if (!prog) {
+            ALOGE("bpf_object does not contain program: %s", program_name.c_str());
+            return -1;
+        }
+        // This program was skipped
+        if (!bpf_program__autoload(prog)) continue;
+
+        string name = cs[i].name;
+        name = name.substr(0, name.find_last_of('$'));
+        domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
+        if (specified(pin_subdir)) {
+            ALOGE("prog %s pin_subdir [%-32s] -> %d -> '%s'", name.c_str(),
+                  cs[i].prog_def->pin_subdir, static_cast<int>(pin_subdir),
+                  lookupPinSubdir(pin_subdir));
+            return -1;
+        }
+        string progPinLoc = buildProgPinLoc(pin_subdir, prefix, objName, name);
+        if (access(progPinLoc.c_str(), F_OK) == 0) {
+            // TODO: Skip loading lower priority program
+            ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());
+            continue;
+        }
+
+        int fd = bpf_program__fd(prog);
+        ret = pinProg(fd, name, cs[i].prog_def.value(), objName, progPinLoc);
+        if (ret) return ret;
+        ret = validateProg(fd, progPinLoc, bpfloader_ver);
         if (ret) return ret;
     }
     return 0;
