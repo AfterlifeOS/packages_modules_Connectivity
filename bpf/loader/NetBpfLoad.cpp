@@ -1329,7 +1329,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
               .log_level = 1,
               .log_size = sizeof(log_buf),
               .log_buf = ptr_to_u64(log_buf),
-              .kern_version = kvers,
               .expected_attach_type = cs[i].attach_type,
             };
             if (isAtLeastKernelVersion(4, 15, 0))
@@ -1494,7 +1493,7 @@ static int createDir(const char* const dir) {
 // Technically 'value' doesn't need to be newline terminated, but it's best
 // to include a newline to match 'echo "value" > /proc/sys/...foo' behaviour,
 // which is usually how kernel devs test the actual sysctl interfaces.
-static int writeProcSysFile(const char *filename, const char *value) {
+static int writeFile(const char *filename, const char *value) {
     unique_fd fd(open(filename, O_WRONLY | O_CLOEXEC));
     if (fd < 0) {
         const int err = errno;
@@ -1509,7 +1508,6 @@ static int writeProcSysFile(const char *filename, const char *value) {
         return -err;
     }
     if (v != len) {
-        // In practice, due to us only using this for /proc/sys/... files, this can't happen.
         ALOGE("write('%s', '%s', %d) -> short write [%d]", filename, value, len, v);
         return -EINVAL;
     }
@@ -1859,7 +1857,7 @@ static int doLoad(char** argv, char * const envp[]) {
         // but we need 0 (enabled)
         // (this writeFile is known to fail on at least 4.19, but always defaults to 0 on
         // pre-5.13, on 5.13+ it depends on CONFIG_BPF_UNPRIV_DEFAULT_OFF)
-        if (writeProcSysFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n") &&
+        if (writeFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n") &&
             isAtLeastKernelVersion(5, 13, 0)) return 1;
     }
 
@@ -1875,12 +1873,12 @@ static int doLoad(char** argv, char * const envp[]) {
         //  kernel does not have CONFIG_BPF_JIT=y)
         // BPF_JIT is required by R VINTF (which means 4.14/4.19/5.4 kernels),
         // but 4.14/4.19 were released with P & Q, and only 5.4 is new in R+.
-        if (writeProcSysFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 1;
+        if (writeFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 1;
 
         // Enable JIT kallsyms export for privileged users only
         // (Note: this (open) will fail with ENOENT 'No such file or directory' if
         //  kernel does not have CONFIG_HAVE_EBPF_JIT=y)
-        if (writeProcSysFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 1;
+        if (writeFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 1;
     }
 
     if (runningAsRoot) {  // implies U QPR3+ and kernel 4.14+
