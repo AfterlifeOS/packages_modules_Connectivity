@@ -1394,6 +1394,46 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     return 0;
 }
 
+__unused static int prepareLoadMaps(const struct bpf_object* obj,
+                                    const vector<struct bpf_map_def>& md,
+                                    const vector<string>& mapNames,
+                                    const unsigned int bpfloader_ver) {
+    unsigned kvers = kernelVersion();
+
+    for (int i = 0; i < (int)mapNames.size(); i++) {
+        struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
+        if (!m) {
+            ALOGE("bpf_object does not contain map: %s", mapNames[i].c_str());
+            return -1;
+        }
+
+        if (bpfloader_ver < md[i].bpfloader_min_ver || bpfloader_ver >= md[i].bpfloader_max_ver) {
+            ALOGD("skipping map %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
+                  mapNames[i].c_str(), bpfloader_ver,
+                  md[i].bpfloader_min_ver, md[i].bpfloader_max_ver);
+            bpf_map__set_autocreate(m, false);
+            continue;
+        }
+
+        if (kvers < md[i].min_kver || kvers >= md[i].max_kver) {
+            ALOGD("skipping map %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
+                  mapNames[i].c_str(), kvers, md[i].min_kver, md[i].max_kver);
+            bpf_map__set_autocreate(m, false);
+            continue;
+        }
+
+        if (!isMapTypeSupported(md[i].type)) {
+            ALOGD("skipping unsupported map type(%d): %s", md[i].type, mapNames[i].c_str());
+            bpf_map__set_autocreate(m, false);
+            continue;
+        }
+
+        bpf_map__set_type(m, sanitizeMapType(md[i].type));
+        bpf_map__set_map_flags(m, md[i].map_flags);
+    }
+    return 0;
+}
+
 int loadProg(const char* const elfPath, const unsigned int bpfloader_ver,
              const char* const prefix) {
     vector<char> license;
