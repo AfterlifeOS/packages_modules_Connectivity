@@ -1434,6 +1434,53 @@ __unused static int prepareLoadMaps(const struct bpf_object* obj,
     return 0;
 }
 
+__unused static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs,
+                                     const unsigned int bpfloader_ver) {
+    unsigned kvers = kernelVersion();
+
+    for (int i = 0; i < (int)cs.size(); i++) {
+        string name = cs[i].name;
+        if (!cs[i].prog_def.has_value()) {
+            ALOGE("[%d] '%s' missing program definition! bad bpf.o build?", i, name.c_str());
+            return -EINVAL;
+        }
+        string program_name = cs[i].program_name;
+        struct bpf_program* prog = bpf_object__find_program_by_name(obj, program_name.c_str());
+        if (!prog) {
+            ALOGE("bpf_object does not contain program: %s", cs[i].program_name.c_str());
+            return -1;
+        }
+
+        unsigned min_kver = cs[i].prog_def->min_kver;
+        unsigned max_kver = cs[i].prog_def->max_kver;
+        if (kvers < min_kver || kvers >= max_kver) {
+            ALOGD("skipping prog %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
+                  name.c_str(), kvers, min_kver, max_kver);
+            bpf_program__set_autoload(prog, false);
+            continue;
+        }
+
+        unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
+        unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
+        if (bpfloader_ver < bpfMinVer || bpfloader_ver >= bpfMaxVer) {
+            ALOGD("skipping prog %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
+                  name.c_str(), bpfloader_ver, bpfMinVer, bpfMaxVer);
+            bpf_program__set_autoload(prog, false);
+            continue;
+        }
+
+        if (cs[i].prog_def->optional) {
+            // TODO: Support optional program
+            ALOGE("Optional program cannot be loaded by libbpf");
+            return -1;
+        }
+
+        bpf_program__set_type(prog, cs[i].type);
+        bpf_program__set_expected_attach_type(prog, cs[i].attach_type);
+    }
+    return 0;
+}
+
 int loadProg(const char* const elfPath, const unsigned int bpfloader_ver,
              const char* const prefix) {
     vector<char> license;
