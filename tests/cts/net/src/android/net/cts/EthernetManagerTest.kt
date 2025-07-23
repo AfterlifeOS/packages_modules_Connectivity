@@ -1236,6 +1236,8 @@ class EthernetManagerTest {
 
     @Test
     fun testNcmOnlyNetwork() {
+        assumeNoInterfaceForTetheringAvailable()
+
         setIncludeTestInterfaces(TEST_INTERFACE_MODE_NCM)
         val iface = createInterface()
 
@@ -1248,6 +1250,8 @@ class EthernetManagerTest {
 
     @Test
     fun testNonNcmNetwork() {
+        assumeNoInterfaceForTetheringAvailable()
+
         setIncludeTestInterfaces(TEST_INTERFACE_MODE_ETHERNET)
         val iface = createInterface()
 
@@ -1257,5 +1261,58 @@ class EthernetManagerTest {
         val ncm = runAsShell(CONNECTIVITY_USE_RESTRICTED_NETWORKS) { requestNetwork(LOCAL_REQUEST) }
         ncm.assertNoCallback()
         eth.assertNeverLost()
+    }
+
+    @Test
+    fun testCallbacks_doNotIncludeNcmOnlyInterfaces() {
+        // It is unlikely that an NCM-only "interface" is present while running this test.
+        assumeNoInterfaceForTetheringAvailable()
+
+        setIncludeTestInterfaces(TEST_INTERFACE_MODE_NCM)
+        val iface = createInterface()
+
+        val listener = EthernetStateListener()
+        addInterfaceStateListener(listener)
+        listener.assertNoCallback()
+    }
+
+    @Test
+    fun testRequestTetheredNetwork_doesNotReturnNcmOnlyInterface() {
+        assumeNoInterfaceForTetheringAvailable()
+
+        setIncludeTestInterfaces(TEST_INTERFACE_MODE_NCM)
+        val ncm = createInterface()
+
+        val listener = requestTetheredInterface()
+        // Call setEthernetEnabled(true) so the TetheredInterface request is guaranteed to be
+        // processed before calling expectOnAvailable().
+        setEthernetEnabled(true)
+        assertFailsWith(TimeoutException::class) { listener.expectOnAvailable(0) }
+    }
+
+    @Test
+    fun testEnableDisableInterface_ncmOnlyInterface() {
+        setIncludeTestInterfaces(TEST_INTERFACE_MODE_NCM)
+
+        // TODO: consider ignoring NCM-only interfaces in enable/disableInterface()
+        val iface = createInterface()
+        val listener = EthernetStateListener()
+        addInterfaceStateListener(listener, LISTENER_FLAG_INCLUDE_NCM)
+        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+
+        disableInterface(iface).expectResult(iface.name)
+        listener.eventuallyExpect(iface, STATE_LINK_DOWN, ROLE_CLIENT)
+
+        enableInterface(iface).expectResult(iface.name)
+        listener.eventuallyExpect(iface, STATE_LINK_UP, ROLE_CLIENT)
+    }
+
+    @Test
+    fun testGetInterfaceList_doesNotIncludeNcmOnlyInterfaces() {
+        setIncludeTestInterfaces(TEST_INTERFACE_MODE_NCM)
+
+        val ncm = createInterface()
+        val ifaces = em.getInterfaceList()
+        assertThat(ifaces).doesNotContain(ncm.name)
     }
 }
