@@ -24,12 +24,16 @@ import android.net.EthernetManager
 import android.net.EthernetManager.ETHERNET_STATE_DISABLED
 import android.net.EthernetManager.ETHERNET_STATE_ENABLED
 import android.net.EthernetManager.InterfaceStateListener
+import android.net.EthernetManager.LISTENER_FLAG_DEFAULT
+import android.net.EthernetManager.LISTENER_FLAG_INCLUDE_NCM
 import android.net.EthernetManager.ROLE_CLIENT
 import android.net.EthernetManager.ROLE_NONE
 import android.net.EthernetManager.ROLE_SERVER
 import android.net.EthernetManager.STATE_ABSENT
 import android.net.EthernetManager.STATE_LINK_DOWN
 import android.net.EthernetManager.STATE_LINK_UP
+import android.net.EthernetManager.TEST_INTERFACE_MODE_ETHERNET
+import android.net.EthernetManager.TEST_INTERFACE_MODE_NCM
 import android.net.EthernetManager.TetheredInterfaceCallback
 import android.net.EthernetManager.TetheredInterfaceRequest
 import android.net.EthernetNetworkManagementException
@@ -377,7 +381,7 @@ class EthernetManagerTest {
     fun setUp() {
         assumeTrue(isEthernetSupported())
         setIncludeTestInterfaces(true)
-        addInterfaceStateListener(ifaceListener)
+        addInterfaceStateListener(ifaceListener, LISTENER_FLAG_INCLUDE_NCM)
         // Handler.post() events may get processed after native fd events, so it is possible that
         // RTM_NEWLINK (from a subsequent createInterface() call) arrives before the interface state
         // listener is registered. This affects the callbacks and breaks the tests.
@@ -436,8 +440,11 @@ class EthernetManagerTest {
                 SystemProperties.getInt("service.adb.tcp.port", -1) > -1)
     }
 
-    private fun addInterfaceStateListener(listener: EthernetStateListener) {
-        em.addInterfaceStateListener(handler::post, listener)
+    private fun addInterfaceStateListener(
+        listener: EthernetStateListener,
+        flags: Int = LISTENER_FLAG_DEFAULT,
+    ) {
+        em.addInterfaceStateListener(handler::post, listener, flags)
         addedListeners.add(listener)
     }
 
@@ -466,6 +473,15 @@ class EthernetManagerTest {
     private fun setIncludeTestInterfaces(value: Boolean) {
         runAsShell(NETWORK_SETTINGS) {
             em.setIncludeTestInterfaces(value)
+        }
+        // Wait for the call to be processed by calling setEthernetEnabled() which waits on a
+        // completion callback.
+        setEthernetEnabled(ethernetEnabled)
+    }
+
+    private fun setIncludeTestInterfaces(mode: Int) {
+        runAsShell(NETWORK_SETTINGS) {
+            em.setIncludeTestInterfaces(mode)
         }
         // Wait for the call to be processed by calling setEthernetEnabled() which waits on a
         // completion callback.
@@ -1216,5 +1232,30 @@ class EthernetManagerTest {
         // The global network will come back up once the local request disappears.
         releaseRequest(cb2)
         cb.expect<Available>()
+    }
+
+    @Test
+    fun testNcmOnlyNetwork() {
+        setIncludeTestInterfaces(TEST_INTERFACE_MODE_NCM)
+        val iface = createInterface()
+
+        val eth = requestNetwork(ETH_REQUEST)
+        eth.assertNoCallback()
+
+        val ncm = runAsShell(CONNECTIVITY_USE_RESTRICTED_NETWORKS) { requestNetwork(LOCAL_REQUEST) }
+        ncm.expect<Available>()
+    }
+
+    @Test
+    fun testNonNcmNetwork() {
+        setIncludeTestInterfaces(TEST_INTERFACE_MODE_ETHERNET)
+        val iface = createInterface()
+
+        val eth = requestNetwork(ETH_REQUEST)
+        eth.expect<Available>()
+
+        val ncm = runAsShell(CONNECTIVITY_USE_RESTRICTED_NETWORKS) { requestNetwork(LOCAL_REQUEST) }
+        ncm.assertNoCallback()
+        eth.assertNeverLost()
     }
 }
