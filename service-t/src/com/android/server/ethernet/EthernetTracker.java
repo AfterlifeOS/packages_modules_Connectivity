@@ -23,6 +23,7 @@ import static android.net.NetworkCapabilities.TRANSPORT_LOWPAN;
 import static android.net.NetworkCapabilities.TRANSPORT_VPN;
 import static android.net.NetworkCapabilities.TRANSPORT_WIFI_AWARE;
 import static android.net.TestNetworkManager.TEST_TAP_PREFIX;
+import static android.net.EthernetManager.TEST_INTERFACE_MODE_NONE;
 import static android.system.OsConstants.ENOTSUP;
 
 import static com.android.internal.annotations.VisibleForTesting.Visibility.PACKAGE;
@@ -33,6 +34,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.content.Context;
 import android.net.EthernetManager;
+import android.net.EthernetManager.TestInterfaceMode;
 import android.net.INetd;
 import android.net.ITetheredInterfaceCallback;
 import android.net.InterfaceConfigurationParcel;
@@ -149,7 +151,7 @@ public class EthernetTracker {
      * Track test interfaces if true, don't track otherwise.
      * Volatile is needed as getEthernetInterfaceList() does not run on the handler thread.
      */
-    private volatile boolean mIncludeTestInterfaces = false;
+    private volatile int mTestInterfaceMode = TEST_INTERFACE_MODE_NONE;
 
     /** Mapping between {iface name | mac address} -> {NetworkCapabilities} */
     private final ConcurrentHashMap<String, NetworkCapabilities> mNetworkCapabilities =
@@ -561,19 +563,25 @@ public class EthernetTracker {
         mHandler.post(() -> mListeners.unregister(listener));
     }
 
-    public void setIncludeTestInterfaces(boolean include) {
+    /** Include test interfaces as defined by the mode. */
+    public void setIncludeTestInterfaces(@TestInterfaceMode int mode) {
         mHandler.post(() -> {
-            mIncludeTestInterfaces = include;
-            if (include) {
-                mNetlinkMonitor.requestLinkDump();
-            } else {
-                removeTestData();
-                // remove all test interfaces
-                for (EthernetPort port : getAllEthernetPorts()) {
-                    final String iface = port.getInterfaceName();
-                    if (inferTrackingReason(iface).contains(TrackingReason.REGEX)) continue;
+            mTestInterfaceMode = mode;
+
+            // A mode change requires re-evaluating all test interfaces. The simplest way is to
+            // remove them all and let the netlink dump re-discover the ones that should be tracked
+            // under the new mode.
+            for (EthernetPort port : getAllEthernetPorts()) {
+                if (isValidTestInterface(port.getInterfaceName())) {
                     stopTrackingInterface(port);
                 }
+            }
+
+            if (mode != TEST_INTERFACE_MODE_NONE) {
+                mNetlinkMonitor.requestLinkDump();
+            } else {
+                // If mode is NONE, no need for a link dump, just clean up persisted data.
+                removeTestData();
             }
         });
     }
@@ -880,11 +888,13 @@ public class EthernetTracker {
             reasons.add(TrackingReason.REGEX);
         }
 
-        // TODO: find a way to conditionally deduce REGEX and NCM TrackingReasons for test
-        // interfaces.
         if (isValidTestInterface(iface)) {
-            reasons.add(TrackingReason.REGEX);
-            reasons.add(TrackingReason.NCM);
+            if ((mTestInterfaceMode & EthernetManager.TEST_INTERFACE_MODE_ETHERNET) != 0) {
+                reasons.add(TrackingReason.REGEX);
+            }
+            if ((mTestInterfaceMode & EthernetManager.TEST_INTERFACE_MODE_NCM) != 0) {
+                reasons.add(TrackingReason.NCM);
+            }
         }
 
         // TODO: remove this flag after M-2025-09 release.
@@ -920,7 +930,7 @@ public class EthernetTracker {
      * interface prefix, {@code false} otherwise.
      */
     public boolean isValidTestInterface(@NonNull final String iface) {
-        return mIncludeTestInterfaces && TEST_IFACE_REGEXP.matcher(iface).matches();
+        return TEST_IFACE_REGEXP.matcher(iface).matches();
     }
 
     private void postAndWaitForRunnable(Runnable r) {

@@ -38,7 +38,7 @@ interface IEthernetManager
     boolean isAvailable(String iface);
     void addListener(in IEthernetServiceListener listener, int flags);
     void removeListener(in IEthernetServiceListener listener);
-    void setIncludeTestInterfaces(boolean include);
+    void setIncludeTestInterfaces(int mode);
     void requestTetheredInterface(in ITetheredInterfaceCallback callback);
     void releaseTetheredInterface(in ITetheredInterfaceCallback callback);
     void updateConfiguration(String iface, in EthernetNetworkUpdateRequest request,

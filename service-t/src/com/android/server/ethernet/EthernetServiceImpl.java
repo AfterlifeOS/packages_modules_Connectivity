@@ -25,6 +25,7 @@ import android.annotation.Nullable;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.net.EthernetManager;
+import android.net.EthernetManager.TestInterfaceMode;
 import android.net.EthernetNetworkSpecifier;
 import android.net.EthernetNetworkUpdateRequest;
 import android.net.IEthernetServiceListener;
@@ -208,13 +209,13 @@ public class EthernetServiceImpl extends BaseEthernetServiceImpl {
     }
 
     @Override
-    public void setIncludeTestInterfaces(boolean include) {
+    public void setIncludeTestInterfaces(@TestInterfaceMode int mode) {
         PermissionUtils.enforceNetworkStackPermissionOr(mContext,
                 android.Manifest.permission.NETWORK_SETTINGS);
 
         final long ident = Binder.clearCallingIdentity();
         try {
-            mTracker.setIncludeTestInterfaces(include);
+            mTracker.setIncludeTestInterfaces(mode);
         } finally {
             Binder.restoreCallingIdentity(ident);
         }
