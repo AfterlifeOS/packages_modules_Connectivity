@@ -1315,4 +1315,17 @@ class EthernetManagerTest {
         val ifaces = em.getInterfaceList()
         assertThat(ifaces).doesNotContain(ncm.name)
     }
+
+    @Test
+    fun testUpdateConfiguration_forNcmOnlyInterface() {
+        setIncludeTestInterfaces(TEST_INTERFACE_MODE_NCM)
+
+        val iface = createInterface()
+        val ncm = runAsShell(CONNECTIVITY_USE_RESTRICTED_NETWORKS) { requestNetwork(LOCAL_REQUEST) }
+        ncm.expect<Available>()
+
+        // Updating the configuration does not affect the NCM interface.
+        updateConfiguration(iface, STATIC_IP_CONFIGURATION, TEST_CAPS).expectResult(iface.name)
+        ncm.assertNeverLost()
+    }
 }
