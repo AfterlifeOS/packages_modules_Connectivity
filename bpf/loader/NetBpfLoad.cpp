@@ -255,7 +255,8 @@ sectionType sectionNameTypes[] = {
 typedef struct {
     enum bpf_prog_type type;
     enum bpf_attach_type attach_type;
-    string name;
+    string name; // The canonicalized section name.
+    string program_name;
     vector<char> data;
     vector<char> rel_data;
     optional<struct bpf_prog_def> prog_def;
@@ -531,6 +532,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
         vector<string> csSymNames;
         ret = getSectionSymNames(elfFile, oldName, csSymNames, STT_FUNC);
         if (ret || !csSymNames.size()) return ret;
+        cs_temp.program_name = csSymNames[0];
         for (size_t j = 0; j < progDefNames.size(); ++j) {
             if (!progDefNames[j].compare(csSymNames[0] + "_def")) {
                 cs_temp.prog_def = pd[j];
