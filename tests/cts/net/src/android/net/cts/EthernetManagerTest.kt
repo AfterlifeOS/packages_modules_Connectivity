@@ -467,6 +467,9 @@ class EthernetManagerTest {
         runAsShell(NETWORK_SETTINGS) {
             em.setIncludeTestInterfaces(value)
         }
+        // Wait for the call to be processed by calling setEthernetEnabled() which waits on a
+        // completion callback.
+        setEthernetEnabled(ethernetEnabled)
     }
 
     private fun removeInterface(iface: EthernetTestInterface) {
@@ -710,18 +713,15 @@ class EthernetManagerTest {
         val iface2 = createInterface()
         val iface3 = createInterface()
 
-        // Prevent test interfaces from being tracked and wait for the call to be processed by
-        // calling setEthernetEnabled() which waits on a completion callback.
+        // Prevent test interfaces from being tracked.
         setIncludeTestInterfaces(false)
-        setEthernetEnabled(true)
 
         val listener = EthernetStateListener()
         addInterfaceStateListener(listener)
         listener.assertNoCallback()
 
-        // Include test interfaces again, and ensure that they are tracked properly.
+        // Include test interfaces again.
         setIncludeTestInterfaces(true)
-        setEthernetEnabled(true)
 
         listener.expectCallback(iface1, STATE_LINK_UP, ROLE_CLIENT)
         listener.expectCallback(iface2, STATE_LINK_UP, ROLE_CLIENT)
