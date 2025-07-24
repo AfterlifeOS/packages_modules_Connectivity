@@ -255,7 +255,8 @@ sectionType sectionNameTypes[] = {
 typedef struct {
     enum bpf_prog_type type;
     enum bpf_attach_type attach_type;
-    string name;
+    string name; // The canonicalized section name.
+    string program_name;
     vector<char> data;
     vector<char> rel_data;
     optional<struct bpf_prog_def> prog_def;
@@ -531,6 +532,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
         vector<string> csSymNames;
         ret = getSectionSymNames(elfFile, oldName, csSymNames, STT_FUNC);
         if (ret || !csSymNames.size()) return ret;
+        cs_temp.program_name = csSymNames[0];
         for (size_t j = 0; j < progDefNames.size(); ++j) {
             if (!progDefNames[j].compare(csSymNames[0] + "_def")) {
                 cs_temp.prog_def = pd[j];
@@ -977,6 +979,16 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
     return type;
 }
 
+static string buildMapPinLoc(const domain pin_subdir, const char* prefix,
+                             const struct bpf_map_def& mapDef, const string& objName,
+                             const string& mapName) {
+    // Format of pin location is /sys/fs/bpf/<pin_subdir|prefix>map_<objName>_<mapName>
+    // except that maps shared across .o's have empty <objName>
+    // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
+    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "map_" +
+                       (mapDef.shared ? "" : objName) + "_" + mapName;
+}
+
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
                       const char* prefix, const unsigned int bpfloader_ver) {
     int ret;
@@ -1064,11 +1076,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             abort();
         }
 
-        // Format of pin location is /sys/fs/bpf/<pin_subdir|prefix>map_<objName>_<mapName>
-        // except that maps shared across .o's have empty <objName>
-        // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
-        string mapPinLoc = string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "map_" +
-                           (md[i].shared ? "" : objName) + "_" + mapNames[i];
+        string mapPinLoc = buildMapPinLoc(pin_subdir, prefix, md[i], objName, mapNames[i]);
         unique_fd fd;
         int saved_errno;
 
@@ -1259,6 +1267,14 @@ static int validateProg(unique_fd& fd, string& progPinLoc, const unsigned int bp
     return 0;
 }
 
+static string buildProgPinLoc(const domain pin_subdir, const char* prefix,
+                              const string& objName, const string& name) {
+    // Format of pin location is
+    // /sys/fs/bpf/<prefix>prog_<objName>_<progName>
+    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "prog_" +
+                        objName + '_' + string(name);
+}
+
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
                             const char* prefix, const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
@@ -1309,10 +1325,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
-        // Format of pin location is
-        // /sys/fs/bpf/<prefix>prog_<objName>_<progName>
-        string progPinLoc = string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "prog_" +
-                            objName + '_' + string(name);
+        string progPinLoc = buildProgPinLoc(pin_subdir, prefix, objName, name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
             ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
@@ -1377,6 +1390,93 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (ret) return ret;
     }
 
+    return 0;
+}
+
+__unused static int prepareLoadMaps(const struct bpf_object* obj,
+                                    const vector<struct bpf_map_def>& md,
+                                    const vector<string>& mapNames,
+                                    const unsigned int bpfloader_ver) {
+    unsigned kvers = kernelVersion();
+
+    for (int i = 0; i < (int)mapNames.size(); i++) {
+        struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
+        if (!m) {
+            ALOGE("bpf_object does not contain map: %s", mapNames[i].c_str());
+            return -1;
+        }
+
+        if (bpfloader_ver < md[i].bpfloader_min_ver || bpfloader_ver >= md[i].bpfloader_max_ver) {
+            ALOGD("skipping map %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
+                  mapNames[i].c_str(), bpfloader_ver,
+                  md[i].bpfloader_min_ver, md[i].bpfloader_max_ver);
+            bpf_map__set_autocreate(m, false);
+            continue;
+        }
+
+        if (kvers < md[i].min_kver || kvers >= md[i].max_kver) {
+            ALOGD("skipping map %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
+                  mapNames[i].c_str(), kvers, md[i].min_kver, md[i].max_kver);
+            bpf_map__set_autocreate(m, false);
+            continue;
+        }
+
+        if (!isMapTypeSupported(md[i].type)) {
+            ALOGD("skipping unsupported map type(%d): %s", md[i].type, mapNames[i].c_str());
+            bpf_map__set_autocreate(m, false);
+            continue;
+        }
+
+        bpf_map__set_type(m, sanitizeMapType(md[i].type));
+        bpf_map__set_map_flags(m, md[i].map_flags);
+    }
+    return 0;
+}
+
+__unused static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs,
+                                     const unsigned int bpfloader_ver) {
+    unsigned kvers = kernelVersion();
+
+    for (int i = 0; i < (int)cs.size(); i++) {
+        string name = cs[i].name;
+        if (!cs[i].prog_def.has_value()) {
+            ALOGE("[%d] '%s' missing program definition! bad bpf.o build?", i, name.c_str());
+            return -EINVAL;
+        }
+        string program_name = cs[i].program_name;
+        struct bpf_program* prog = bpf_object__find_program_by_name(obj, program_name.c_str());
+        if (!prog) {
+            ALOGE("bpf_object does not contain program: %s", cs[i].program_name.c_str());
+            return -1;
+        }
+
+        unsigned min_kver = cs[i].prog_def->min_kver;
+        unsigned max_kver = cs[i].prog_def->max_kver;
+        if (kvers < min_kver || kvers >= max_kver) {
+            ALOGD("skipping prog %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
+                  name.c_str(), kvers, min_kver, max_kver);
+            bpf_program__set_autoload(prog, false);
+            continue;
+        }
+
+        unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
+        unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
+        if (bpfloader_ver < bpfMinVer || bpfloader_ver >= bpfMaxVer) {
+            ALOGD("skipping prog %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
+                  name.c_str(), bpfloader_ver, bpfMinVer, bpfMaxVer);
+            bpf_program__set_autoload(prog, false);
+            continue;
+        }
+
+        if (cs[i].prog_def->optional) {
+            // TODO: Support optional program
+            ALOGE("Optional program cannot be loaded by libbpf");
+            return -1;
+        }
+
+        bpf_program__set_type(prog, cs[i].type);
+        bpf_program__set_expected_attach_type(prog, cs[i].attach_type);
+    }
     return 0;
 }
 

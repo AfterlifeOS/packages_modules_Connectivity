@@ -101,6 +101,30 @@ cc_library_shared {
 }
 
 cc_library_shared {
+    name: "libandroid_net_connectivity_com_android_net_module_util_jni_CommonConnectivityJni",
+    srcs: [
+        "jni/commonconnectivity/onload.cpp",
+    ],
+    min_sdk_version: "30",
+    shared_libs: [
+        "liblog",
+        "libnativehelper",
+    ],
+    static_libs: [
+        "libcommonconnectivityjni",
+    ],
+    cflags: [
+        "-Wall",
+        "-Werror",
+        "-Wno-unused-parameter",
+        "-Wthread-safety",
+    ],
+    apex_available: [
+        "com.android.tethering",
+    ],
+}
+
+cc_library_shared {
     name: "libservice-connectivity",
     min_sdk_version: "30",
     cflags: [
@@ -126,6 +150,7 @@ cc_library_shared {
         "libnet_utils_device_common_bpfjni",
         "libserviceconnectivityjni",
         "netd_aidl_interface-lateststable-ndk",
+        "libcommonconnectivityjni",
     ],
     shared_libs: [
         "libbase",

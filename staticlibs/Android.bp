@@ -87,6 +87,10 @@ java_library {
     srcs: [
         "device/com/android/net/module/util/ProcfsParsingUtils.java",
         "device/com/android/net/module/util/dhcp6/*.java",
+        "device/com/android/net/module/util/CommonConnectivityJni.java",
+        "device/com/android/net/module/util/RealtimeScheduler.java",
+        "device/com/android/net/module/util/TimerFdUtils.java",
+        "device/com/android/net/module/util/JniUtil.java",
         "framework/com/android/net/module/util/HexDump.java",
     ],
     sdk_version: "module_current",

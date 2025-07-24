@@ -396,6 +396,45 @@ public class EthernetManager {
     }
 
     /**
+     * Do not include test interfaces.
+     * @hide
+     */
+    public static final int TEST_INTERFACE_MODE_NONE = 0;
+
+    /**
+     * Includes test interfaces as if they were present in the regex.
+     * @hide
+     */
+    public static final int TEST_INTERFACE_MODE_ETHERNET = 1 << 0;
+
+    /**
+     * Includes test interfaces as if they were NCM interfaces.
+     * @hide
+     */
+    public static final int TEST_INTERFACE_MODE_NCM      = 1 << 1;
+
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(prefix = { "TEST_INTERFACE_MODE_" }, value = {
+        TEST_INTERFACE_MODE_NONE,
+        TEST_INTERFACE_MODE_ETHERNET,
+        TEST_INTERFACE_MODE_NCM,
+    })
+    public @interface TestInterfaceMode {}
+
+    /**
+     * Version of {@code setIncludeTestInterfaces} that accepts mode flags.
+     * @hide
+     */
+    public void setIncludeTestInterfaces(@TestInterfaceMode int mode) {
+        try {
+            mService.setIncludeTestInterfaces(mode);
+        } catch (RemoteException e) {
+            throw e.rethrowFromSystemServer();
+        }
+    }
+
+    /**
      * Whether to treat interfaces created by {@link TestNetworkManager#createTapInterface}
      * as Ethernet interfaces. The effects of this method apply to any test interfaces that are
      * already present on the system.
@@ -403,11 +442,10 @@ public class EthernetManager {
      */
     @SystemApi(client = MODULE_LIBRARIES)
     public void setIncludeTestInterfaces(boolean include) {
-        try {
-            mService.setIncludeTestInterfaces(include);
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
-        }
+        final int mode = include
+                ? TEST_INTERFACE_MODE_ETHERNET | TEST_INTERFACE_MODE_NCM
+                : TEST_INTERFACE_MODE_NONE;
+        setIncludeTestInterfaces(mode);
     }
 
     /**
