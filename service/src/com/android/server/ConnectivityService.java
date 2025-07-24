@@ -166,7 +166,7 @@ import static com.android.server.connectivity.ConnectivityFlags.DELAY_DESTROY_SO
 import static com.android.server.connectivity.ConnectivityFlags.INGRESS_TO_VPN_ADDRESS_FILTERING;
 import static com.android.server.connectivity.ConnectivityFlags.NAMESPACE_TETHERING_BOOT;
 import static com.android.server.connectivity.ConnectivityFlags.QUEUE_CALLBACKS_FOR_FROZEN_APPS;
-import static com.android.server.connectivity.ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER;
+import static com.android.server.connectivity.ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_AFTER_B;
 import static com.android.server.connectivity.ConnectivityFlags.REQUEST_RESTRICTED_WIFI;
 import static com.android.server.connectivity.ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS;
 import static com.android.server.connectivity.ConnectivityFlags.WIFI_DATA_INACTIVITY_TIMEOUT;
@@ -2026,6 +2026,14 @@ public class ConnectivityService extends IConnectivityManager.Stub
             return SdkLevel.isAtLeastT() &&
                     com.android.tethering.mainline.beta.Flags.bluetoothTetheringRandomizedAddress();
         }
+
+        /**
+         * Whether queue network agent events in the system server should be enabled.
+         */
+        public boolean shouldQueueNetworkAgentEventsInSystemServer() {
+            return com.android.tethering.mainline.beta.Flags
+                    .queueNetworkAgentEventsInSystemServer();
+        }
     }
 
     public ConnectivityService(Context context) {
@@ -2139,9 +2147,10 @@ public class ConnectivityService extends IConnectivityManager.Stub
         mUseDeclaredMethodsForCallbacksEnabled =
                 mDeps.isFeatureNotChickenedOut(context,
                         ConnectivityFlags.USE_DECLARED_METHODS_FOR_CALLBACKS);
-        mQueueNetworkAgentEventsInSystemServer = mDeps.isAtLeastB()
+        mQueueNetworkAgentEventsInSystemServer = (mDeps.isAtLeastB()
                 && mDeps.isFeatureNotChickenedOut(context,
-                        ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER);
+                        ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_AFTER_B))
+                || mDeps.shouldQueueNetworkAgentEventsInSystemServer();
         mSupportEarlyLinkPropertiesUpdateForVPN = mDeps.isFeatureNotChickenedOut(context,
                 ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN);
         // registerUidFrozenStateChangedCallback is only available on U+
@@ -15721,7 +15730,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         switch (featureFlag) {
             case INGRESS_TO_VPN_ADDRESS_FILTERING:
                 return mIngressToVpnAddressFiltering;
-            case QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER:
+            case QUEUE_NETWORK_AGENT_EVENTS_AFTER_B:
+            case com.android.tethering.mainline.beta.Flags
+                        .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER:
                 return mQueueNetworkAgentEventsInSystemServer;
             case CLOSE_QUIC_CONNECTION:
                 return mCloseQuicConnection;
