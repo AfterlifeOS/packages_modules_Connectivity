@@ -979,6 +979,16 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
     return type;
 }
 
+static string buildMapPinLoc(const domain pin_subdir, const char* prefix,
+                             const struct bpf_map_def& mapDef, const string& objName,
+                             const string& mapName) {
+    // Format of pin location is /sys/fs/bpf/<pin_subdir|prefix>map_<objName>_<mapName>
+    // except that maps shared across .o's have empty <objName>
+    // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
+    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "map_" +
+                       (mapDef.shared ? "" : objName) + "_" + mapName;
+}
+
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
                       const char* prefix, const unsigned int bpfloader_ver) {
     int ret;
@@ -1066,11 +1076,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             abort();
         }
 
-        // Format of pin location is /sys/fs/bpf/<pin_subdir|prefix>map_<objName>_<mapName>
-        // except that maps shared across .o's have empty <objName>
-        // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
-        string mapPinLoc = string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "map_" +
-                           (md[i].shared ? "" : objName) + "_" + mapNames[i];
+        string mapPinLoc = buildMapPinLoc(pin_subdir, prefix, md[i], objName, mapNames[i]);
         unique_fd fd;
         int saved_errno;
 
