@@ -602,6 +602,12 @@ public class EthernetNetworkFactory {
             if (null != capabilities) {
                 setCapabilities(capabilities);
             }
+
+            // If no request is currently being served (Mode.NONE) or the interface is in local NCM
+            // mode (Mode.LOCAL), do not restart the interface. updateInterface() does not affect
+            // the NCM capabilities or IpConfiguration.
+            if (mMode != Mode.GLOBAL) return;
+
             // TODO: Update this logic to only do a restart if required. Although a restart may
             //  be required due to the capabilities or ipConfiguration values, not all
             //  capabilities changes require a restart.
