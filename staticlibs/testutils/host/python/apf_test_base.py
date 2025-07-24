@@ -140,9 +140,11 @@ class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
           counter_name,
       )
 
-      apf_utils.send_raw_packet_downstream(
-          self.serverDevice, self.server_iface_name, send_packet
-      )
+      # send 3 packets to prevent flaky test result
+      for _ in range(3):
+        apf_utils.send_raw_packet_downstream(
+            self.serverDevice, self.server_iface_name, send_packet
+        )
 
       assert_utils.expect_with_retry(
           lambda: apf_utils.get_matched_packet_counts(
