@@ -1267,6 +1267,14 @@ static int validateProg(unique_fd& fd, string& progPinLoc, const unsigned int bp
     return 0;
 }
 
+static string buildProgPinLoc(const domain pin_subdir, const char* prefix,
+                              const string& objName, const string& name) {
+    // Format of pin location is
+    // /sys/fs/bpf/<prefix>prog_<objName>_<progName>
+    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "prog_" +
+                        objName + '_' + string(name);
+}
+
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
                             const char* prefix, const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
@@ -1317,10 +1325,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
-        // Format of pin location is
-        // /sys/fs/bpf/<prefix>prog_<objName>_<progName>
-        string progPinLoc = string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, prefix) + "prog_" +
-                            objName + '_' + string(name);
+        string progPinLoc = buildProgPinLoc(pin_subdir, prefix, objName, name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
             ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
