@@ -217,7 +217,7 @@ java_library {
         "com.android.tethering.mainline.beta.flags-aconfig-java",
         "connectivity-net-module-utils-bpf",
         "connectivity_native_aidl_interface-lateststable-java",
-        "dnsresolver_aidl_interface-V16-java",
+        "dnsresolver_aidl_interface-V17-java",
         "modules-utils-shell-command-handler",
         "net-utils-service-connectivity",
         "netd-client",
