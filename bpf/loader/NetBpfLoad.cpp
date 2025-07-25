@@ -1833,6 +1833,9 @@ static bool isWear() {
 
 static int libbpfPrint(enum libbpf_print_level lvl, const char *const formatStr,
                        va_list argList) {
+#ifndef NETBPFLOAD_VERBOSE_LOG
+    if (lvl != LIBBPF_WARN) return 0;
+#endif
     int32_t prio;
     switch (lvl) {
       case LIBBPF_WARN:
