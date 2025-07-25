@@ -37,12 +37,16 @@ import static android.net.nsd.NsdManager.FAILURE_BAD_PARAMETERS;
 import static android.net.nsd.NsdManager.FAILURE_INTERNAL_ERROR;
 import static android.net.nsd.NsdManager.FAILURE_MAX_LIMIT;
 import static android.net.nsd.NsdManager.FAILURE_OPERATION_NOT_RUNNING;
+import static android.net.nsd.OffloadEngine.OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK;
+import static android.net.nsd.OffloadEngine.OFFLOAD_TYPE_FILTER_REPLIES;
+import static android.net.nsd.OffloadEngine.OFFLOAD_TYPE_REPLY;
 
 import static com.android.networkstack.apishim.api33.ConstantsShim.REGISTER_NSD_OFFLOAD_ENGINE;
 import static com.android.server.NsdService.DEFAULT_RUNNING_APP_ACTIVE_IMPORTANCE_CUTOFF;
 import static com.android.server.NsdService.MdnsListener;
 import static com.android.server.NsdService.NO_TRANSACTION;
 import static com.android.server.NsdService.checkHostname;
+import static com.android.server.NsdService.createOffloadServiceInfoFromFilterReplies;
 import static com.android.server.NsdService.parseTypeAndSubtype;
 import static com.android.testutils.ContextUtils.mockService;
 
@@ -124,6 +128,7 @@ import com.android.server.connectivity.mdns.MdnsInterfaceSocket;
 import com.android.server.connectivity.mdns.MdnsSearchOptions;
 import com.android.server.connectivity.mdns.MdnsServiceBrowserListener;
 import com.android.server.connectivity.mdns.MdnsServiceInfo;
+import com.android.server.connectivity.mdns.MdnsServiceTypeClient.FilterRepliesInfo;
 import com.android.server.connectivity.mdns.MdnsSocketProvider;
 import com.android.server.connectivity.mdns.MdnsSocketProvider.SocketRequestMonitor;
 import com.android.server.connectivity.mdns.util.MdnsUtils;
@@ -2056,14 +2061,14 @@ public class NsdServiceTest {
                 REGISTER_NSD_OFFLOAD_ENGINE);
         doReturn(PERMISSION_GRANTED).when(mContext).checkCallingOrSelfPermission(DEVICE_POWER);
         assertThrows(SecurityException.class,
-                () -> client.registerOffloadEngine("iface1", OffloadEngine.OFFLOAD_TYPE_REPLY,
-                        OffloadEngine.OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK, Runnable::run,
+                () -> client.registerOffloadEngine("iface1", OFFLOAD_TYPE_REPLY,
+                        OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK, Runnable::run,
                         offloadEngine));
         doReturn(PERMISSION_GRANTED).when(mContext).checkCallingOrSelfPermission(
                 REGISTER_NSD_OFFLOAD_ENGINE);
         final OffloadEngine offloadEngine2 = mock(OffloadEngine.class);
-        client.registerOffloadEngine("iface2", OffloadEngine.OFFLOAD_TYPE_REPLY,
-                OffloadEngine.OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK, Runnable::run,
+        client.registerOffloadEngine("iface2", OFFLOAD_TYPE_REPLY,
+                OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK, Runnable::run,
                 offloadEngine2);
         client.unregisterOffloadEngine(offloadEngine2);
     }
@@ -2083,8 +2088,8 @@ public class NsdServiceTest {
                 REGISTER_NSD_OFFLOAD_ENGINE);
 
         doReturn(PERMISSION_GRANTED).when(mContext).checkCallingOrSelfPermission(DEVICE_POWER);
-        client.registerOffloadEngine("iface2", OffloadEngine.OFFLOAD_TYPE_REPLY,
-                OffloadEngine.OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK, Runnable::run,
+        client.registerOffloadEngine("iface2", OFFLOAD_TYPE_REPLY,
+                OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK, Runnable::run,
                 offloadEngine);
         client.unregisterOffloadEngine(offloadEngine);
     }
@@ -2094,8 +2099,9 @@ public class NsdServiceTest {
         final OffloadEngine offloadEngine = mock(OffloadEngine.class);
         doReturn(PERMISSION_GRANTED).when(mContext).checkCallingOrSelfPermission(
                 REGISTER_NSD_OFFLOAD_ENGINE);
-        client.registerOffloadEngine(interfaceName, OffloadEngine.OFFLOAD_TYPE_REPLY,
-                OffloadEngine.OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK, Runnable::run,
+        client.registerOffloadEngine(interfaceName,
+                OFFLOAD_TYPE_REPLY | OFFLOAD_TYPE_FILTER_REPLIES,
+                OFFLOAD_CAPABILITY_BYPASS_MULTICAST_LOCK, Runnable::run,
                 offloadEngine);
         waitForIdle();
         return offloadEngine;
@@ -2106,17 +2112,25 @@ public class NsdServiceTest {
     @DevSdkIgnoreRule.IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     public void testRegisterOffloadEngine_sendAllOffloadServiceInfos() {
         final String interfaceName = "iface";
-        final OffloadServiceInfo info = new OffloadServiceInfo(
+        final OffloadServiceInfo advertingInfo = new OffloadServiceInfo(
                 new OffloadServiceInfo.Key("_testService", "_testType"), List.of("_sub1", "_sub2"),
                 "Android.local", new byte[] { 0x1, 0x2, 0x3 }, 1 /* priority */,
-                OffloadEngine.OFFLOAD_TYPE_REPLY);
-        doReturn(List.of(new MdnsAdvertiser.OffloadServiceInfoWrapper(123, info)))
+                OFFLOAD_TYPE_REPLY);
+        doReturn(List.of(new MdnsAdvertiser.OffloadServiceInfoWrapper(123, advertingInfo)))
                 .when(mAdvertiser).getAllInterfaceOffloadServiceInfos(interfaceName);
+        final FilterRepliesInfo filerRepliesInfo = new FilterRepliesInfo(
+                "_testService", "_testType", List.of("_sub1", "_sub2"), "Android.local");
+        final OffloadServiceInfo discoveryInfo =
+                createOffloadServiceInfoFromFilterReplies(filerRepliesInfo);
+        doReturn(List.of(filerRepliesInfo)).when(mDiscoveryManager)
+                .notifyOffloadStart(eq(interfaceName));
         final OffloadEngine offloadEngine = registerOffloadEngine(interfaceName);
-        // Verify that the OffloadServiceInfo retrieves from the advertiser and then sends it to
-        // the OffloadEngine.
+        // Verify that the OffloadServiceInfo retrieves from the advertiser and discoveryManager and
+        // then sends it to the OffloadEngine.
         verify(mAdvertiser).getAllInterfaceOffloadServiceInfos(interfaceName);
-        verify(offloadEngine).onOffloadServiceUpdated(info);
+        verify(mDiscoveryManager).notifyOffloadStart(eq(interfaceName));
+        verify(offloadEngine).onOffloadServiceUpdated(advertingInfo);
+        verify(offloadEngine).onOffloadServiceUpdated(discoveryInfo);
     }
 
     @Test
@@ -2127,7 +2141,7 @@ public class NsdServiceTest {
         final OffloadServiceInfo info = new OffloadServiceInfo(
                 new OffloadServiceInfo.Key("_testService", "_testType"), List.of("_sub1", "_sub2"),
                 "Android.local", new byte[] { 0x1, 0x2, 0x3 }, 1 /* priority */,
-                OffloadEngine.OFFLOAD_TYPE_REPLY);
+                OFFLOAD_TYPE_REPLY);
         doReturn(Collections.emptyList()).when(mAdvertiser)
                 .getAllInterfaceOffloadServiceInfos(anyString());
         final OffloadEngine offloadEngine = registerOffloadEngine(interfaceName);

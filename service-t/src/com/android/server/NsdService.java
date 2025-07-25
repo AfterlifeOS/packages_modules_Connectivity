@@ -112,6 +112,7 @@ import com.android.server.connectivity.mdns.MdnsMultinetworkSocketClient;
 import com.android.server.connectivity.mdns.MdnsSearchOptions;
 import com.android.server.connectivity.mdns.MdnsServiceBrowserListener;
 import com.android.server.connectivity.mdns.MdnsServiceInfo;
+import com.android.server.connectivity.mdns.MdnsServiceTypeClient.FilterRepliesInfo;
 import com.android.server.connectivity.mdns.MdnsSocketProvider;
 import com.android.server.connectivity.mdns.util.MdnsUtils;
 
@@ -2220,6 +2221,27 @@ public class NsdService extends INsdManager.Stub {
         }
     }
 
+    /**
+     * Creates an {@link OffloadServiceInfo} object from a {@link FilterRepliesInfo} instance.
+     * This method facilitates the conversion of filtering criteria into a service information
+     * object suitable for offloading mechanisms.
+     *
+     * @param info The {@link FilterRepliesInfo} containing the filtering criteria.
+     * @return A new {@link OffloadServiceInfo} instance populated with data from the
+     *        {@code FilterRepliesInfo}.
+     */
+    @VisibleForTesting
+    static OffloadServiceInfo createOffloadServiceInfoFromFilterReplies(
+            @NonNull FilterRepliesInfo info) {
+        return  new OffloadServiceInfo(
+                new OffloadServiceInfo.Key(info.serviceName, info.serviceType),
+                new ArrayList<>(info.subtypes),
+                info.hostname,
+                null /* offloadPayload */,
+                0 /* priority */,
+                OffloadEngine.OFFLOAD_TYPE_FILTER_REPLIES);
+    }
+
     private void sendAllOffloadServiceInfos(@NonNull OffloadEngineInfo offloadEngineInfo) {
         final String targetInterface = offloadEngineInfo.mInterfaceName;
         final IOffloadEngine offloadEngine = offloadEngineInfo.mOffloadEngine;
@@ -2231,6 +2253,21 @@ public class NsdService extends INsdManager.Stub {
             } catch (RemoteException e) {
                 // Can happen in regular cases, do not log a stacktrace
                 Log.i(TAG, "Failed to send offload callback, remote died: " + e.getMessage());
+            }
+        }
+
+        // Check if the engine supports OFFLOAD_TYPE_FILTER_REPLIES
+        if ((offloadEngineInfo.mOffloadType & OffloadEngine.OFFLOAD_TYPE_FILTER_REPLIES) != 0) {
+            final List<FilterRepliesInfo> discoveryOffloadInfo =
+                    mMdnsDiscoveryManager.notifyOffloadStart(targetInterface);
+            for (FilterRepliesInfo info : discoveryOffloadInfo) {
+                try {
+                    offloadEngine.onOffloadServiceUpdated(
+                            createOffloadServiceInfoFromFilterReplies(info));
+                } catch (RemoteException e) {
+                    // Can happen in regular cases, do not log a stacktrace
+                    Log.i(TAG, "Failed to send offload callback, remote died: " + e.getMessage());
+                }
             }
         }
     }
