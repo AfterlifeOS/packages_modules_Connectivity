@@ -68,6 +68,7 @@
 #define BPFLOADER_MAINLINE_S_VERSION 42u
 #define BPFLOADER_MAINLINE_25Q2_VERSION 47u
 
+using android::base::borrowed_fd;
 using android::base::EndsWith;
 using android::base::GetIntProperty;
 using android::base::GetProperty;
@@ -870,7 +871,7 @@ static bool isBtfSupported(enum bpf_map_type type) {
     return type != BPF_MAP_TYPE_DEVMAP_HASH && type != BPF_MAP_TYPE_RINGBUF;
 }
 
-static int pinMap(const unique_fd& fd, const string& mapName, const struct bpf_map_def& mapDef,
+static int pinMap(const borrowed_fd& fd, const string& mapName, const struct bpf_map_def& mapDef,
                   const string& objName, const string& mapPinLoc) {
         int ret;
         domain selinux_context = getDomainFromSelinuxContext(mapDef.selinux_context);
@@ -1187,7 +1188,7 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
-static int pinProg(const unique_fd& fd, string& name, struct bpf_prog_def& progDef,
+static int pinProg(const borrowed_fd& fd, string& name, struct bpf_prog_def& progDef,
                    const string& objName, string& progPinLoc) {
     int ret;
     domain selinux_context = getDomainFromSelinuxContext(progDef.selinux_context);
@@ -1234,7 +1235,8 @@ static int pinProg(const unique_fd& fd, string& name, struct bpf_prog_def& progD
     return 0;
 }
 
-static int validateProg(unique_fd& fd, string& progPinLoc, const unsigned int bpfloader_ver) {
+static int validateProg(const borrowed_fd& fd, string& progPinLoc,
+                        const unsigned int bpfloader_ver) {
     if (!isAtLeastKernelVersion(4, 14, 0)) {
         return 0;
     }
