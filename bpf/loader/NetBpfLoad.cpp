@@ -1554,8 +1554,8 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
     return 0;
 }
 
-__unused static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver,
-             const char* const prefix) {
+static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver,
+                            const char* const prefix) {
     int ret;
     vector<string> mapNames;
     vector<struct bpf_map_def> md;
@@ -1655,14 +1655,16 @@ static bool exists(const char* const path) {
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static int loadObject(const unsigned int bpfloader_ver, const char* const prefix,
-                      const char* const fname) {
+                      const char* const fname, const bool useLibbpf = false) {
     string progPath = string(BPFROOT) + fname;
-    int ret = loadProg(progPath.c_str(), bpfloader_ver, prefix);
+    int ret = useLibbpf ? loadProgByLibbpf(progPath.c_str(), bpfloader_ver, prefix) :
+                          loadProg(progPath.c_str(), bpfloader_ver, prefix);
     if (ret) {
-        ALOGE("Failed to load object: %s, ret: %s", progPath.c_str(), std::strerror(-ret));
+        ALOGE("Failed to load object: %s, ret: %s, libbpf: %d",
+              progPath.c_str(), std::strerror(-ret), useLibbpf);
         return 1;
     }
-    ALOGD("Loaded object: %s", progPath.c_str());
+    ALOGD("Loaded object: %s, libbpf: %d", progPath.c_str(), useLibbpf);
     return 0;
 }
 
