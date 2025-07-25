@@ -1395,10 +1395,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     return 0;
 }
 
-__unused static int prepareLoadMaps(const struct bpf_object* obj,
-                                    const vector<struct bpf_map_def>& md,
-                                    const vector<string>& mapNames,
-                                    const unsigned int bpfloader_ver) {
+static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md,
+                           const vector<string>& mapNames, const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
@@ -1435,8 +1433,8 @@ __unused static int prepareLoadMaps(const struct bpf_object* obj,
     return 0;
 }
 
-__unused static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs,
-                                     const unsigned int bpfloader_ver) {
+static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs,
+                            const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
 
     for (int i = 0; i < (int)cs.size(); i++) {
@@ -1482,9 +1480,9 @@ __unused static int prepareLoadProgs(const struct bpf_object* obj, const vector<
     return 0;
 }
 
-__unused static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
-                            const vector<struct bpf_map_def>& md, const vector<string>& mapNames,
-                            const char* const prefix) {
+static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
+                   const vector<struct bpf_map_def>& md, const vector<string>& mapNames,
+                   const char* const prefix) {
     int ret;
     string objName = pathToObjName(string(elfPath));
 
@@ -1515,9 +1513,9 @@ __unused static int pinMaps(const char* const elfPath, const struct bpf_object* 
     return 0;
 }
 
-__unused static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
-                             const vector<codeSection>& cs, const char* const prefix,
-                             const unsigned int bpfloader_ver) {
+static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
+                    const vector<codeSection>& cs, const char* const prefix,
+                    const unsigned int bpfloader_ver) {
     int ret;
     string objName = pathToObjName(string(elfPath));
 
@@ -1553,6 +1551,50 @@ __unused static int pinProgs(const char* const elfPath, const struct bpf_object 
         ret = validateProg(fd, progPinLoc, bpfloader_ver);
         if (ret) return ret;
     }
+    return 0;
+}
+
+__unused static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver,
+             const char* const prefix) {
+    int ret;
+    vector<string> mapNames;
+    vector<struct bpf_map_def> md;
+    vector<codeSection> cs;
+
+    ifstream elfFile(elfPath, ios::in | ios::binary);
+    if (!elfFile.is_open()) return -1;
+
+    LIBBPF_OPTS(bpf_object_open_opts, opts,
+        .bpf_token_path = "",
+    );
+    struct bpf_object* obj = bpf_object__open_file(elfPath, &opts);
+    if (!obj) return -1;
+    auto objGuard = base::make_scope_guard([&obj] { bpf_object__close(obj); });
+
+    ret = readSectionByName(".android_maps", elfFile, md);
+    if (ret) return ret;
+
+    ret = readMapNames(elfFile, mapNames);
+    if (ret) return ret;
+
+    ret = prepareLoadMaps(obj, md, mapNames, bpfloader_ver);
+    if (ret) return ret;
+
+    ret = readCodeSections(elfFile, cs);
+    if (ret && ret != -ENOENT) return ret;
+
+    ret = prepareLoadProgs(obj, cs, bpfloader_ver);
+    if (ret) return ret;
+
+    ret = bpf_object__load(obj);
+    if (ret) return ret;
+
+    ret = pinMaps(elfPath, obj, md, mapNames, prefix);
+    if (ret) return ret;
+
+    ret = pinProgs(elfPath, obj, cs, prefix, bpfloader_ver);
+    if (ret) return ret;
+
     return 0;
 }
 
