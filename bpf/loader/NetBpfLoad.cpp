@@ -68,6 +68,7 @@
 #define BPFLOADER_MAINLINE_S_VERSION 42u
 #define BPFLOADER_MAINLINE_25Q2_VERSION 47u
 
+using android::base::borrowed_fd;
 using android::base::EndsWith;
 using android::base::GetIntProperty;
 using android::base::GetProperty;
@@ -870,7 +871,7 @@ static bool isBtfSupported(enum bpf_map_type type) {
     return type != BPF_MAP_TYPE_DEVMAP_HASH && type != BPF_MAP_TYPE_RINGBUF;
 }
 
-static int pinMap(const unique_fd& fd, const string& mapName, const struct bpf_map_def& mapDef,
+static int pinMap(const borrowed_fd& fd, const string& mapName, const struct bpf_map_def& mapDef,
                   const string& objName, const string& mapPinLoc) {
         int ret;
         domain selinux_context = getDomainFromSelinuxContext(mapDef.selinux_context);
@@ -1187,7 +1188,7 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
-static int pinProg(const unique_fd& fd, string& name, struct bpf_prog_def& progDef,
+static int pinProg(const borrowed_fd& fd, string& name, const struct bpf_prog_def& progDef,
                    const string& objName, string& progPinLoc) {
     int ret;
     domain selinux_context = getDomainFromSelinuxContext(progDef.selinux_context);
@@ -1234,7 +1235,8 @@ static int pinProg(const unique_fd& fd, string& name, struct bpf_prog_def& progD
     return 0;
 }
 
-static int validateProg(unique_fd& fd, string& progPinLoc, const unsigned int bpfloader_ver) {
+static int validateProg(const borrowed_fd& fd, string& progPinLoc,
+                        const unsigned int bpfloader_ver) {
     if (!isAtLeastKernelVersion(4, 14, 0)) {
         return 0;
     }
@@ -1393,10 +1395,8 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
     return 0;
 }
 
-__unused static int prepareLoadMaps(const struct bpf_object* obj,
-                                    const vector<struct bpf_map_def>& md,
-                                    const vector<string>& mapNames,
-                                    const unsigned int bpfloader_ver) {
+static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md,
+                           const vector<string>& mapNames, const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
@@ -1433,8 +1433,8 @@ __unused static int prepareLoadMaps(const struct bpf_object* obj,
     return 0;
 }
 
-__unused static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs,
-                                     const unsigned int bpfloader_ver) {
+static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs,
+                            const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
 
     for (int i = 0; i < (int)cs.size(); i++) {
@@ -1477,6 +1477,124 @@ __unused static int prepareLoadProgs(const struct bpf_object* obj, const vector<
         bpf_program__set_type(prog, cs[i].type);
         bpf_program__set_expected_attach_type(prog, cs[i].attach_type);
     }
+    return 0;
+}
+
+static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
+                   const vector<struct bpf_map_def>& md, const vector<string>& mapNames,
+                   const char* const prefix) {
+    int ret;
+    string objName = pathToObjName(string(elfPath));
+
+    for (int i = 0; i < (int)mapNames.size(); i++) {
+        struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
+        if (!m) {
+            ALOGE("bpf_object does not contain map: %s", mapNames[i].c_str());
+            return -1;
+        }
+        // This map was skipped
+        if (!bpf_map__autocreate(m)) continue;
+
+        domain pin_subdir = getDomainFromPinSubdir(md[i].pin_subdir);
+        if (specified(pin_subdir)) {
+            ALOGE("map %s pin_subdir [%-32s] -> %d -> '%s'", mapNames[i].c_str(), md[i].pin_subdir,
+                  static_cast<int>(pin_subdir), lookupPinSubdir(pin_subdir));
+            return -1;
+        }
+        string mapPinLoc = buildMapPinLoc(pin_subdir, prefix, md[i], objName, mapNames[i]);
+        if (access(mapPinLoc.c_str(), F_OK) == 0) {
+            ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
+            return -1;
+        }
+
+        ret = pinMap(bpf_map__fd(m), mapNames[i], md[i], objName, mapPinLoc);
+        if (ret) return ret;
+    }
+    return 0;
+}
+
+static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
+                    const vector<codeSection>& cs, const char* const prefix,
+                    const unsigned int bpfloader_ver) {
+    int ret;
+    string objName = pathToObjName(string(elfPath));
+
+    for (int i = 0; i < (int)cs.size(); i++) {
+        string program_name = cs[i].program_name;
+        struct bpf_program* prog = bpf_object__find_program_by_name(obj, program_name.c_str());
+        if (!prog) {
+            ALOGE("bpf_object does not contain program: %s", program_name.c_str());
+            return -1;
+        }
+        // This program was skipped
+        if (!bpf_program__autoload(prog)) continue;
+
+        string name = cs[i].name;
+        name = name.substr(0, name.find_last_of('$'));
+        domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
+        if (specified(pin_subdir)) {
+            ALOGE("prog %s pin_subdir [%-32s] -> %d -> '%s'", name.c_str(),
+                  cs[i].prog_def->pin_subdir, static_cast<int>(pin_subdir),
+                  lookupPinSubdir(pin_subdir));
+            return -1;
+        }
+        string progPinLoc = buildProgPinLoc(pin_subdir, prefix, objName, name);
+        if (access(progPinLoc.c_str(), F_OK) == 0) {
+            // TODO: Skip loading lower priority program
+            ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());
+            continue;
+        }
+
+        int fd = bpf_program__fd(prog);
+        ret = pinProg(fd, name, cs[i].prog_def.value(), objName, progPinLoc);
+        if (ret) return ret;
+        ret = validateProg(fd, progPinLoc, bpfloader_ver);
+        if (ret) return ret;
+    }
+    return 0;
+}
+
+static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver,
+                            const char* const prefix) {
+    int ret;
+    vector<string> mapNames;
+    vector<struct bpf_map_def> md;
+    vector<codeSection> cs;
+
+    ifstream elfFile(elfPath, ios::in | ios::binary);
+    if (!elfFile.is_open()) return -1;
+
+    LIBBPF_OPTS(bpf_object_open_opts, opts,
+        .bpf_token_path = "",
+    );
+    struct bpf_object* obj = bpf_object__open_file(elfPath, &opts);
+    if (!obj) return -1;
+    auto objGuard = base::make_scope_guard([&obj] { bpf_object__close(obj); });
+
+    ret = readSectionByName(".android_maps", elfFile, md);
+    if (ret) return ret;
+
+    ret = readMapNames(elfFile, mapNames);
+    if (ret) return ret;
+
+    ret = prepareLoadMaps(obj, md, mapNames, bpfloader_ver);
+    if (ret) return ret;
+
+    ret = readCodeSections(elfFile, cs);
+    if (ret && ret != -ENOENT) return ret;
+
+    ret = prepareLoadProgs(obj, cs, bpfloader_ver);
+    if (ret) return ret;
+
+    ret = bpf_object__load(obj);
+    if (ret) return ret;
+
+    ret = pinMaps(elfPath, obj, md, mapNames, prefix);
+    if (ret) return ret;
+
+    ret = pinProgs(elfPath, obj, cs, prefix, bpfloader_ver);
+    if (ret) return ret;
+
     return 0;
 }
 
@@ -1537,14 +1655,16 @@ static bool exists(const char* const path) {
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static int loadObject(const unsigned int bpfloader_ver, const char* const prefix,
-                      const char* const fname) {
+                      const char* const fname, const bool useLibbpf = false) {
     string progPath = string(BPFROOT) + fname;
-    int ret = loadProg(progPath.c_str(), bpfloader_ver, prefix);
+    int ret = useLibbpf ? loadProgByLibbpf(progPath.c_str(), bpfloader_ver, prefix) :
+                          loadProg(progPath.c_str(), bpfloader_ver, prefix);
     if (ret) {
-        ALOGE("Failed to load object: %s, ret: %s", progPath.c_str(), std::strerror(-ret));
+        ALOGE("Failed to load object: %s, ret: %s, libbpf: %d",
+              progPath.c_str(), std::strerror(-ret), useLibbpf);
         return 1;
     }
-    ALOGD("Loaded object: %s", progPath.c_str());
+    ALOGD("Loaded object: %s, libbpf: %d", progPath.c_str(), useLibbpf);
     return 0;
 }
 
@@ -1713,6 +1833,9 @@ static bool isWear() {
 
 static int libbpfPrint(enum libbpf_print_level lvl, const char *const formatStr,
                        va_list argList) {
+#ifndef NETBPFLOAD_VERBOSE_LOG
+    if (lvl != LIBBPF_WARN) return 0;
+#endif
     int32_t prio;
     switch (lvl) {
       case LIBBPF_WARN:

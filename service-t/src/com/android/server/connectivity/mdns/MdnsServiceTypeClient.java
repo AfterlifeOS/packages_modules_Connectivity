@@ -32,6 +32,7 @@ import android.os.Looper;
 import android.os.Message;
 import android.text.TextUtils;
 import android.util.ArrayMap;
+import android.util.ArraySet;
 import android.util.Pair;
 
 import androidx.annotation.VisibleForTesting;
@@ -51,6 +52,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ScheduledExecutorService;
 
@@ -139,6 +141,51 @@ public class MdnsServiceTypeClient {
             this.serviceType = serviceType;
             this.subtypes = new ArrayList<>(subtypes); // Defensive copy
             this.hostname = hostname;
+        }
+
+        /**
+         * Returns a string representation of the FilterRepliesInfo object.
+         *
+         * @return A string containing the serviceName, serviceType, subtypes, and hostname.
+         */
+        @Override
+        public String toString() {
+            return "FilterRepliesInfo{serviceName='" + serviceName
+                    + ", serviceType='" + serviceType
+                    + ", subtypes=" + subtypes
+                    + ", hostname='" + hostname + '}';
+        }
+
+        /**
+         * Indicates whether some other object is "equal to" this one.
+         * Two FilterRepliesInfo objects are considered equal if all their fields
+         * (serviceName, serviceType, subtypes, and hostname) are equal.
+         *
+         * @param other The reference object with which to compare.
+         * @return true if this object is the same as the obj argument; false otherwise.
+         */
+        @Override
+        public boolean equals(Object other) {
+            if (this == other) return true;
+            if (!(other instanceof FilterRepliesInfo)) {
+                return false;
+            }
+            final FilterRepliesInfo that = (FilterRepliesInfo) other;
+            return serviceName.equals(that.serviceName)
+                    && serviceType.equals(that.serviceType)
+                    && Objects.equals(subtypes, that.subtypes)
+                    && hostname.equals(that.hostname);
+        }
+
+        /**
+         * Returns a hash code value for the object. This method is supported for the benefit of
+         * hash tables such as those provided by {@link java.util.HashMap}.
+         *
+         * @return A hash code value for this object.
+         */
+        @Override
+        public int hashCode() {
+            return Objects.hash(serviceName, serviceType, subtypes, hostname);
         }
     }
 
@@ -944,6 +991,23 @@ public class MdnsServiceTypeClient {
     private static long calculateTimeToNextTask(ScheduledQueryTaskArgs args,
             long now) {
         return Math.max(args.timeToRun - now, 0);
+    }
+
+    /**
+     * Retrieves a list of {@link FilterRepliesInfo} objects based on the currently registered
+     * listeners and their associated search options.
+     *
+     * @return A Set of {@link FilterRepliesInfo} objects, each representing a service to be
+     *         offloaded for reply filtering, derived from the current listener configurations.
+     */
+    public Set<FilterRepliesInfo> getFilterRepliesInfo() {
+        ensureRunningOnHandlerThread(handler);
+        final Set<FilterRepliesInfo> info = new ArraySet<>();
+        for (int i = 0; i < listeners.size(); i++) {
+            final ListenerInfo listenerInfo = listeners.valueAt(i);
+            info.add(listenerInfo.filterRepliesInfoInfo);
+        }
+        return info;
     }
 
     /**
