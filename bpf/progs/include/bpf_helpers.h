@@ -315,9 +315,9 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         return bpf_sk_storage_delete_unsafe(&the_map, sk);                              \
     };
 
-#define DEFINE_BPF_SK_STORAGE(the_map, TypeOfValue)                                      \
-    DEFINE_BPF_SK_STORAGE_EXT(the_map, TypeOfValue,                                      \
-                              AID_ROOT, AID_NET_BW_ACCT, 0060, "fs_bpf_net_shared", "",  \
+#define DEFINE_BPF_SK_STORAGE(the_map, TypeOfValue)                                \
+    DEFINE_BPF_SK_STORAGE_EXT(the_map, TypeOfValue,                                \
+                              AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", "",  \
                               PRIVATE, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 /* There exist buggy kernels with pre-T OS, that due to
@@ -380,7 +380,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 // for maps not meant to be accessed from userspace
 #define DEFINE_BPF_MAP_KERNEL_INTERNAL(the_map, TYPE, KeyType, ValueType, num_entries)           \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, KeyType, ValueType, num_entries, AID_ROOT, AID_ROOT, 0000, \
-                       "fs_bpf_loader", "", PRIVATE, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
+                       "loader/", "", PRIVATE, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 #define DEFINE_BPF_MAP_UGM(the_map, TYPE, KeyType, ValueType, num_entries, usr, grp, md) \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, KeyType, ValueType, num_entries, usr, grp, md,     \
