@@ -1508,8 +1508,7 @@ static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
 }
 
 static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
-                    const vector<codeSection>& cs, const char* const prefix,
-                    const unsigned int bpfloader_ver) {
+                    const vector<codeSection>& cs, const unsigned int bpfloader_ver) {
     int ret;
     string objName = pathToObjName(string(elfPath));
 
@@ -1532,7 +1531,7 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
                   lookupPinSubdir(pin_subdir));
             return -1;
         }
-        string progPinLoc = buildProgPinLoc(pin_subdir, prefix, objName, name);
+        string progPinLoc = buildProgPinLoc(pin_subdir, "", objName, name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             // TODO: Skip loading lower priority program
             ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());
@@ -1585,7 +1584,7 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = pinMaps(elfPath, obj, md, mapNames);
     if (ret) return ret;
 
-    ret = pinProgs(elfPath, obj, cs, "", bpfloader_ver);
+    ret = pinProgs(elfPath, obj, cs, bpfloader_ver);
     if (ret) return ret;
 
     return 0;
