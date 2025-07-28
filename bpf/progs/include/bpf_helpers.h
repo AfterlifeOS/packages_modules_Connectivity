@@ -288,9 +288,9 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         bpf_ringbuf_submit_unsafe(v, 0);                                       \
     }
 
-#define DEFINE_BPF_RINGBUF(the_map, ValueType, size_bytes, usr, grp, md)                \
-    DEFINE_BPF_RINGBUF_EXT(the_map, ValueType, size_bytes, usr, grp, md,                \
-                           DEFAULT_BPF_MAP_SELINUX_CONTEXT, DEFAULT_BPF_MAP_PIN_SUBDIR, \
+#define DEFINE_BPF_RINGBUF(the_map, ValueType, size_bytes, usr, grp, md)            \
+    DEFINE_BPF_RINGBUF_EXT(the_map, ValueType, size_bytes, usr, grp, md,            \
+                           DEFAULT_BPF_MAP_SELINUX_CONTEXT, DEFAULT_BPF_PIN_SUBDIR, \
                            BPFLOADER_MIN_VER, BPFLOADER_MAX_VER)
 
 // Type safe macro to declare a sk storage and related accessor functions.
@@ -366,8 +366,8 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 #define DEFAULT_BPF_MAP_SELINUX_CONTEXT ""
 #endif
 
-#ifndef DEFAULT_BPF_MAP_PIN_SUBDIR
-#define DEFAULT_BPF_MAP_PIN_SUBDIR ""
+#ifndef DEFAULT_BPF_PIN_SUBDIR
+#define DEFAULT_BPF_PIN_SUBDIR ""
 #endif
 
 #ifndef DEFAULT_BPF_MAP_UID
@@ -383,7 +383,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 
 #define DEFINE_BPF_MAP_UGM(the_map, TYPE, KeyType, ValueType, num_entries, usr, grp, md) \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, KeyType, ValueType, num_entries, usr, grp, md,     \
-                       DEFAULT_BPF_MAP_SELINUX_CONTEXT, DEFAULT_BPF_MAP_PIN_SUBDIR,      \
+                       DEFAULT_BPF_MAP_SELINUX_CONTEXT, DEFAULT_BPF_PIN_SUBDIR,          \
                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 #define DEFINE_BPF_MAP(the_map, TYPE, KeyType, ValueType, num_entries) \
