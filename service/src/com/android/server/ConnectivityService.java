@@ -1565,6 +1565,10 @@ public class ConnectivityService extends IConnectivityManager.Stub
             return SdkLevel.isAtLeastB();
         }
 
+        public boolean isAtLeast25Q4() {
+            return Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1;
+        }
+
         /** Get SystemClock.elapsedRealtime() */
         public long getElapsedRealtime() {
             return SystemClock.elapsedRealtime();
@@ -2303,7 +2307,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 new LinkProperties(), new NetworkCapabilities(), null /* localNetworkConfig */,
                 new NetworkScore.Builder().setLegacyInt(0).build(), mContext, null,
                 new NetworkAgentConfig(), this, null, null, 0, INVALID_UID,
-                mLingerDelayMs, mQosCallbackTracker, mDeps);
+                false /* isAppSpecificNetwork */, mLingerDelayMs, mQosCallbackTracker, mDeps);
 
         try {
             // DscpPolicyTracker cannot run on S because on S the tethering module can only load
@@ -4090,12 +4094,26 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 Manifest.permission.CONNECTIVITY_USE_RESTRICTED_NETWORKS);
     }
 
-    private void enforceNetworkFactoryPermission() {
+    private boolean hasCreateAppSpecificNetworkPermission() {
+        // The CREATE_APP_SPECIFIC_NETWORK permission was introduced in 25Q4.
+        // It must not be granted on earlier platform versions, even if an app declares it.
+        return mDeps.isAtLeast25Q4() && hasAnyPermissionOf(mContext,
+                android.Manifest.permission.CREATE_APP_SPECIFIC_NETWORK);
+    }
+
+    private boolean hasNetworkFactoryPermission() {
         // TODO: Check for the BLUETOOTH_STACK permission once that is in the API surface.
-        if (UserHandle.getAppId(getCallingUid()) == Process.BLUETOOTH_UID) return;
-        enforceAnyPermissionOf(mContext,
+        if (UserHandle.getAppId(getCallingUid()) == Process.BLUETOOTH_UID) return true;
+        return hasAnyPermissionOf(mContext,
                 android.Manifest.permission.NETWORK_FACTORY,
                 NetworkStack.PERMISSION_MAINLINE_NETWORK_STACK);
+    }
+
+    private void enforceNetworkFactoryPermission() {
+        if (!hasNetworkFactoryPermission()) {
+            throw new SecurityException("Requires one of the following permissions: "
+                    + "NETWORK_FACTORY, MAINLINE_NETWORK_STACK");
+        }
     }
 
     private void enforceNetworkFactoryOrSettingsPermission() {
@@ -9864,10 +9882,19 @@ public class ConnectivityService extends IConnectivityManager.Stub
         Objects.requireNonNull(networkCapabilities, "networkCapabilities must not be null");
         Objects.requireNonNull(initialScore, "initialScore must not be null");
         Objects.requireNonNull(networkAgentConfig, "networkAgentConfig must not be null");
+        boolean isAppSpecificNetwork = false;
         if (networkCapabilities.hasTransport(TRANSPORT_TEST)) {
             enforceAnyPermissionOf(mContext, Manifest.permission.MANAGE_TEST_NETWORKS);
+        } else if (hasNetworkFactoryPermission()) {
+            // Factory permission is present. Do nothing and proceed.
+        } else if (hasCreateAppSpecificNetworkPermission()) {
+            // The app lacks the network factory permission but has
+            // CREATE_APP_SPECIFIC_NETWORK permission.
+            isAppSpecificNetwork = true;
         } else {
-            enforceNetworkFactoryPermission();
+            throw new SecurityException("Requires one of the following permissions: "
+                    + "NETWORK_FACTORY, MAINLINE_NETWORK_STACK"
+                    + (mDeps.isAtLeast25Q4() ? ", CREATE_APP_SPECIFIC_NETWORK" : ""));
         }
         final boolean hasLocalCap =
                 networkCapabilities.hasCapability(NET_CAPABILITY_LOCAL_NETWORK);
@@ -9888,7 +9915,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         try {
             return registerNetworkAgentInternal(na, networkInfo, linkProperties,
                     networkCapabilities, initialScore, networkAgentConfig, localNetworkConfig,
-                    providerId, uid);
+                    providerId, uid, isAppSpecificNetwork);
         } finally {
             Binder.restoreCallingIdentity(token);
         }
@@ -9899,7 +9926,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
             LinkProperties linkProperties, NetworkCapabilities networkCapabilities,
             NetworkScore currentScore, NetworkAgentConfig networkAgentConfig,
             @Nullable LocalNetworkConfig localNetworkConfig, int providerId,
-            int uid) {
+            int uid, boolean isAppSpecificNetwork) {
 
         // Make a copy of the passed NI, LP, NC as the caller may hold a reference to them
         // and mutate them at any time.
@@ -9907,6 +9934,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
         final NetworkCapabilities ncCopy = new NetworkCapabilities(networkCapabilities);
         final LinkProperties lpCopy = new LinkProperties(linkProperties);
         // No need to copy |localNetworkConfiguration| as it is immutable.
+
+        if (isAppSpecificNetwork) {
+            // For app specific network, set the app's UID and make network restricted.
+            ncCopy.setSingleUid(uid);
+            ncCopy.removeCapability(NET_CAPABILITY_NOT_RESTRICTED);
+        }
 
         // At this point the capabilities/properties are untrusted and unverified, e.g. checks that
         // the capabilities' access UIDs comply with security limitations. They will be sanitized
@@ -9916,7 +9949,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 new Network(mNetIdManager.reserveNetId()), niCopy, lpCopy, ncCopy,
                 localNetworkConfig, currentScore, mContext, mTrackerHandler,
                 new NetworkAgentConfig(networkAgentConfig), this, mNetd, mDnsResolver, providerId,
-                uid, mLingerDelayMs, mQosCallbackTracker, mDeps);
+                uid, isAppSpecificNetwork, mLingerDelayMs, mQosCallbackTracker, mDeps);
 
         final String extraInfo = niCopy.getExtraInfo();
         final String name = TextUtils.isEmpty(extraInfo)

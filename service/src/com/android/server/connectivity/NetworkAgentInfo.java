@@ -437,6 +437,9 @@ public class NetworkAgentInfo implements NetworkRanker.Scoreable {
     // The UID of the remote entity that created this Network.
     public final int creatorUid;
 
+    // Indicates whether this network is specific to the app that registered the networkAgent.
+    private final boolean mIsAppSpecificNetwork;
+
     // Network agent portal info of the network, if any. This information is provided from
     // non-RFC8908 sources, such as Wi-Fi Passpoint, which can provide information such as Venue
     // URL, Terms & Conditions URL, and network friendly name.
@@ -504,6 +507,18 @@ public class NetworkAgentInfo implements NetworkRanker.Scoreable {
             Log.e(TAG, toShortString() + ": ignoring attempt to change owner from "
                     + networkCapabilities.getOwnerUid() + " to " + nc.getOwnerUid());
             nc.setOwnerUid(networkCapabilities.getOwnerUid());
+        }
+        if (mIsAppSpecificNetwork) {
+            if (!networkCapabilities.getUids().equals(nc.getUids())) {
+                Log.e(TAG, toShortString() + ": ignoring attempt to change uid from "
+                        + networkCapabilities.getUids() + " to " + nc.getUids());
+                nc.setUids(networkCapabilities.getUids());
+            }
+            if (nc.hasCapability(NET_CAPABILITY_NOT_RESTRICTED)) {
+                Log.e(TAG, toShortString() + ": ignoring attempt to add "
+                        + NetworkCapabilities.capabilityNameOf(NET_CAPABILITY_NOT_RESTRICTED));
+                nc.removeCapability(NET_CAPABILITY_NOT_RESTRICTED);
+            }
         }
         restrictCapabilitiesFromNetworkAgent(nc, creatorUid, mHasAutomotiveFeature,
                 mConnServiceDeps, carrierPrivilegeAuthenticator);
@@ -657,7 +672,8 @@ public class NetworkAgentInfo implements NetworkRanker.Scoreable {
             @NonNull NetworkScore score, Context context,
             Handler handler, NetworkAgentConfig config, ConnectivityService connService, INetd netd,
             IDnsResolver dnsResolver, int factorySerialNumber, int creatorUid,
-            int lingerDurationMs, QosCallbackTracker qosCallbackTracker,
+            boolean isAppSpecificNetwork, int lingerDurationMs,
+            QosCallbackTracker qosCallbackTracker,
             ConnectivityService.Dependencies deps) {
         Objects.requireNonNull(net);
         Objects.requireNonNull(info);
@@ -684,6 +700,7 @@ public class NetworkAgentInfo implements NetworkRanker.Scoreable {
         mRegistry = new NetworkAgentMessageHandler(mHandler);
         this.factorySerialNumber = factorySerialNumber;
         this.creatorUid = creatorUid;
+        mIsAppSpecificNetwork = isAppSpecificNetwork;
         mLingerDurationMs = lingerDurationMs;
         mQosCallbackTracker = qosCallbackTracker;
         declaredUnderlyingNetworks = (nc.getUnderlyingNetworks() != null)
@@ -1781,6 +1798,7 @@ public class NetworkAgentInfo implements NetworkRanker.Scoreable {
                 + "  lp{" + linkProperties + "}"
                 + "  nc{" + networkCapabilities + "}"
                 + "  factorySerialNumber=" + factorySerialNumber
+                + (mIsAppSpecificNetwork ? " appSpecificNetwork" : "")
                 + "}";
     }
 
