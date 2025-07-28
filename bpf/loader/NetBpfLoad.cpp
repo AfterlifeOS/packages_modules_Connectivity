@@ -1680,7 +1680,7 @@ static int loadAllObjects(const unsigned int bpfloader_ver) {
 
         // WARNING: Android T+ non-updatable netd depends on both of the
         // 'netd_shared' & 'netd' strings for xt_bpf programs it loads
-        if (loadObject(bpfloader_ver, "netd_shared/", "netd.o")) return 1;
+        if (loadObject(bpfloader_ver, "", "netd.o")) return 1;
 
         // /sys/fs/bpf/netd_readonly: shared with netd & system server
         // - netutils_wrapper has no access, netd has read only access
