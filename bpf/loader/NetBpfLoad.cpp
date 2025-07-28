@@ -1673,7 +1673,7 @@ static int loadAllObjects(const unsigned int bpfloader_ver) {
         // T+ Tethering mainline module loads under:
         // /sys/fs/bpf/net_shared: shared with netd & system server
         if (loadObject(bpfloader_ver, "net_shared/", "clatd.o")) return 1;
-        if (loadObject(bpfloader_ver, "net_shared/", "dscpPolicy.o")) return 1;
+        if (loadObject(bpfloader_ver, "", "dscpPolicy.o")) return 1;
 
         // /sys/fs/bpf/netd_shared: shared with netd & system server
         // - netutils_wrapper (for iptables xt_bpf) has access to programs
