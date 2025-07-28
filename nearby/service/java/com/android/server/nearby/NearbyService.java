@@ -41,6 +41,7 @@ import android.nearby.aidl.IOffloadCallback;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.nearby.injector.BluetoothLeAdvertiserWrapper;
 import com.android.server.nearby.injector.Injector;
 import com.android.server.nearby.managers.BluetoothFinderManager;
 import com.android.server.nearby.managers.BroadcastProviderManager;
@@ -195,6 +196,7 @@ public class NearbyService extends INearbyManager.Stub {
                 if (mInjector instanceof SystemInjector) {
                     // The nearby service must be functioning after this boot phase.
                     ((SystemInjector) mInjector).initializeBluetoothAdapter();
+                    ((SystemInjector) mInjector).initializeBluetoothLeAdvertiserWrapper();
                     // Initialize ContextManager for CHRE scan.
                     ((SystemInjector) mInjector).initializeContextHubManager();
                 }
@@ -227,6 +229,8 @@ public class NearbyService extends INearbyManager.Stub {
     private static final class SystemInjector implements Injector {
         private final Context mContext;
         @Nullable private BluetoothAdapter mBluetoothAdapter;
+
+        @Nullable private BluetoothLeAdvertiserWrapper mBluetoothLeAdvertiserWrapper;
         @Nullable private ContextHubManager mContextHubManager;
         @Nullable private AppOpsManager mAppOpsManager;
 
@@ -239,6 +243,12 @@ public class NearbyService extends INearbyManager.Stub {
         public BluetoothAdapter getBluetoothAdapter() {
             return mBluetoothAdapter;
         }
+
+        @Override
+        @Nullable
+        public BluetoothLeAdvertiserWrapper getBluetoothLeAdvertiserWrapper() {
+            return mBluetoothLeAdvertiserWrapper;
+        };
 
         @Override
         @Nullable
@@ -261,6 +271,13 @@ public class NearbyService extends INearbyManager.Stub {
                 return;
             }
             mBluetoothAdapter = manager.getAdapter();
+        }
+
+        synchronized void initializeBluetoothLeAdvertiserWrapper() {
+            if (mBluetoothLeAdvertiserWrapper != null) {
+                return;
+            }
+            mBluetoothLeAdvertiserWrapper = new BluetoothLeAdvertiserWrapper(mContext);
         }
 
         synchronized void initializeContextHubManager() {
