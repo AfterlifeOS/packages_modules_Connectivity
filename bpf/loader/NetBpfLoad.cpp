@@ -1848,11 +1848,23 @@ static int libbpfPrint(enum libbpf_print_level lvl, const char *const formatStr,
         prio = ANDROID_LOG_DEBUG;
         break;
     }
-    char *s = strdup(formatStr ?: "(no format string)");
+    if (!formatStr) {
+        LOG_PRI(prio, LOG_TAG, "libbpf (null format string)");
+        return 0;
+    }
+
+    // Print each line to avoid being truncated.
+    char *s = NULL;
+    int ret = vasprintf(&s, formatStr, argList);
+    if (ret == -1) {
+        LOG_PRI(prio, LOG_TAG, "libbpf (format failure)");
+        return 0;
+    }
     int len = strlen(s);
     if (len && s[len - 1] == '\n')
         s[len - 1] = 0;
-    LOG_PRI_VA(prio, LOG_TAG, s, argList);
+    vector<string> lines = Split(s, "\n");
+    for (const auto& line : lines) LOG_PRI(prio, LOG_TAG, "%s", line.c_str());
     free(s);
     return 0;
 }
