@@ -160,11 +160,11 @@ constexpr const char* lookupSelinuxContext(const domain d) {
     }
 }
 
-domain getDomainFromSelinuxContext(const char s[BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE]) {
+domain getDomainFromSelinuxContext(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
     for (domain d : AllDomains) {
         // Not sure how to enforce this at compile time, so abort() bpfloader at boot instead
-        if (strlen(lookupSelinuxContext(d)) >= BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE) abort();
-        if (!strncmp(s, lookupSelinuxContext(d), BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE)) return d;
+        if (strlen(lookupSelinuxContext(d)) >= BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE) abort();
+        if (!strncmp(s, lookupSelinuxContext(d), BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return d;
     }
     ALOGE("unrecognized selinux_context '%-32s'", s);
     // Note: we *can* just abort() here as we only load bpf .o files shipped
