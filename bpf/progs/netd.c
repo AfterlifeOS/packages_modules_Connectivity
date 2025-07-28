@@ -41,13 +41,13 @@ static const int DROP_UNLESS_DNS = 2;  // internal to our program
 #define DEFINE_BPF_MAP_NO_NETD(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries) \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries,         \
                        AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", "",   \
-                       PRIVATE, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
+                       BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 // For maps netd only needs read only access to
 #define DEFINE_BPF_MAP_RO_NETD(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries)  \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries,          \
                        AID_ROOT, AID_NET_BW_ACCT, 0460, "netd_readonly/", "", \
-                       PRIVATE, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
+                       BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 // For maps netd needs to be able to read and write
 #define DEFINE_BPF_MAP_RW_NETD(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries) \
@@ -85,23 +85,23 @@ DEFINE_BPF_MAP_NO_NETD(iface_index_name_map, HASH, uint32_t, IfaceValue, 1000)
 
 // A single-element configuration array, packet tracing is enabled when 'true'.
 DEFINE_BPF_MAP_EXT(packet_trace_enabled_map, ARRAY, uint32_t, bool, 1,
-                   AID_ROOT, AID_SYSTEM, 0060, "net_shared/", "", PRIVATE,
+                   AID_ROOT, AID_SYSTEM, 0060, "net_shared/", "",
                    BPFLOADER_MAINLINE_U_VERSION, BPFLOADER_MAX_VER, 0)
 
 // A ring buffer on which packet information is pushed.
 DEFINE_BPF_RINGBUF_EXT(packet_trace_ringbuf, PacketTrace, 32 * 1024,
-                       AID_ROOT, AID_SYSTEM, 0060, "net_shared/", "", PRIVATE,
+                       AID_ROOT, AID_SYSTEM, 0060, "net_shared/", "",
                        BPFLOADER_MAINLINE_U_VERSION, BPFLOADER_MAX_VER);
 
 DEFINE_BPF_MAP_RO_NETD(data_saver_enabled_map, ARRAY, uint32_t, bool, 1)
 
 DEFINE_BPF_MAP_EXT(local_net_access_map, LPM_TRIE, LocalNetAccessKey, bool, 1000,
-                   AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", "", PRIVATE,
+                   AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", "",
                    BPFLOADER_MAINLINE_25Q2_VERSION, BPFLOADER_MAX_VER, 0)
 
 // not preallocated
 DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
-                   AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", "", PRIVATE,
+                   AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", "",
                    BPFLOADER_MAINLINE_25Q2_VERSION, BPFLOADER_MAX_VER, 0)
 
 // iptables xt_bpf programs need to be usable by both netd and netutils_wrappers

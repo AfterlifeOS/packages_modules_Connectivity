@@ -97,11 +97,6 @@ _Static_assert(_Alignof(unsigned long long) == 8, "_Alignof unsigned long long !
 #endif
 
 
-// for maps:
-struct shared_bool { bool shared; };
-#define PRIVATE ((struct shared_bool){ .shared = false })
-//#define SHARED ((struct shared_bool){ .shared = true })
-
 // for programs:
 struct optional_bool { bool optional; };
 #define MANDATORY ((struct optional_bool){ .optional = false })
@@ -153,15 +148,11 @@ struct bpf_map_def {
     //
     // overrides default prefix (which is based on .o location)
     char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
-
-    bool shared;  // use empty string as 'file' component of pin path - allows cross .o map sharing
-
-    char pad0[3];  // manually pad up to 4 byte alignment, may be used for extensions in the future
 };
 
 // This needs to be updated whenever the above structure definition is expanded.
 // These asserts are here to make sure we have cross-6-arch consistency.
-_Static_assert(sizeof(struct bpf_map_def) == 116, "sizeof struct bpf_map_def != 116");
+_Static_assert(sizeof(struct bpf_map_def) == 112, "sizeof struct bpf_map_def != 112");
 _Static_assert(__alignof__(struct bpf_map_def) == 4, "__alignof__ struct bpf_map_def != 4");
 _Static_assert(_Alignof(struct bpf_map_def) == 4, "_Alignof struct bpf_map_def != 4");
 
