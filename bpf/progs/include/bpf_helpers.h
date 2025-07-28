@@ -314,9 +314,10 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         return bpf_sk_storage_delete_unsafe(&the_map, sk);                              \
     };
 
-#define DEFINE_BPF_SK_STORAGE(the_map, TypeOfValue)                                \
-    DEFINE_BPF_SK_STORAGE_EXT(the_map, TypeOfValue,                                \
-                              AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", "",  \
+#define DEFINE_BPF_SK_STORAGE(the_map, TypeOfValue)                           \
+    DEFINE_BPF_SK_STORAGE_EXT(the_map, TypeOfValue,                           \
+                              AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", \
+                              DEFAULT_BPF_PIN_SUBDIR,                         \
                               BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 /* There exist buggy kernels with pre-T OS, that due to
@@ -379,7 +380,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 // for maps not meant to be accessed from userspace
 #define DEFINE_BPF_MAP_KERNEL_INTERNAL(the_map, TYPE, KeyType, ValueType, num_entries)           \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, KeyType, ValueType, num_entries, AID_ROOT, AID_ROOT, 0000, \
-                       "loader/", "", BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
+                       "loader/", DEFAULT_BPF_PIN_SUBDIR, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 #define DEFINE_BPF_MAP_UGM(the_map, TYPE, KeyType, ValueType, num_entries, usr, grp, md) \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, KeyType, ValueType, num_entries, usr, grp, md,     \
@@ -466,7 +467,7 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
 #define DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv, \
                                        opt)                                                        \
     DEFINE_BPF_PROG_EXT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv,                \
-                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, opt, "", "")
+                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, opt, "", DEFAULT_BPF_PIN_SUBDIR)
 
 // Programs (here used in the sense of functions/sections) marked optional are allowed to fail
 // to load (for example due to missing kernel patches).
