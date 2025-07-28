@@ -989,7 +989,7 @@ static string buildMapPinLoc(const domain pin_subdir, const char* prefix,
 }
 
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
-                      const char* prefix, const unsigned int bpfloader_ver) {
+                      const unsigned int bpfloader_ver) {
     int ret;
     vector<char> btfData;
     vector<struct bpf_map_def> md;
@@ -1074,7 +1074,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
                   static_cast<int>(pin_subdir), lookupPinSubdir(pin_subdir));
         }
 
-        string mapPinLoc = buildMapPinLoc(pin_subdir, prefix, objName, mapNames[i]);
+        string mapPinLoc = buildMapPinLoc(pin_subdir, "", objName, mapNames[i]);
         unique_fd fd;
         int saved_errno;
 
@@ -1613,7 +1613,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
 
     ALOGD("BpfLoader ver 0x%05x processing ELF object %s", bpfloader_ver, elfPath);
 
-    ret = createMaps(elfPath, elfFile, mapFds, "", bpfloader_ver);
+    ret = createMaps(elfPath, elfFile, mapFds, bpfloader_ver);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
