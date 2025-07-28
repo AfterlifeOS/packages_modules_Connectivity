@@ -704,9 +704,12 @@ public class Struct {
     /**
      * Convert the parsed Struct subclass object to byte array.
      *
+     * WARNING: Structs should use byteorder annotations on the field, rather than using
+     * legacyWriteToBytes. This method will be deleted in the future.
+     *
      * @param order indicate ByteBuffer is outputted as little-endian or big-endian.
      */
-    public final byte[] writeToBytes(final ByteOrder order) {
+    protected final byte[] legacyWriteToBytes(final ByteOrder order) {
         final FieldInfo[] fieldInfos = getClassFieldInfo(this.getClass());
         final byte[] output = new byte[getSizeInternal(fieldInfos)];
         final ByteBuffer buffer = ByteBuffer.wrap(output);
@@ -717,7 +720,7 @@ public class Struct {
 
     /** Convert the parsed Struct subclass object to byte array with native order. */
     public final byte[] writeToBytes() {
-        return writeToBytes(ByteOrder.nativeOrder());
+        return legacyWriteToBytes(ByteOrder.nativeOrder());
     }
 
     @Override
@@ -786,7 +789,7 @@ public class Struct {
     }
 
     /** A simple Struct which only contains a bool field. */
-    public static class Bool extends Struct {
+    public static class Bool extends LegacyStruct {
         @Struct.Field(order = 0, type = Struct.Type.Bool)
         public final boolean val;
 
