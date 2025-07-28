@@ -172,9 +172,9 @@ domain getDomainFromSelinuxContext(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE])
     abort();
 }
 
-constexpr const char* lookupPinSubdir(const domain d, const char* const unspecified = "") {
+constexpr const char* lookupPinSubdir(const domain d) {
     switch (d) {
-        case domain::unspecified:   return unspecified;
+        case domain::unspecified:   return "";
         case domain::tethering:     return "tethering/";
         case domain::net_private:   return "net_private/";
         case domain::net_shared:    return "net_shared/";
@@ -983,7 +983,7 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
 static string buildMapPinLoc(const domain pin_subdir, const string& objName, const string& mapName) {
     // Format of pin location is /sys/fs/bpf/<pin_subdir|prefix>map_<objName>_<mapName>
     // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
-    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, "") + "map_" +
+    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir) + "map_" +
                        objName + "_" + mapName;
 }
 
@@ -1268,7 +1268,7 @@ static int validateProg(const borrowed_fd& fd, string& progPinLoc,
 static string buildProgPinLoc(const domain pin_subdir, const string& objName, const string& name) {
     // Format of pin location is
     // /sys/fs/bpf/<prefix>prog_<objName>_<progName>
-    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir, "") + "prog_" +
+    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir) + "prog_" +
                         objName + '_' + string(name);
 }
 
