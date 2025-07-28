@@ -1550,8 +1550,7 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
     return 0;
 }
 
-static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver,
-                            const char* const prefix) {
+static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver) {
     int ret;
     vector<string> mapNames;
     vector<struct bpf_map_def> md;
@@ -1585,10 +1584,10 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = bpf_object__load(obj);
     if (ret) return ret;
 
-    ret = pinMaps(elfPath, obj, md, mapNames, prefix);
+    ret = pinMaps(elfPath, obj, md, mapNames, "");
     if (ret) return ret;
 
-    ret = pinProgs(elfPath, obj, cs, prefix, bpfloader_ver);
+    ret = pinProgs(elfPath, obj, cs, "", bpfloader_ver);
     if (ret) return ret;
 
     return 0;
@@ -1653,7 +1652,7 @@ static bool exists(const char* const path) {
 static int loadObject(const unsigned int bpfloader_ver,
                       const char* const fname, const bool useLibbpf = false) {
     string progPath = string(BPFROOT) + fname;
-    int ret = useLibbpf ? loadProgByLibbpf(progPath.c_str(), bpfloader_ver, "") :
+    int ret = useLibbpf ? loadProgByLibbpf(progPath.c_str(), bpfloader_ver) :
                           loadProg(progPath.c_str(), bpfloader_ver, "");
     if (ret) {
         ALOGE("Failed to load object: %s, ret: %s, libbpf: %d",
