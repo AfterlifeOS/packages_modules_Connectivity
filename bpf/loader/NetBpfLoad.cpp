@@ -1274,7 +1274,7 @@ static string buildProgPinLoc(const domain pin_subdir, const char* prefix,
 }
 
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
-                            const char* prefix, const unsigned int bpfloader_ver) {
+                            const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
 
     if (!kvers) {
@@ -1322,7 +1322,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
-        string progPinLoc = buildProgPinLoc(pin_subdir, prefix, objName, name);
+        string progPinLoc = buildProgPinLoc(pin_subdir, "", objName, name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
             ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
@@ -1628,7 +1628,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
 
     applyMapRelo(elfFile, mapFds, cs);
 
-    ret = loadCodeSections(elfPath, cs, string(license.data()), "", bpfloader_ver);
+    ret = loadCodeSections(elfPath, cs, string(license.data()), bpfloader_ver);
     if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d", ret);
 
     return ret;
