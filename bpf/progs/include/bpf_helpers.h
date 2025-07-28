@@ -467,7 +467,8 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
 #define DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv, \
                                        opt)                                                        \
     DEFINE_BPF_PROG_EXT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv,                \
-                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, opt, "", DEFAULT_BPF_PIN_SUBDIR)
+                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, opt,                                 \
+                        DEFAULT_BPF_MAP_SELINUX_CONTEXT, DEFAULT_BPF_PIN_SUBDIR)
 
 // Programs (here used in the sense of functions/sections) marked optional are allowed to fail
 // to load (for example due to missing kernel patches).
