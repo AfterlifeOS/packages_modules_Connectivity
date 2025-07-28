@@ -1477,8 +1477,7 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
 }
 
 static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
-                   const vector<struct bpf_map_def>& md, const vector<string>& mapNames,
-                   const char* const prefix) {
+                   const vector<struct bpf_map_def>& md, const vector<string>& mapNames) {
     int ret;
     string objName = pathToObjName(string(elfPath));
 
@@ -1497,7 +1496,7 @@ static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
                   static_cast<int>(pin_subdir), lookupPinSubdir(pin_subdir));
             return -1;
         }
-        string mapPinLoc = buildMapPinLoc(pin_subdir, prefix, objName, mapNames[i]);
+        string mapPinLoc = buildMapPinLoc(pin_subdir, "", objName, mapNames[i]);
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
             return -1;
@@ -1584,7 +1583,7 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = bpf_object__load(obj);
     if (ret) return ret;
 
-    ret = pinMaps(elfPath, obj, md, mapNames, "");
+    ret = pinMaps(elfPath, obj, md, mapNames);
     if (ret) return ret;
 
     ret = pinProgs(elfPath, obj, cs, "", bpfloader_ver);
