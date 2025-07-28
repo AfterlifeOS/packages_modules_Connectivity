@@ -1593,8 +1593,7 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     return 0;
 }
 
-int loadProg(const char* const elfPath, const unsigned int bpfloader_ver,
-             const char* const prefix) {
+int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
     vector<char> license;
     vector<codeSection> cs;
     vector<unique_fd> mapFds;
@@ -1614,7 +1613,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver,
 
     ALOGD("BpfLoader ver 0x%05x processing ELF object %s", bpfloader_ver, elfPath);
 
-    ret = createMaps(elfPath, elfFile, mapFds, prefix, bpfloader_ver);
+    ret = createMaps(elfPath, elfFile, mapFds, "", bpfloader_ver);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
@@ -1632,7 +1631,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver,
 
     applyMapRelo(elfFile, mapFds, cs);
 
-    ret = loadCodeSections(elfPath, cs, string(license.data()), prefix, bpfloader_ver);
+    ret = loadCodeSections(elfPath, cs, string(license.data()), "", bpfloader_ver);
     if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d", ret);
 
     return ret;
@@ -1653,7 +1652,7 @@ static int loadObject(const unsigned int bpfloader_ver,
                       const char* const fname, const bool useLibbpf = false) {
     string progPath = string(BPFROOT) + fname;
     int ret = useLibbpf ? loadProgByLibbpf(progPath.c_str(), bpfloader_ver) :
-                          loadProg(progPath.c_str(), bpfloader_ver, "");
+                          loadProg(progPath.c_str(), bpfloader_ver);
     if (ret) {
         ALOGE("Failed to load object: %s, ret: %s, libbpf: %d",
               progPath.c_str(), std::strerror(-ret), useLibbpf);
