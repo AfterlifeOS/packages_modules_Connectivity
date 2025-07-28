@@ -110,7 +110,6 @@ struct optional_bool { bool optional; };
 
 // Length of strings (incl. selinux_context and pin_subdir)
 // in the bpf_map_def and bpf_prog_def structs.
-#define BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE 32
 #define BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE 32
 
 /*
@@ -150,7 +149,7 @@ struct bpf_map_def {
     // These are fixed length strings, padded with null bytes
     //
     // overrides default selinux context (which is based on pin subdir)
-    char selinux_context[BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE];
+    char selinux_context[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
     //
     // overrides default prefix (which is based on .o location)
     char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
@@ -181,7 +180,7 @@ struct bpf_prog_def {
     unsigned int bpfloader_min_ver;
     unsigned int bpfloader_max_ver;
 
-    char selinux_context[BPF_SELINUX_CONTEXT_CHAR_ARRAY_SIZE];
+    char selinux_context[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
     char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
 };
 
