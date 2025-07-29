@@ -368,7 +368,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 #endif
 
 #ifndef DEFAULT_BPF_PIN_SUBDIR
-#define DEFAULT_BPF_PIN_SUBDIR ""
+#error "Must define DEFAULT_BPF_PIN_SUBDIR"
 #endif
 
 #ifndef DEFAULT_BPF_MAP_UID
