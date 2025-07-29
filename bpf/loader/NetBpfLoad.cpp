@@ -798,13 +798,11 @@ static bool isBtfSupported(enum bpf_map_type type) {
     return type != BPF_MAP_TYPE_DEVMAP_HASH && type != BPF_MAP_TYPE_RINGBUF;
 }
 
-static int pinMap(const borrowed_fd& fd, const string& mapName, const struct bpf_map_def& mapDef,
-                  const string& objName, const string& mapPinLoc) {
+static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const string& mapPinLoc) {
         int ret;
         if (mapDef.selinux_context[0]) {
             validatePinDir(mapDef.selinux_context);
-            string createLoc = string(BPF_FS_PATH) + mapDef.selinux_context +
-                               "tmp_map_" + objName + "_" + mapName;
+            string createLoc = string(BPF_FS_PATH) + mapDef.selinux_context + "tmp_map";
             ret = bpfFdPin(fd, createLoc.c_str());
             if (ret) {
                 const int err = errno;
@@ -1040,7 +1038,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
         if (!mapMatchesExpectations(fd, mapNames[i], md[i], type)) return -ENOTUNIQ;
 
-        ret = pinMap(fd, mapNames[i], md[i], objName, mapPinLoc);
+        ret = pinMap(fd, md[i], mapPinLoc);
         if (ret) return ret;
 
         mapFds.push_back(std::move(fd));
@@ -1402,7 +1400,7 @@ static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
             return -1;
         }
 
-        ret = pinMap(bpf_map__fd(m), mapNames[i], md[i], objName, mapPinLoc);
+        ret = pinMap(bpf_map__fd(m), md[i], mapPinLoc);
         if (ret) return ret;
     }
     return 0;
