@@ -1068,11 +1068,6 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         }
 
         domain pin_subdir = getDomainFromPinSubdir(md[i].pin_subdir);
-        if (specified(pin_subdir)) {
-            ALOGV("map %s pin_subdir [%-32s] -> %d -> '%s'", mapNames[i].c_str(), md[i].pin_subdir,
-                  static_cast<int>(pin_subdir), lookupPinSubdir(pin_subdir));
-        }
-
         string mapPinLoc = buildMapPinLoc(pin_subdir, objName, mapNames[i]);
         unique_fd fd;
         int saved_errno;
@@ -1309,12 +1304,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (bpfloader_ver < bpfMinVer) continue;
         if (bpfloader_ver >= bpfMaxVer) continue;
 
-        if (specified(pin_subdir)) {
-            ALOGV("prog %s pin_subdir [%-32s] -> %d -> '%s'", name.c_str(),
-                  cs[i].prog_def->pin_subdir, static_cast<int>(pin_subdir),
-                  lookupPinSubdir(pin_subdir));
-        }
-
         // strip any potential $foo suffix
         // this can be used to provide duplicate programs
         // conditionally loaded based on running kernel version
@@ -1489,11 +1478,6 @@ static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
         if (!bpf_map__autocreate(m)) continue;
 
         domain pin_subdir = getDomainFromPinSubdir(md[i].pin_subdir);
-        if (specified(pin_subdir)) {
-            ALOGE("map %s pin_subdir [%-32s] -> %d -> '%s'", mapNames[i].c_str(), md[i].pin_subdir,
-                  static_cast<int>(pin_subdir), lookupPinSubdir(pin_subdir));
-            return -1;
-        }
         string mapPinLoc = buildMapPinLoc(pin_subdir, objName, mapNames[i]);
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
@@ -1524,12 +1508,6 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
         string name = cs[i].name;
         name = name.substr(0, name.find_last_of('$'));
         domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
-        if (specified(pin_subdir)) {
-            ALOGE("prog %s pin_subdir [%-32s] -> %d -> '%s'", name.c_str(),
-                  cs[i].prog_def->pin_subdir, static_cast<int>(pin_subdir),
-                  lookupPinSubdir(pin_subdir));
-            return -1;
-        }
         string progPinLoc = buildProgPinLoc(pin_subdir, objName, name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             // TODO: Skip loading lower priority program
