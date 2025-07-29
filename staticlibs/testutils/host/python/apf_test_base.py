@@ -140,6 +140,10 @@ class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
           counter_name,
       )
 
+      matched_pkt_count_before_test = apf_utils.get_matched_packet_counts(
+          self.serverDevice, self.server_iface_name, receive_packet
+      )
+
       # send 3 packets to prevent flaky test result
       for _ in range(3):
         apf_utils.send_raw_packet_downstream(
@@ -150,7 +154,7 @@ class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
           lambda: apf_utils.get_matched_packet_counts(
               self.serverDevice, self.server_iface_name, receive_packet
           )
-          == 1,
+          > matched_pkt_count_before_test,
           # ensure the server device capturing the offload packet on the handler thread
           retry_interval_sec=3,
       )
