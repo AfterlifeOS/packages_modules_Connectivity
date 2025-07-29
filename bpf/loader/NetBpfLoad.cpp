@@ -184,11 +184,12 @@ constexpr const char* lookupPinSubdir(const domain d) {
     }
 };
 
-domain getDomainFromPinSubdir(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
+void validatePinDir(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
+    if (!s[0]) abort();
     for (domain d : AllDomains) {
         // Not sure how to enforce this at compile time, so abort() bpfloader at boot instead
         if (strlen(lookupPinSubdir(d)) >= BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE) abort();
-        if (!strncmp(s, lookupPinSubdir(d), BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return d;
+        if (!strncmp(s, lookupPinSubdir(d), BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
     }
     ALOGE("unrecognized pin_subdir '%-32s'", s);
     // Note: we *can* just abort() here as we only load bpf .o files shipped
@@ -980,11 +981,12 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
     return type;
 }
 
-static string buildMapPinLoc(const domain pin_subdir, const string& objName, const string& mapName) {
-    // Format of pin location is /sys/fs/bpf/<pin_subdir|prefix>map_<objName>_<mapName>
+static string buildMapPinLoc(const char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE],
+                             const string& objName, const string& mapName) {
+    validatePinDir(pin_subdir);
+    // Format of pin location is /sys/fs/bpf/<pin_subdir>map_<objName>_<mapName>
     // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
-    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir) + "map_" +
-                       objName + "_" + mapName;
+    return string(BPF_FS_PATH) + pin_subdir + "map_" + objName + "_" + mapName;
 }
 
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
@@ -1067,8 +1069,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             if (max_entries < page_size) max_entries = page_size;
         }
 
-        domain pin_subdir = getDomainFromPinSubdir(md[i].pin_subdir);
-        string mapPinLoc = buildMapPinLoc(pin_subdir, objName, mapNames[i]);
+        string mapPinLoc = buildMapPinLoc(md[i].pin_subdir, objName, mapNames[i]);
         unique_fd fd;
         int saved_errno;
 
@@ -1260,11 +1261,11 @@ static int validateProg(const borrowed_fd& fd, string& progPinLoc,
     return 0;
 }
 
-static string buildProgPinLoc(const domain pin_subdir, const string& objName, const string& name) {
-    // Format of pin location is
-    // /sys/fs/bpf/<prefix>prog_<objName>_<progName>
-    return string(BPF_FS_PATH) + lookupPinSubdir(pin_subdir) + "prog_" +
-                        objName + '_' + string(name);
+static string buildProgPinLoc(const char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE],
+                              const string& objName, const string& name) {
+    validatePinDir(pin_subdir);
+    // Format of pin location is /sys/fs/bpf/<prefix>prog_<objName>_<progName>
+    return string(BPF_FS_PATH) + pin_subdir + "prog_" + objName + '_' + string(name);
 }
 
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
@@ -1297,7 +1298,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 
         unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
         unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
-        domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
 
         ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)", i, name.c_str(),
               bpfMinVer, bpfMaxVer);
@@ -1310,7 +1310,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
-        string progPinLoc = buildProgPinLoc(pin_subdir, objName, name);
+        string progPinLoc = buildProgPinLoc(cs[i].prog_def->pin_subdir, objName, name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
             ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
@@ -1477,8 +1477,7 @@ static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
         // This map was skipped
         if (!bpf_map__autocreate(m)) continue;
 
-        domain pin_subdir = getDomainFromPinSubdir(md[i].pin_subdir);
-        string mapPinLoc = buildMapPinLoc(pin_subdir, objName, mapNames[i]);
+        string mapPinLoc = buildMapPinLoc(md[i].pin_subdir, objName, mapNames[i]);
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
             return -1;
@@ -1507,8 +1506,7 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
 
         string name = cs[i].name;
         name = name.substr(0, name.find_last_of('$'));
-        domain pin_subdir = getDomainFromPinSubdir(cs[i].prog_def->pin_subdir);
-        string progPinLoc = buildProgPinLoc(pin_subdir, objName, name);
+        string progPinLoc = buildProgPinLoc(cs[i].prog_def->pin_subdir, objName, name);
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             // TODO: Skip loading lower priority program
             ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());
