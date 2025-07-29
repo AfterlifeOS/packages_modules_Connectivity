@@ -363,6 +363,10 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         return bpf_map_delete_elem_unsafe(&the_map, k);                                          \
     };
 
+#ifndef BPF_OBJ_NAME
+#error "Must define BPF_OBJ_NAME"
+#endif
+
 #ifndef DEFAULT_BPF_MAP_SELINUX_CONTEXT
 #define DEFAULT_BPF_MAP_SELINUX_CONTEXT ""
 #endif
