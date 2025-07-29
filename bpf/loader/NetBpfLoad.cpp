@@ -88,43 +88,6 @@ using std::vector;
 namespace android {
 namespace bpf {
 
-// Bpf programs may specify per-program & per-map selinux_context and pin_subdir.
-//
-// The BpfLoader needs to convert these bpf.o specified strings into an enum
-// for internal use (to check that valid values were specified for the specific
-// location of the bpf.o file).
-//
-// It also needs to map selinux_context's into pin_subdir's.
-// This is because of how selinux_context is actually implemented via pin+rename.
-//
-// Thus 'domain' enumerates all selinux_context's/pin_subdir's that the BpfLoader
-// is aware of.  Thus there currently needs to be a 1:1 mapping between the two.
-//
-enum class domain : int {
-    unspecified = 0,    // means just use the default for that specific pin location
-    tethering,          // (S+) fs_bpf_tethering     /sys/fs/bpf/tethering
-    net_private,        // (T+) fs_bpf_net_private   /sys/fs/bpf/net_private
-    net_shared,         // (T+) fs_bpf_net_shared    /sys/fs/bpf/net_shared
-    netd_readonly,      // (T+) fs_bpf_netd_readonly /sys/fs/bpf/netd_readonly
-    netd_shared,        // (T+) fs_bpf_netd_shared   /sys/fs/bpf/netd_shared
-    loader,             // (U+) fs_bpf_loader        /sys/fs/bpf/loader
-                        // on T due to lack of sepolicy/genfscon rules it behaves simply as 'fs_bpf'
-};
-
-static constexpr domain AllDomains[] = {
-    domain::unspecified,
-    domain::tethering,
-    domain::net_private,
-    domain::net_shared,
-    domain::netd_readonly,
-    domain::netd_shared,
-    domain::loader,
-};
-
-static constexpr bool specified(domain d) {
-    return d != domain::unspecified;
-}
-
 // Returns the build type string (from ro.build.type).
 const std::string& getBuildType() {
     static std::string t = GetProperty("ro.build.type", "unknown");
@@ -148,48 +111,14 @@ inline bool isUserdebug() {
 
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
-constexpr const char* lookupSelinuxContext(const domain d) {
-    switch (d) {
-        case domain::unspecified:   return "";
-        case domain::tethering:     return "tethering/";
-        case domain::net_private:   return "net_private/";
-        case domain::net_shared:    return "net_shared/";
-        case domain::netd_readonly: return "netd_readonly/";
-        case domain::netd_shared:   return "netd_shared/";
-        case domain::loader:        return "loader/";
-    }
-}
-
-domain getDomainFromSelinuxContext(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
-    for (domain d : AllDomains) {
-        // Not sure how to enforce this at compile time, so abort() bpfloader at boot instead
-        if (strlen(lookupSelinuxContext(d)) >= BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE) abort();
-        if (!strncmp(s, lookupSelinuxContext(d), BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return d;
-    }
-    ALOGE("unrecognized selinux_context '%-32s'", s);
-    // Note: we *can* just abort() here as we only load bpf .o files shipped
-    // in the same mainline module / apex as NetBpfLoad itself.
-    abort();
-}
-
-constexpr const char* lookupPinSubdir(const domain d) {
-    switch (d) {
-        case domain::unspecified:   return "";
-        case domain::tethering:     return "tethering/";
-        case domain::net_private:   return "net_private/";
-        case domain::net_shared:    return "net_shared/";
-        case domain::netd_readonly: return "netd_readonly/";
-        case domain::netd_shared:   return "netd_shared/";
-        case domain::loader:        return "loader/";
-    }
-};
-
 void validatePinDir(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
-    if (!s[0]) abort();
-    for (domain d : AllDomains) {
-        // Not sure how to enforce this at compile time, so abort() bpfloader at boot instead
-        if (strlen(lookupPinSubdir(d)) >= BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE) abort();
-        if (!strncmp(s, lookupPinSubdir(d), BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
+    if (!strncmp(s, "tethering/",     BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
+    if (isAtLeastT) {
+        if (!strncmp(s, "net_private/",   BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
+        if (!strncmp(s, "net_shared/",    BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
+        if (!strncmp(s, "netd_readonly/", BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
+        if (!strncmp(s, "netd_shared/",   BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
+        if (!strncmp(s, "loader/",        BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
     }
     ALOGE("unrecognized pin_subdir '%-32s'", s);
     // Note: we *can* just abort() here as we only load bpf .o files shipped
@@ -875,13 +804,9 @@ static bool isBtfSupported(enum bpf_map_type type) {
 static int pinMap(const borrowed_fd& fd, const string& mapName, const struct bpf_map_def& mapDef,
                   const string& objName, const string& mapPinLoc) {
         int ret;
-        domain selinux_context = getDomainFromSelinuxContext(mapDef.selinux_context);
-        if (specified(selinux_context)) {
-            ALOGV("map %s selinux_context [%-32s] -> %d -> '%s' (%s)", mapName.c_str(),
-                  mapDef.selinux_context, static_cast<int>(selinux_context),
-                  lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
-
-            string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
+        if (mapDef.selinux_context[0]) {
+            validatePinDir(mapDef.selinux_context);
+            string createLoc = string(BPF_FS_PATH) + mapDef.selinux_context +
                                "tmp_map_" + objName + "_" + mapName;
             ret = bpfFdPin(fd, createLoc.c_str());
             if (ret) {
@@ -1183,12 +1108,9 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
 static int pinProg(const borrowed_fd& fd, string& name, const struct bpf_prog_def& progDef,
                    const string& objName, string& progPinLoc) {
     int ret;
-    domain selinux_context = getDomainFromSelinuxContext(progDef.selinux_context);
-    if (specified(selinux_context)) {
-        ALOGV("prog %s selinux_context [%-32s] -> %d -> '%s' (%s)", name.c_str(),
-              progDef.selinux_context, static_cast<int>(selinux_context),
-              lookupSelinuxContext(selinux_context), lookupPinSubdir(selinux_context));
-        string createLoc = string(BPF_FS_PATH) + lookupPinSubdir(selinux_context) +
+    if (progDef.selinux_context[0]) {
+        validatePinDir(progDef.selinux_context);
+        string createLoc = string(BPF_FS_PATH) + progDef.selinux_context +
                            "tmp_prog_" + objName + '_' + string(name);
         ret = bpfFdPin(fd, createLoc.c_str());
         if (ret) {
