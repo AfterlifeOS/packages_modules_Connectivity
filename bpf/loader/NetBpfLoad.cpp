@@ -1638,7 +1638,7 @@ static int loadAllObjects(const unsigned int bpfloader_ver) {
     // S+ Tethering mainline module (network_stack): tether offload
     // loads under /sys/fs/bpf/tethering:
     if (loadObject(bpfloader_ver, "offload.o")) return 1;
-    if (loadObject(bpfloader_ver, "test.o")) return 1;
+    if (loadObject(bpfloader_ver, "test.o", isAtLeast25Q3)) return 1;
     if (isAtLeastT) {
         // T+ Tethering mainline module loads under:
         // /sys/fs/bpf/net_shared: shared with netd & system server
