@@ -29,6 +29,9 @@ public interface Injector {
     /** Get the BluetoothAdapter for BleDiscoveryProvider to scan. */
     BluetoothAdapter getBluetoothAdapter();
 
+    /** Get the BluetoothLeAdvertiserWrapper to start BLE broadcast. */
+    BluetoothLeAdvertiserWrapper getBluetoothLeAdvertiserWrapper();
+
     /** Get the ContextHubManagerAdapter for ChreDiscoveryProvider to scan. */
     ContextHubManager getContextHubManager();
 
