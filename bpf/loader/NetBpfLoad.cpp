@@ -1100,13 +1100,12 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
-static int pinProg(const borrowed_fd& fd, string& name, const struct bpf_prog_def& progDef,
-                   const string& objName, string& progPinLoc) {
+static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef,
+                   const string& progPinLoc) {
     int ret;
     if (progDef.selinux_context[0]) {
         validatePinDir(progDef.selinux_context);
-        string createLoc = string(BPF_FS_PATH) + progDef.selinux_context +
-                           "tmp_prog_" + objName + '_' + string(name);
+        string createLoc = string(BPF_FS_PATH) + progDef.selinux_context + "tmp_prog";
         ret = bpfFdPin(fd, createLoc.c_str());
         if (ret) {
             const int err = errno;
@@ -1285,7 +1284,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (!fd.ok()) return fd.get();
 
         if (!reuse) {
-            ret = pinProg(fd, name, cs[i].prog_def.value(), objName, progPinLoc);
+            ret = pinProg(fd, cs[i].prog_def.value(), progPinLoc);
             if (ret) return ret;
         }
         ret = validateProg(fd, progPinLoc, bpfloader_ver);
@@ -1431,7 +1430,7 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
         }
 
         int fd = bpf_program__fd(prog);
-        ret = pinProg(fd, name, cs[i].prog_def.value(), objName, progPinLoc);
+        ret = pinProg(fd, cs[i].prog_def.value(), progPinLoc);
         if (ret) return ret;
         ret = validateProg(fd, progPinLoc, bpfloader_ver);
         if (ret) return ret;
