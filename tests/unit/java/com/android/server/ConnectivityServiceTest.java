@@ -17801,12 +17801,18 @@ public class ConnectivityServiceTest {
     }
 
     @Test
-    public void testAutomotiveEthernetAllowedUids() throws Exception {
+    public void testAutomotiveEthernetAllowedUids_withAutoFeature() throws Exception {
         mServiceContext.setPermission(NETWORK_FACTORY, PERMISSION_GRANTED);
         mServiceContext.setPermission(MANAGE_TEST_NETWORKS, PERMISSION_GRANTED);
 
         // Has automotive feature.
         validateAutomotiveEthernetAllowedUids(true);
+    }
+
+    @Test
+    public void testAutomotiveEthernetAllowedUids_withoutAutoFeature() throws Exception {
+        mServiceContext.setPermission(NETWORK_FACTORY, PERMISSION_GRANTED);
+        mServiceContext.setPermission(MANAGE_TEST_NETWORKS, PERMISSION_GRANTED);
 
         // No automotive feature.
         validateAutomotiveEthernetAllowedUids(false);
@@ -19347,7 +19353,7 @@ public class ConnectivityServiceTest {
         verifyClatdStop(null /* inOrder */, MOBILE_IFNAME);
     }
 
-    private static final int EXPECTED_TEST_METHOD_COUNT = 332;
+    private static final int EXPECTED_TEST_METHOD_COUNT = 333;
 
     @Test
     public void testTestMethodCount() {
