@@ -143,6 +143,27 @@ struct sdk_level_uint { unsigned int sdk_level; };
  * See cs/p:aosp-master%20-file:prebuilts/%20file:genfs_contexts%20"genfscon%20bpf"
  */
 
+#define IS_VALID_PIN_DIR(min_loader, pin_subdir) \
+    ( \
+        !__builtin_strcmp(pin_subdir, "tethering/") || \
+        (min_loader >= BPFLOADER_MAINLINE_T_VERSION) && \
+            ( \
+                !__builtin_strcmp(pin_subdir, "net_private/")   || \
+                !__builtin_strcmp(pin_subdir, "net_shared/")    || \
+                !__builtin_strcmp(pin_subdir, "netd_readonly/") || \
+                !__builtin_strcmp(pin_subdir, "netd_shared/")   || \
+                !__builtin_strcmp(pin_subdir, "loader/") \
+            ) \
+    )
+
+#define IS_EMPTY_STRING(s) !__builtin_strcmp(s, "")
+
+#define VALIDATE_SELINUX_CONTEXT(min_loader, pin_subdir) \
+    _Static_assert(IS_EMPTY_STRING(pin_subdir) \
+                || IS_VALID_PIN_DIR(min_loader, pin_subdir), pin_subdir " is invalid")
+#define VALIDATE_PIN_DIR(min_loader, pin_subdir) \
+    _Static_assert(IS_VALID_PIN_DIR(min_loader, pin_subdir), pin_subdir " is invalid")
+
 /*
  * Helper functions called from eBPF programs written in C. These are
  * implemented in the kernel sources.
@@ -220,6 +241,8 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, \
                             usr, grp, md, selinux, pindir, minkver,         \
                             maxkver, minloader, maxloader, mapflags)        \
+    VALIDATE_SELINUX_CONTEXT(minloader, selinux);                           \
+    VALIDATE_PIN_DIR(minloader, pindir);                                    \
     const struct bpf_map_def SECTION(".android_maps") the_map##_def = {     \
         .type = BPF_MAP_TYPE_##TYPE,                                        \
         .key_size = (keysize),                                              \
@@ -452,6 +475,8 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
 
 #define DEFINE_BPF_PROG_EXT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv,  \
                             min_loader, max_loader, opt, selinux, pindir)                \
+    VALIDATE_SELINUX_CONTEXT(min_loader, selinux);                                       \
+    VALIDATE_PIN_DIR(min_loader, pindir);                                                \
     const struct bpf_prog_def SECTION("progs") the_prog##_def = {                        \
         .uid = (prog_uid),                                                               \
         .gid = (prog_gid),                                                               \
