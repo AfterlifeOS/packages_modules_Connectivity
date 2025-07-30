@@ -41,7 +41,7 @@
  * to change which bpfloaders will process the resulting .o file.
  */
 #ifndef BPFLOADER_MIN_VER
-#define BPFLOADER_MIN_VER NEED_TO_DEFINE_BPFLOADER_MIN_VER  // inclusive, ie. >=
+#error "You must define BPFLOADER_MIN_VER"  // inclusive, ie. >=
 #endif
 
 #ifndef BPFLOADER_MAX_VER
