@@ -373,8 +373,6 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 
 #ifndef DEFAULT_BPF_MAP_UID
 #define DEFAULT_BPF_MAP_UID AID_ROOT
-#elif BPFLOADER_MIN_VER < 28u
-#error "Bpf Map UID must be left at default of AID_ROOT for BpfLoader prior to v0.28"
 #endif
 
 // for maps not meant to be accessed from userspace
