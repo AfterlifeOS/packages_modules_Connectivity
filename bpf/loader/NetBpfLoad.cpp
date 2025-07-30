@@ -111,21 +111,6 @@ inline bool isUserdebug() {
 
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
-void validatePinDir(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
-    if (!strncmp(s, "tethering/",     BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
-    if (isAtLeastT) {
-        if (!strncmp(s, "net_private/",   BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
-        if (!strncmp(s, "net_shared/",    BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
-        if (!strncmp(s, "netd_readonly/", BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
-        if (!strncmp(s, "netd_shared/",   BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
-        if (!strncmp(s, "loader/",        BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
-    }
-    ALOGE("unrecognized pin_subdir '%-*s'", BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE, s);
-    // Note: we *can* just abort() here as we only load bpf .o files shipped
-    // in the same mainline module / apex as NetBpfLoad itself.
-    abort();
-}
-
 static string pathToObjName(const string& path) {
     // extract everything after the final slash, ie. this is the filename 'foo.o'
     string filename = Split(path, "/").back();
@@ -797,7 +782,6 @@ static bool isBtfSupported(enum bpf_map_type type) {
 static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const string& mapPinLoc) {
         int ret;
         if (mapDef.selinux_context[0]) {
-            validatePinDir(mapDef.selinux_context);
             string createLoc = string(BPF_FS_PATH) + mapDef.selinux_context + "tmp_map";
             ret = bpfFdPin(fd, createLoc.c_str());
             if (ret) {
@@ -899,7 +883,6 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
 
 static string buildMapPinLoc(const char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE],
                              const string& objName, const string& mapName) {
-    validatePinDir(pin_subdir);
     // Format of pin location is /sys/fs/bpf/<pin_subdir>map_<objName>_<mapName>
     // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
     return string(BPF_FS_PATH) + pin_subdir + "map_" + objName + "_" + mapName;
@@ -1100,7 +1083,6 @@ static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef,
                    const string& progPinLoc) {
     int ret;
     if (progDef.selinux_context[0]) {
-        validatePinDir(progDef.selinux_context);
         string createLoc = string(BPF_FS_PATH) + progDef.selinux_context + "tmp_prog";
         ret = bpfFdPin(fd, createLoc.c_str());
         if (ret) {
@@ -1175,7 +1157,6 @@ static int validateProg(const borrowed_fd& fd, string& progPinLoc,
 
 static string buildProgPinLoc(const char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE],
                               const string& objName, const string& name) {
-    validatePinDir(pin_subdir);
     // Format of pin location is /sys/fs/bpf/<prefix>prog_<objName>_<progName>
     return string(BPF_FS_PATH) + pin_subdir + "prog_" + objName + '_' + string(name);
 }
