@@ -84,8 +84,12 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
             throws ErrnoException, NullPointerException {
         // Supports up to 1023 byte key and 65535 byte values
         // Creating a BpfMap with larger keys/values seems like a bad idea any way...
-        keySize &= 1023; // 10-bits
-        valueSize &= 65535; // 16-bits
+        if (keySize > 1023) {
+            throw new IllegalArgumentException("Key size " + keySize + " exceeds 1023");
+        }
+        if (valueSize > 65535) {
+            throw new IllegalArgumentException("Value size " + valueSize + " exceeds 65535");
+        }
         var key = Pair.create(path, (mode << 26) ^ (keySize << 16) ^ valueSize);
         // unlocked fetch is safe: map is concurrent read capable, and only inserted into
         ParcelFileDescriptor fd = sFdCache.get(key);
