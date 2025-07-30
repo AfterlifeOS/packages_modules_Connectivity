@@ -364,10 +364,6 @@ static enum bpf_prog_type getSectionType(string& name) {
     return BPF_PROG_TYPE_UNSPEC;
 }
 
-static int readProgDefs(ifstream& elfFile, vector<struct bpf_prog_def>& pd) {
-    return readSectionByName("progs", elfFile, pd);
-}
-
 static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vector<string>& names,
                               optional<unsigned> symbolType = std::nullopt) {
     int ret;
@@ -423,7 +419,7 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
     entries = shTable.size();
 
     vector<struct bpf_prog_def> pd;
-    ret = readProgDefs(elfFile, pd);
+    ret = readSectionByName("progs", elfFile, pd);
     if (ret) return ret;
     vector<string> progDefNames;
     ret = getSectionSymNames(elfFile, "progs", progDefNames);
