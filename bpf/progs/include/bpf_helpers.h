@@ -329,7 +329,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 
 #ifdef THIS_BPF_PROGRAM_IS_FOR_TEST_PURPOSES_ONLY
 #define BPF_MAP_ASSERT_OK(type, entries, mode)
-#elif BPFLOADER_MIN_VER >= BPFLOADER_T_VERSION
+#elif BPFLOADER_MIN_VER >= BPFLOADER_MAINLINE_T_VERSION
 #define BPF_MAP_ASSERT_OK(type, entries, mode)
 #else
 #define BPF_MAP_ASSERT_OK(type, entries, mode) \
