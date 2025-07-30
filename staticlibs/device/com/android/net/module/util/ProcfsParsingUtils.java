@@ -55,7 +55,7 @@ public final class ProcfsParsingUtils {
     private static final String IPV4_MCAST_PATH = "/proc/net/igmp";
     private static final String IPV6_MCAST_PATH = "/proc/net/igmp6";
     private static final String IPV4_DEFAULT_TTL_PATH = "/proc/sys/net/ipv4/ip_default_ttl";
-    private static final String SYS_CLASS_NET_PATH = "/sys/class/net";
+    private static final String SYS_CLASS_NET_PATH = "/sys/class/net/";
 
     private static final Pattern WHITESPACE_PATTERN = Pattern.compile("\\s+");
 
