@@ -781,19 +781,18 @@ static bool isBtfSupported(enum bpf_map_type type) {
 
 static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const string& mapPinLoc) {
         int ret;
-        if (mapDef.selinux_context[0]) {
-            string createLoc = string(BPF_FS_PATH) + mapDef.selinux_context + "tmp_map";
-            ret = bpfFdPin(fd, createLoc.c_str());
+        if (mapDef.create_location[0]) {
+            ret = bpfFdPin(fd, mapDef.create_location);
             if (ret) {
                 const int err = errno;
-                ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
+                ALOGE("create %s -> %d [%d:%s]", mapDef.create_location, ret, err, strerror(err));
                 return -err;
             }
-            ret = renameat2(AT_FDCWD, createLoc.c_str(),
+            ret = renameat2(AT_FDCWD, mapDef.create_location,
                             AT_FDCWD, mapPinLoc.c_str(), RENAME_NOREPLACE);
             if (ret) {
                 const int err = errno;
-                ALOGE("rename %s %s -> %d [%d:%s]", createLoc.c_str(), mapPinLoc.c_str(), ret,
+                ALOGE("rename %s %s -> %d [%d:%s]", mapDef.create_location, mapPinLoc.c_str(), ret,
                       err, strerror(err));
                 return -err;
             }
@@ -1082,19 +1081,18 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
 static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef,
                    const string& progPinLoc) {
     int ret;
-    if (progDef.selinux_context[0]) {
-        string createLoc = string(BPF_FS_PATH) + progDef.selinux_context + "tmp_prog";
-        ret = bpfFdPin(fd, createLoc.c_str());
+    if (progDef.create_location[0]) {
+        ret = bpfFdPin(fd, progDef.create_location);
         if (ret) {
             const int err = errno;
-            ALOGE("create %s -> %d [%d:%s]", createLoc.c_str(), ret, err, strerror(err));
+            ALOGE("create %s -> %d [%d:%s]", progDef.create_location, ret, err, strerror(err));
             return -err;
         }
-        ret = renameat2(AT_FDCWD, createLoc.c_str(),
+        ret = renameat2(AT_FDCWD, progDef.create_location,
                         AT_FDCWD, progPinLoc.c_str(), RENAME_NOREPLACE);
         if (ret) {
             const int err = errno;
-            ALOGE("rename %s %s -> %d [%d:%s]", createLoc.c_str(), progPinLoc.c_str(), ret,
+            ALOGE("rename %s %s -> %d [%d:%s]", progDef.create_location, progPinLoc.c_str(), ret,
                   err, strerror(err));
             return -err;
         }
@@ -2024,7 +2022,7 @@ static int doLoad(char** argv, char * const envp[]) {
     }
 
     // Create all the pin subdirectories
-    // (this must be done first to allow selinux_context and pin_subdir functionality,
+    // (this must be done first to allow create_location and pin_subdir functionality,
     //  which could otherwise fail with ENOENT during object pinning or renaming,
     //  due to ordering issues)
     if (createDir("/sys/fs/bpf/tethering")) return 1;

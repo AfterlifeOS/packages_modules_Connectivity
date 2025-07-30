@@ -164,8 +164,8 @@ struct sdk_level_uint { unsigned int sdk_level; };
 #define VALIDATE_PIN_DIR(min_loader, pin_subdir) \
     _Static_assert(IS_VALID_PIN_DIR(min_loader, pin_subdir), pin_subdir " is invalid")
 
-#define APPEND_SLASH_IF_NOT_EMPTY_STRING(s) \
-    __builtin_choose_expr(IS_EMPTY_STRING(s), "", s "/")
+#define CREATE_LOCATION(selinux_context) \
+    __builtin_choose_expr(IS_EMPTY_STRING(selinux_context), "", "/sys/fs/bpf/" selinux_context "/tmp")
 
 /*
  * Helper functions called from eBPF programs written in C. These are
@@ -259,7 +259,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         .bpfloader_max_ver = (maxloader),                                   \
         .min_kver = (minkver).kver,                                         \
         .max_kver = (maxkver).kver,                                         \
-        .selinux_context = APPEND_SLASH_IF_NOT_EMPTY_STRING(selinux),       \
+        .create_location = CREATE_LOCATION(selinux),                        \
         .pin_subdir = pindir "/",                                           \
     };
 
@@ -488,7 +488,7 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
         .optional = (opt).optional,                                                      \
         .bpfloader_min_ver = (min_loader),                                               \
         .bpfloader_max_ver = (max_loader),                                               \
-        .selinux_context = APPEND_SLASH_IF_NOT_EMPTY_STRING(selinux),                    \
+        .create_location = CREATE_LOCATION(selinux),                                     \
         .pin_subdir = pindir "/",                                                        \
     };                                                                                   \
     SECTION(SECTION_NAME)                                                                \
