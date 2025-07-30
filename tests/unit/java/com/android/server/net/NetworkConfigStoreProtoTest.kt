@@ -100,5 +100,10 @@ class NetworkConfigStoreProtoTest {
         assertEquals(ipConfig, ethConfig.ipConfig)
         assertEquals(MeteredOverride.METERED_OVERRIDE_FORCE_METERED, ethConfig.meteredOverride)
         assertEquals(staticIpv4Configuration, ethConfig.ipConfig.staticIpv4Config)
+
+        val ethState = NetworkConfigStoreProto.EthernetConfigHolderProto.newBuilder().apply {
+            addConfigs(ethConfig)
+        }.build()
+        assertEquals(ethConfig, ethState.getConfigs(0))
     }
 }

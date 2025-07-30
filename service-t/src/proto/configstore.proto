@@ -115,3 +115,8 @@ message EthernetConfiguration {
     // static configuration.
     required MeteredOverride metered_override = 3;
 }
+
+// Defines the collective configuration states for all ethernet interfaces.
+message EthernetConfigHolderProto {
+  repeated EthernetConfiguration configs = 1;
+}
