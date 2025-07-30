@@ -120,7 +120,7 @@ void validatePinDir(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
         if (!strncmp(s, "netd_shared/",   BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
         if (!strncmp(s, "loader/",        BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE)) return;
     }
-    ALOGE("unrecognized pin_subdir '%-32s'", s);
+    ALOGE("unrecognized pin_subdir '%-*s'", BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE, s);
     // Note: we *can* just abort() here as we only load bpf .o files shipped
     // in the same mainline module / apex as NetBpfLoad itself.
     abort();
