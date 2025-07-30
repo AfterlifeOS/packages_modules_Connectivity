@@ -178,6 +178,7 @@ java_library {
 java_library {
     name: "net-utils-device-common-struct-base",
     srcs: [
+        "device/com/android/net/module/util/LegacyStruct.java",
         "device/com/android/net/module/util/Struct.java",
     ],
     sdk_version: "module_current",
@@ -688,6 +689,7 @@ filegroup {
         "device/com/android/net/module/util/BpfUtils.java",
         "device/com/android/net/module/util/IBpfMap.java",
         "device/com/android/net/module/util/JniUtil.java",
+        "device/com/android/net/module/util/LegacyStruct.java",
         "device/com/android/net/module/util/SingleWriterBpfMap.java",
         "device/com/android/net/module/util/Struct.java",
         "device/com/android/net/module/util/TcUtils.java",

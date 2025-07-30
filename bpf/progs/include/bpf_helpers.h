@@ -41,7 +41,7 @@
  * to change which bpfloaders will process the resulting .o file.
  */
 #ifndef BPFLOADER_MIN_VER
-#define BPFLOADER_MIN_VER NEED_TO_DEFINE_BPFLOADER_MIN_VER  // inclusive, ie. >=
+#error "You must define BPFLOADER_MIN_VER"  // inclusive, ie. >=
 #endif
 
 #ifndef BPFLOADER_MAX_VER
@@ -329,7 +329,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 
 #ifdef THIS_BPF_PROGRAM_IS_FOR_TEST_PURPOSES_ONLY
 #define BPF_MAP_ASSERT_OK(type, entries, mode)
-#elif BPFLOADER_MIN_VER >= BPFLOADER_T_VERSION
+#elif BPFLOADER_MIN_VER >= BPFLOADER_MAINLINE_T_VERSION
 #define BPF_MAP_ASSERT_OK(type, entries, mode)
 #else
 #define BPF_MAP_ASSERT_OK(type, entries, mode) \
@@ -368,13 +368,11 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 #endif
 
 #ifndef DEFAULT_BPF_PIN_SUBDIR
-#define DEFAULT_BPF_PIN_SUBDIR ""
+#error "Must define DEFAULT_BPF_PIN_SUBDIR"
 #endif
 
 #ifndef DEFAULT_BPF_MAP_UID
 #define DEFAULT_BPF_MAP_UID AID_ROOT
-#elif BPFLOADER_MIN_VER < 28u
-#error "Bpf Map UID must be left at default of AID_ROOT for BpfLoader prior to v0.28"
 #endif
 
 // for maps not meant to be accessed from userspace

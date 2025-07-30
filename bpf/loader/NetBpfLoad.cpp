@@ -127,13 +127,10 @@ void validatePinDir(const char s[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE]) {
 }
 
 static string pathToObjName(const string& path) {
-    // extract everything after the final slash, ie. this is the filename 'foo@1.o' or 'bar.o'
+    // extract everything after the final slash, ie. this is the filename 'foo.o'
     string filename = Split(path, "/").back();
-    // strip off everything from the final period onwards (strip '.o' suffix), ie. 'foo@1' or 'bar'
-    string name = filename.substr(0, filename.find_last_of('.'));
-    // strip any potential @1 suffix, this will leave us with just 'foo' or 'bar'
-    // this can be used to provide duplicate programs (mux based on the bpfloader version)
-    return name.substr(0, name.find_last_of('@'));
+    // strip off everything from the final period onwards (strip '.o' suffix), ie. 'foo'
+    return filename.substr(0, filename.find_last_of('.'));
 }
 
 typedef struct {
@@ -801,13 +798,11 @@ static bool isBtfSupported(enum bpf_map_type type) {
     return type != BPF_MAP_TYPE_DEVMAP_HASH && type != BPF_MAP_TYPE_RINGBUF;
 }
 
-static int pinMap(const borrowed_fd& fd, const string& mapName, const struct bpf_map_def& mapDef,
-                  const string& objName, const string& mapPinLoc) {
+static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const string& mapPinLoc) {
         int ret;
         if (mapDef.selinux_context[0]) {
             validatePinDir(mapDef.selinux_context);
-            string createLoc = string(BPF_FS_PATH) + mapDef.selinux_context +
-                               "tmp_map_" + objName + "_" + mapName;
+            string createLoc = string(BPF_FS_PATH) + mapDef.selinux_context + "tmp_map";
             ret = bpfFdPin(fd, createLoc.c_str());
             if (ret) {
                 const int err = errno;
@@ -1043,7 +1038,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
         if (!mapMatchesExpectations(fd, mapNames[i], md[i], type)) return -ENOTUNIQ;
 
-        ret = pinMap(fd, mapNames[i], md[i], objName, mapPinLoc);
+        ret = pinMap(fd, md[i], mapPinLoc);
         if (ret) return ret;
 
         mapFds.push_back(std::move(fd));
@@ -1105,13 +1100,12 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
     }
 }
 
-static int pinProg(const borrowed_fd& fd, string& name, const struct bpf_prog_def& progDef,
-                   const string& objName, string& progPinLoc) {
+static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef,
+                   const string& progPinLoc) {
     int ret;
     if (progDef.selinux_context[0]) {
         validatePinDir(progDef.selinux_context);
-        string createLoc = string(BPF_FS_PATH) + progDef.selinux_context +
-                           "tmp_prog_" + objName + '_' + string(name);
+        string createLoc = string(BPF_FS_PATH) + progDef.selinux_context + "tmp_prog";
         ret = bpfFdPin(fd, createLoc.c_str());
         if (ret) {
             const int err = errno;
@@ -1290,7 +1284,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         if (!fd.ok()) return fd.get();
 
         if (!reuse) {
-            ret = pinProg(fd, name, cs[i].prog_def.value(), objName, progPinLoc);
+            ret = pinProg(fd, cs[i].prog_def.value(), progPinLoc);
             if (ret) return ret;
         }
         ret = validateProg(fd, progPinLoc, bpfloader_ver);
@@ -1405,7 +1399,7 @@ static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
             return -1;
         }
 
-        ret = pinMap(bpf_map__fd(m), mapNames[i], md[i], objName, mapPinLoc);
+        ret = pinMap(bpf_map__fd(m), md[i], mapPinLoc);
         if (ret) return ret;
     }
     return 0;
@@ -1436,7 +1430,7 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
         }
 
         int fd = bpf_program__fd(prog);
-        ret = pinProg(fd, name, cs[i].prog_def.value(), objName, progPinLoc);
+        ret = pinProg(fd, cs[i].prog_def.value(), progPinLoc);
         if (ret) return ret;
         ret = validateProg(fd, progPinLoc, bpfloader_ver);
         if (ret) return ret;

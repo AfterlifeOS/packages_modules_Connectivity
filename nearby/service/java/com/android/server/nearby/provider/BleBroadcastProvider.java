@@ -19,19 +19,18 @@ package com.android.server.nearby.provider;
 import static com.android.server.nearby.NearbyService.TAG;
 import static com.android.server.nearby.presence.PresenceConstants.PRESENCE_UUID;
 
-import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.le.AdvertiseCallback;
 import android.bluetooth.le.AdvertiseData;
 import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.AdvertisingSet;
 import android.bluetooth.le.AdvertisingSetCallback;
 import android.bluetooth.le.AdvertisingSetParameters;
-import android.bluetooth.le.BluetoothLeAdvertiser;
 import android.nearby.BroadcastCallback;
 import android.nearby.BroadcastRequest;
 import android.util.Log;
 
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.nearby.injector.BluetoothLeAdvertiserWrapper;
 import com.android.server.nearby.injector.Injector;
 
 import java.util.concurrent.Executor;
@@ -55,6 +54,7 @@ public class BleBroadcastProvider extends AdvertiseCallback {
     private boolean mIsAdvertising;
     @VisibleForTesting
     AdvertisingSetCallback mAdvertisingSetCallback;
+
     public BleBroadcastProvider(Injector injector, Executor executor) {
         mInjector = injector;
         mExecutor = executor;
@@ -70,49 +70,45 @@ public class BleBroadcastProvider extends AdvertiseCallback {
             stop();
         }
         boolean advertiseStarted = false;
-        BluetoothAdapter adapter = mInjector.getBluetoothAdapter();
-        if (adapter != null) {
-            BluetoothLeAdvertiser bluetoothLeAdvertiser =
-                    mInjector.getBluetoothAdapter().getBluetoothLeAdvertiser();
-            if (bluetoothLeAdvertiser != null) {
-                advertiseStarted = true;
-                AdvertiseData advertiseData =
-                        new AdvertiseData.Builder()
-                                .addServiceData(PRESENCE_UUID, advertisementPackets).build();
-                try {
-                    mBroadcastListener = listener;
-                    switch (version) {
-                        case BroadcastRequest.PRESENCE_VERSION_V0:
-                            bluetoothLeAdvertiser.startAdvertising(getAdvertiseSettings(),
-                                    advertiseData, this);
-                            Log.v(TAG, "Start to broadcast V0 advertisement.");
-                            break;
-                        case BroadcastRequest.PRESENCE_VERSION_V1:
-                            if (adapter.isLeExtendedAdvertisingSupported()) {
-                                if (mAdvertisingSetCallback == null) {
-                                    mAdvertisingSetCallback = getAdvertisingSetCallback();
-                                }
-                                bluetoothLeAdvertiser.startAdvertisingSet(
-                                        getAdvertisingSetParameters(),
-                                        advertiseData,
-                                        null, null, null, mAdvertisingSetCallback);
-                                Log.v(TAG, "Start to broadcast V1 advertisement.");
-                            } else {
-                                Log.w(TAG, "Failed to start advertising set because the chipset"
-                                        + " does not supports LE Extended Advertising feature.");
-                                advertiseStarted = false;
+        BluetoothLeAdvertiserWrapper advertiser = mInjector.getBluetoothLeAdvertiserWrapper();
+        if (advertiser != null) {
+            advertiseStarted = true;
+            AdvertiseData advertiseData =
+                    new AdvertiseData.Builder()
+                            .addServiceData(PRESENCE_UUID, advertisementPackets).build();
+            try {
+                mBroadcastListener = listener;
+                switch (version) {
+                    case BroadcastRequest.PRESENCE_VERSION_V0:
+                        advertiser.startAdvertising(getAdvertiseSettings(),
+                                advertiseData, this);
+                        Log.v(TAG, "Start to broadcast V0 advertisement.");
+                        break;
+                    case BroadcastRequest.PRESENCE_VERSION_V1:
+                        if (advertiser.isLeExtendedAdvertisingSupported()) {
+                            if (mAdvertisingSetCallback == null) {
+                                mAdvertisingSetCallback = getAdvertisingSetCallback();
                             }
-                            break;
-                        default:
-                            Log.w(TAG, "Failed to start advertising set because the advertisement"
-                                    + " is wrong.");
+                            advertiser.startAdvertisingSet(
+                                    getAdvertisingSetParameters(),
+                                    advertiseData,
+                                    null, null, null, mAdvertisingSetCallback);
+                            Log.v(TAG, "Start to broadcast V1 advertisement.");
+                        } else {
+                            Log.w(TAG, "Failed to start advertising set because the chipset"
+                                    + " does not supports LE Extended Advertising feature.");
                             advertiseStarted = false;
-                    }
-                } catch (NullPointerException | IllegalStateException | SecurityException
-                    | IllegalArgumentException e) {
-                    Log.w(TAG, "Failed to start advertising.", e);
-                    advertiseStarted = false;
+                        }
+                        break;
+                    default:
+                        Log.w(TAG, "Failed to start advertising set because the advertisement"
+                                + " is wrong.");
+                        advertiseStarted = false;
                 }
+            } catch (NullPointerException | IllegalStateException | SecurityException
+                     | IllegalArgumentException e) {
+                Log.w(TAG, "Failed to start advertising.", e);
+                advertiseStarted = false;
             }
         }
         if (!advertiseStarted) {
@@ -125,14 +121,10 @@ public class BleBroadcastProvider extends AdvertiseCallback {
      */
     public void stop() {
         if (mIsAdvertising) {
-            BluetoothAdapter adapter = mInjector.getBluetoothAdapter();
-            if (adapter != null) {
-                BluetoothLeAdvertiser bluetoothLeAdvertiser =
-                        mInjector.getBluetoothAdapter().getBluetoothLeAdvertiser();
-                if (bluetoothLeAdvertiser != null) {
-                    bluetoothLeAdvertiser.stopAdvertising(this);
-                    bluetoothLeAdvertiser.stopAdvertisingSet(mAdvertisingSetCallback);
-                }
+            BluetoothLeAdvertiserWrapper advertiser = mInjector.getBluetoothLeAdvertiserWrapper();
+            if (advertiser != null) {
+                advertiser.stopAdvertising(this);
+                advertiser.stopAdvertisingSet(mAdvertisingSetCallback);
             }
             mBroadcastListener = null;
             mIsAdvertising = false;

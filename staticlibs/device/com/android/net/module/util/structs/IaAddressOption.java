@@ -18,7 +18,7 @@ package com.android.net.module.util.structs;
 
 import static com.android.net.module.util.NetworkStackConstants.DHCP6_OPTION_IA_ADDR;
 
-import com.android.net.module.util.Struct;
+import com.android.net.module.util.LegacyStruct;
 import com.android.net.module.util.Struct.Field;
 import com.android.net.module.util.Struct.Type;
 
@@ -49,7 +49,7 @@ import java.nio.ByteOrder;
  * .                                                               .
  * +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
  */
-public class IaAddressOption extends Struct {
+public class IaAddressOption extends LegacyStruct {
     public static final int LENGTH = 24; // option length excluding IAaddr-options
 
     @Field(order = 0, type = Type.S16)
