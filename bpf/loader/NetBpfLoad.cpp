@@ -873,16 +873,10 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
     return type;
 }
 
-static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
+static int createMaps(ifstream& elfFile, vector<struct bpf_map_def>& md, vector<unique_fd>& mapFds,
                       const unsigned int bpfloader_ver) {
-    int ret;
+    int ret = 0;
     vector<char> btfData;
-    vector<struct bpf_map_def> md;
-
-    ret = readSectionByName(".android_maps", elfFile, md);
-    if (ret == -2) return 0;  // no maps to read
-    if (ret) return ret;
-
     struct btf *btf = NULL;
     auto btfGuard = base::make_scope_guard([&btf] { if (btf) btf__free(btf); });
     if (isAtLeastKernelVersion(4, 19, 0)) {
@@ -1425,6 +1419,7 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
 int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
     vector<char> license;
     vector<codeSection> cs;
+    vector<struct bpf_map_def> md;
     vector<unique_fd> mapFds;
     int ret;
 
@@ -1442,13 +1437,17 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
 
     ALOGD("BpfLoader ver 0x%05x processing ELF object %s", bpfloader_ver, elfPath);
 
-    ret = createMaps(elfFile, mapFds, bpfloader_ver);
+    ret = readSectionByName(".android_maps", elfFile, md);
+    if (ret == -2) ret = 0; // -2 means there were no maps to read
+    if (ret) return ret;
+
+    ret = createMaps(elfFile, md, mapFds, bpfloader_ver);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
     }
 
-    for (int i = 0; i < (int)mapFds.size(); i++)
+    for (unsigned i = 0; i < mapFds.size(); i++)
         ALOGV("map_fd found at %d is %d in %s", i, mapFds[i].get(), elfPath);
 
     ret = readCodeSections(elfFile, cs);
