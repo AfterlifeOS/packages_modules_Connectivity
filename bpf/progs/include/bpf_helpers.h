@@ -160,7 +160,10 @@ struct sdk_level_uint { unsigned int sdk_level; };
 
 #define VALIDATE_SELINUX_CONTEXT(min_loader, pin_subdir) \
     _Static_assert(IS_EMPTY_STRING(pin_subdir) \
-                || IS_VALID_PIN_DIR(min_loader, pin_subdir), pin_subdir " is invalid")
+                || IS_VALID_PIN_DIR(min_loader, pin_subdir), pin_subdir " is invalid"); \
+    _Static_assert(IS_EMPTY_STRING(pin_subdir) \
+                || (min_loader >= BPFLOADER_MAINLINE_T_VERSION), "selinux_context requires T+")
+
 #define VALIDATE_PIN_DIR(min_loader, pin_subdir) \
     _Static_assert(IS_VALID_PIN_DIR(min_loader, pin_subdir), pin_subdir " is invalid")
 
