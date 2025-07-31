@@ -111,13 +111,6 @@ inline bool isUserdebug() {
 
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
-static string pathToObjName(const string& path) {
-    // extract everything after the final slash, ie. this is the filename 'foo.o'
-    string filename = Split(path, "/").back();
-    // strip off everything from the final period onwards (strip '.o' suffix), ie. 'foo'
-    return filename.substr(0, filename.find_last_of('.'));
-}
-
 typedef struct {
     const char* name;
     enum bpf_prog_type type;
@@ -880,13 +873,12 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
     return type;
 }
 
-static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
+static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
                       const unsigned int bpfloader_ver) {
     int ret;
     vector<char> btfData;
     vector<struct bpf_map_def> md;
     vector<string> mapNames;
-    string objName = pathToObjName(string(elfPath));
 
     ret = readSectionByName(".android_maps", elfFile, md);
     if (ret == -2) return 0;  // no maps to read
@@ -1155,8 +1147,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         return -EINVAL;
     }
 
-    string objName = pathToObjName(string(elfPath));
-
     for (int i = 0; i < (int)cs.size(); i++) {
         unique_fd& fd = cs[i].prog_fd;
         int ret;
@@ -1341,10 +1331,9 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
     return 0;
 }
 
-static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
+static int pinMaps(const struct bpf_object* obj,
                    const vector<struct bpf_map_def>& md, const vector<string>& mapNames) {
     int ret;
-    string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
         struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
@@ -1367,10 +1356,9 @@ static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
     return 0;
 }
 
-static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
+static int pinProgs(const struct bpf_object * obj,
                     const vector<codeSection>& cs, const unsigned int bpfloader_ver) {
     int ret;
-    string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)cs.size(); i++) {
         string program_name = cs[i].program_name;
@@ -1434,10 +1422,10 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = bpf_object__load(obj);
     if (ret) return ret;
 
-    ret = pinMaps(elfPath, obj, md, mapNames);
+    ret = pinMaps(obj, md, mapNames);
     if (ret) return ret;
 
-    ret = pinProgs(elfPath, obj, cs, bpfloader_ver);
+    ret = pinProgs(obj, cs, bpfloader_ver);
     if (ret) return ret;
 
     return 0;
@@ -1463,7 +1451,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
 
     ALOGD("BpfLoader ver 0x%05x processing ELF object %s", bpfloader_ver, elfPath);
 
-    ret = createMaps(elfPath, elfFile, mapFds, bpfloader_ver);
+    ret = createMaps(elfFile, mapFds, bpfloader_ver);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
