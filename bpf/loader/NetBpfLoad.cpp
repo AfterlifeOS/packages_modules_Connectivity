@@ -878,13 +878,9 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
     int ret;
     vector<char> btfData;
     vector<struct bpf_map_def> md;
-    vector<string> mapNames;
 
     ret = readSectionByName(".android_maps", elfFile, md);
     if (ret == -2) return 0;  // no maps to read
-    if (ret) return ret;
-
-    ret = readMapNames(elfFile, mapNames);
     if (ret) return ret;
 
     struct btf *btf = NULL;
@@ -908,7 +904,7 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
 
     unsigned kvers = kernelVersion();
 
-    for (int i = 0; i < (int)mapNames.size(); i++) {
+    for (unsigned i = 0; i < md.size(); i++) {
         if (bpfloader_ver < md[i].bpfloader_min_ver) {
             ALOGD("skipping map %s which requires bpfloader min ver 0x%05x", md[i].name(),
                   md[i].bpfloader_min_ver);
