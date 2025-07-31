@@ -1242,10 +1242,10 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 }
 
 static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md,
-                           const vector<string>& mapNames, const unsigned int bpfloader_ver) {
+                           const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
 
-    for (int i = 0; i < (int)mapNames.size(); i++) {
+    for (unsigned i = 0; i < md.size(); i++) {
         struct bpf_map* m = bpf_object__find_map_by_name(obj, md[i].name());
         if (!m) {
             ALOGE("bpf_object does not contain map: %s", md[i].name());
@@ -1401,7 +1401,7 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = readMapNames(elfFile, mapNames);
     if (ret) return ret;
 
-    ret = prepareLoadMaps(obj, md, mapNames, bpfloader_ver);
+    ret = prepareLoadMaps(obj, md, bpfloader_ver);
     if (ret) return ret;
 
     ret = readCodeSections(elfFile, cs);
