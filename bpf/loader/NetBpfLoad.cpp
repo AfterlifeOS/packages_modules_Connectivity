@@ -880,13 +880,6 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
     return type;
 }
 
-static string buildMapPinLoc(const char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE],
-                             const string& objName, const string& mapName) {
-    // Format of pin location is /sys/fs/bpf/<pin_subdir>map_<objName>_<mapName>
-    // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
-    return string(BPF_FS_PATH) + pin_subdir + "map_" + objName + "_" + mapName;
-}
-
 static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
                       const unsigned int bpfloader_ver) {
     int ret;
@@ -967,7 +960,7 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             if (max_entries < page_size) max_entries = page_size;
         }
 
-        string mapPinLoc = buildMapPinLoc(md[i].pin_subdir, objName, mapNames[i]);
+        string mapPinLoc = string(md[i].pin_prefix) + mapNames[i];
         unique_fd fd;
         int saved_errno;
 
@@ -1368,7 +1361,7 @@ static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
         // This map was skipped
         if (!bpf_map__autocreate(m)) continue;
 
-        string mapPinLoc = buildMapPinLoc(md[i].pin_subdir, objName, mapNames[i]);
+        string mapPinLoc = string(md[i].pin_prefix) + mapNames[i];
         if (access(mapPinLoc.c_str(), F_OK) == 0) {
             ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
             return -1;

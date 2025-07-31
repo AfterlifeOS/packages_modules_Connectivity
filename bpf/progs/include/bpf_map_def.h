@@ -141,13 +141,9 @@ struct bpf_map_def {
     unsigned int min_kver;
     unsigned int max_kver;
 
-    // These are fixed length strings, padded with null bytes
-    //
-    // overrides default selinux context (which is based on pin subdir)
+    // These are fixed length ASCIIZ strings, padded with null bytes
     char create_location[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
-    //
-    // overrides default prefix (which is based on .o location)
-    char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
+    char pin_prefix[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
 };
 
 // This needs to be updated whenever the above structure definition is expanded.

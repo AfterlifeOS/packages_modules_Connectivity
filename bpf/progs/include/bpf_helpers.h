@@ -260,7 +260,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         .min_kver = (minkver).kver,                                         \
         .max_kver = (maxkver).kver,                                         \
         .create_location = CREATE_LOCATION(selinux),                        \
-        .pin_subdir = pindir "/",                                           \
+        .pin_prefix = "/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_",       \
     };
 
 #define __uint(name, val) int (*name)[val]
