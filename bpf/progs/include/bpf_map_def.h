@@ -144,7 +144,7 @@ struct bpf_map_def {
     // These are fixed length strings, padded with null bytes
     //
     // overrides default selinux context (which is based on pin subdir)
-    char selinux_context[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
+    char create_location[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
     //
     // overrides default prefix (which is based on .o location)
     char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
@@ -171,7 +171,7 @@ struct bpf_prog_def {
     unsigned int bpfloader_min_ver;
     unsigned int bpfloader_max_ver;
 
-    char selinux_context[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
+    char create_location[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
     char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
 };
 
