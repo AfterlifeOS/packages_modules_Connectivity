@@ -484,6 +484,8 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
     // or a newly introduced kernel feature/bug (which is unlikely to get backported to 4.9).
     if (!isAtLeastKernelVersion(4, 14, 0)) return true;
 
+    if (strcmp(mapName.c_str(), mapDef.name())) abort();
+
     // Assuming fd is a valid Bpf Map file descriptor then
     // all the following should always succeed on a 4.14+ kernel.
     // If they somehow do fail, they'll return -1 (and set errno),

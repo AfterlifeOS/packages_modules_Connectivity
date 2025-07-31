@@ -25,6 +25,10 @@
 // Pull in AID_* constants from //system/core/libcutils/include/private/android_filesystem_config.h
 #include <cutils/android_filesystem_config.h>
 
+#ifdef __cplusplus
+#include <type_traits>
+#endif
+
 /*
  * The bpf_{map,prog}_def structures are compiled for different architectures.
  * Once by the BPF compiler for the BPF architecture, and once by a C++
@@ -144,11 +148,21 @@ struct bpf_map_def {
     // These are fixed length ASCIIZ strings, padded with null bytes
     char create_location[BPF_DEF_CHAR_ARRAY_SIZE];
     char pin_location[BPF_DEF_CHAR_ARRAY_SIZE];
+    unsigned int name_idx;
+
+#ifdef __cplusplus
+    const char * name() const { return this->pin_location + this->name_idx; }
+#endif
 };
+
+#ifdef __cplusplus
+static_assert(std::is_pod_v<struct bpf_map_def>);
+static_assert(std::is_standard_layout_v<struct bpf_map_def>);
+#endif
 
 // This needs to be updated whenever the above structure definition is expanded.
 // These asserts are here to make sure we have cross-6-arch consistency.
-_Static_assert(sizeof(struct bpf_map_def) == 48 + 2 * BPF_DEF_CHAR_ARRAY_SIZE, "wrong sizeof struct bpf_map_def");
+_Static_assert(sizeof(struct bpf_map_def) == 52 + 2 * BPF_DEF_CHAR_ARRAY_SIZE, "wrong sizeof struct bpf_map_def");
 _Static_assert(__alignof__(struct bpf_map_def) == 4, "__alignof__ struct bpf_map_def != 4");
 _Static_assert(_Alignof(struct bpf_map_def) == 4, "_Alignof struct bpf_map_def != 4");
 
