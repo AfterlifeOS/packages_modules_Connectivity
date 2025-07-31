@@ -1146,12 +1146,6 @@ static int validateProg(const borrowed_fd& fd, string& progPinLoc,
     return 0;
 }
 
-static string buildProgPinLoc(const char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE],
-                              const string& objName, const string& name) {
-    // Format of pin location is /sys/fs/bpf/<prefix>prog_<objName>_<progName>
-    return string(BPF_FS_PATH) + pin_subdir + "prog_" + objName + '_' + string(name);
-}
-
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
                             const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
@@ -1194,7 +1188,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
-        string progPinLoc = buildProgPinLoc(cs[i].prog_def->pin_subdir, objName, name);
+        string progPinLoc = string(cs[i].prog_def->pin_prefix) + name;
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
             ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
@@ -1390,7 +1384,7 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
 
         string name = cs[i].name;
         name = name.substr(0, name.find_last_of('$'));
-        string progPinLoc = buildProgPinLoc(cs[i].prog_def->pin_subdir, objName, name);
+        string progPinLoc = string(cs[i].prog_def->pin_prefix) + name;
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             // TODO: Skip loading lower priority program
             ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());

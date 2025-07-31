@@ -489,7 +489,7 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
         .bpfloader_min_ver = (min_loader),                                               \
         .bpfloader_max_ver = (max_loader),                                               \
         .create_location = CREATE_LOCATION(selinux),                                     \
-        .pin_subdir = pindir "/",                                                        \
+        .pin_prefix = "/sys/fs/bpf/" pindir "/prog_" BPF_OBJ_NAME "_",                   \
     };                                                                                   \
     SECTION(SECTION_NAME)                                                                \
     int the_prog

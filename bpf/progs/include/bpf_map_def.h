@@ -168,7 +168,7 @@ struct bpf_prog_def {
     unsigned int bpfloader_max_ver;
 
     char create_location[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
-    char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
+    char pin_prefix[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE];
 };
 
 // This needs to be updated whenever the above structure definition is expanded.
