@@ -143,6 +143,30 @@ struct sdk_level_uint { unsigned int sdk_level; };
  * See cs/p:aosp-master%20-file:prebuilts/%20file:genfs_contexts%20"genfscon%20bpf"
  */
 
+#define IS_VALID_PIN_DIR(min_loader, pin_subdir) \
+    ( \
+        !__builtin_strcmp(pin_subdir, "tethering") || \
+        (min_loader >= BPFLOADER_MAINLINE_T_VERSION) && \
+            ( \
+                !__builtin_strcmp(pin_subdir, "net_private")   || \
+                !__builtin_strcmp(pin_subdir, "net_shared")    || \
+                !__builtin_strcmp(pin_subdir, "netd_readonly") || \
+                !__builtin_strcmp(pin_subdir, "netd_shared")   || \
+                !__builtin_strcmp(pin_subdir, "loader") \
+            ) \
+    )
+
+#define IS_EMPTY_STRING(s) !__builtin_strcmp(s, "")
+
+#define VALIDATE_SELINUX_CONTEXT(min_loader, pin_subdir) \
+    _Static_assert(IS_EMPTY_STRING(pin_subdir) \
+                || IS_VALID_PIN_DIR(min_loader, pin_subdir), pin_subdir " is invalid")
+#define VALIDATE_PIN_DIR(min_loader, pin_subdir) \
+    _Static_assert(IS_VALID_PIN_DIR(min_loader, pin_subdir), pin_subdir " is invalid")
+
+#define CREATE_LOCATION(selinux_context) \
+    __builtin_choose_expr(IS_EMPTY_STRING(selinux_context), "", "/sys/fs/bpf/" selinux_context "/tmp")
+
 /*
  * Helper functions called from eBPF programs written in C. These are
  * implemented in the kernel sources.
@@ -220,6 +244,8 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, \
                             usr, grp, md, selinux, pindir, minkver,         \
                             maxkver, minloader, maxloader, mapflags)        \
+    VALIDATE_SELINUX_CONTEXT(minloader, selinux);                           \
+    VALIDATE_PIN_DIR(minloader, pindir);                                    \
     const struct bpf_map_def SECTION(".android_maps") the_map##_def = {     \
         .type = BPF_MAP_TYPE_##TYPE,                                        \
         .key_size = (keysize),                                              \
@@ -233,8 +259,8 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         .bpfloader_max_ver = (maxloader),                                   \
         .min_kver = (minkver).kver,                                         \
         .max_kver = (maxkver).kver,                                         \
-        .selinux_context = (selinux),                                       \
-        .pin_subdir = (pindir),                                             \
+        .create_location = CREATE_LOCATION(selinux),                        \
+        .pin_subdir = pindir "/",                                           \
     };
 
 #define __uint(name, val) int (*name)[val]
@@ -314,10 +340,10 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         return bpf_sk_storage_delete_unsafe(&the_map, sk);                              \
     };
 
-#define DEFINE_BPF_SK_STORAGE(the_map, TypeOfValue)                           \
-    DEFINE_BPF_SK_STORAGE_EXT(the_map, TypeOfValue,                           \
-                              AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", \
-                              DEFAULT_BPF_PIN_SUBDIR,                         \
+#define DEFINE_BPF_SK_STORAGE(the_map, TypeOfValue)                          \
+    DEFINE_BPF_SK_STORAGE_EXT(the_map, TypeOfValue,                          \
+                              AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared", \
+                              DEFAULT_BPF_PIN_SUBDIR,                        \
                               BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 /* There exist buggy kernels with pre-T OS, that due to
@@ -363,6 +389,10 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         return bpf_map_delete_elem_unsafe(&the_map, k);                                          \
     };
 
+#ifndef BPF_OBJ_NAME
+#error "Must define BPF_OBJ_NAME"
+#endif
+
 #ifndef DEFAULT_BPF_MAP_SELINUX_CONTEXT
 #define DEFAULT_BPF_MAP_SELINUX_CONTEXT ""
 #endif
@@ -378,7 +408,7 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 // for maps not meant to be accessed from userspace
 #define DEFINE_BPF_MAP_KERNEL_INTERNAL(the_map, TYPE, KeyType, ValueType, num_entries)           \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, KeyType, ValueType, num_entries, AID_ROOT, AID_ROOT, 0000, \
-                       "loader/", DEFAULT_BPF_PIN_SUBDIR, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
+                       "loader", DEFAULT_BPF_PIN_SUBDIR, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 #define DEFINE_BPF_MAP_UGM(the_map, TYPE, KeyType, ValueType, num_entries, usr, grp, md) \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, KeyType, ValueType, num_entries, usr, grp, md,     \
@@ -448,6 +478,8 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
 
 #define DEFINE_BPF_PROG_EXT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv,  \
                             min_loader, max_loader, opt, selinux, pindir)                \
+    VALIDATE_SELINUX_CONTEXT(min_loader, selinux);                                       \
+    VALIDATE_PIN_DIR(min_loader, pindir);                                                \
     const struct bpf_prog_def SECTION("progs") the_prog##_def = {                        \
         .uid = (prog_uid),                                                               \
         .gid = (prog_gid),                                                               \
@@ -456,8 +488,8 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
         .optional = (opt).optional,                                                      \
         .bpfloader_min_ver = (min_loader),                                               \
         .bpfloader_max_ver = (max_loader),                                               \
-        .selinux_context = (selinux),                                                    \
-        .pin_subdir = (pindir),                                                          \
+        .create_location = CREATE_LOCATION(selinux),                                     \
+        .pin_subdir = pindir "/",                                                        \
     };                                                                                   \
     SECTION(SECTION_NAME)                                                                \
     int the_prog
