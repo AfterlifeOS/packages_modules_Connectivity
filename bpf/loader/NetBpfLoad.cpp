@@ -772,7 +772,7 @@ static bool isBtfSupported(enum bpf_map_type type) {
     return type != BPF_MAP_TYPE_DEVMAP_HASH && type != BPF_MAP_TYPE_RINGBUF;
 }
 
-static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const string& mapPinLoc) {
+static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef) {
         int ret;
         if (mapDef.create_location[0]) {
             ret = bpfFdPin(fd, mapDef.create_location);
@@ -782,32 +782,32 @@ static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const
                 return -err;
             }
             ret = renameat2(AT_FDCWD, mapDef.create_location,
-                            AT_FDCWD, mapPinLoc.c_str(), RENAME_NOREPLACE);
+                            AT_FDCWD, mapDef.pin_location, RENAME_NOREPLACE);
             if (ret) {
                 const int err = errno;
-                ALOGE("rename %s %s -> %d [%d:%s]", mapDef.create_location, mapPinLoc.c_str(), ret,
+                ALOGE("rename %s %s -> %d [%d:%s]", mapDef.create_location, mapDef.pin_location, ret,
                       err, strerror(err));
                 return -err;
             }
         } else {
-            ret = bpfFdPin(fd, mapPinLoc.c_str());
+            ret = bpfFdPin(fd, mapDef.pin_location);
             if (ret) {
                 const int err = errno;
-                ALOGE("pin %s -> %d [%d:%s]", mapPinLoc.c_str(), ret, err, strerror(err));
+                ALOGE("pin %s -> %d [%d:%s]", mapDef.pin_location, ret, err, strerror(err));
                 return -err;
             }
         }
-        ret = chmod(mapPinLoc.c_str(), mapDef.mode);
+        ret = chmod(mapDef.pin_location, mapDef.mode);
         if (ret) {
             const int err = errno;
-            ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapPinLoc.c_str(), mapDef.mode, ret, err,
+            ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapDef.pin_location, mapDef.mode, ret, err,
                   strerror(err));
             return -err;
         }
-        ret = chown(mapPinLoc.c_str(), (uid_t)mapDef.uid, (gid_t)mapDef.gid);
+        ret = chown(mapDef.pin_location, (uid_t)mapDef.uid, (gid_t)mapDef.gid);
         if (ret) {
             const int err = errno;
-            ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), mapDef.uid, mapDef.gid,
+            ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapDef.pin_location, mapDef.uid, mapDef.gid,
                   ret, err, strerror(err));
             return -err;
         }
@@ -819,7 +819,7 @@ static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const
                 ALOGE("bpfGetFdMapId failed, errno: %d", err);
                 return -err;
             }
-            ALOGI("map %s id %d", mapPinLoc.c_str(), mapId);
+            ALOGI("map %s id %d", mapDef.pin_location, mapId);
         }
         return 0;
 }
@@ -952,12 +952,11 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
             if (max_entries < page_size) max_entries = page_size;
         }
 
-        string mapPinLoc = string(md[i].pin_prefix) + mapNames[i];
         unique_fd fd;
         int saved_errno;
 
-        if (access(mapPinLoc.c_str(), F_OK) == 0) {
-            fd.reset(mapRetrieveRO(mapPinLoc.c_str()));
+        if (access(md[i].pin_location, F_OK) == 0) {
+            fd.reset(mapRetrieveRO(md[i].pin_location));
             saved_errno = errno;
             ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
             abort();
@@ -1001,7 +1000,7 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
         // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
         if (!mapMatchesExpectations(fd, mapNames[i], md[i], type)) return -ENOTUNIQ;
 
-        ret = pinMap(fd, md[i], mapPinLoc);
+        ret = pinMap(fd, md[i]);
         if (ret) return ret;
 
         mapFds.push_back(std::move(fd));
@@ -1344,13 +1343,12 @@ static int pinMaps(const struct bpf_object* obj,
         // This map was skipped
         if (!bpf_map__autocreate(m)) continue;
 
-        string mapPinLoc = string(md[i].pin_prefix) + mapNames[i];
-        if (access(mapPinLoc.c_str(), F_OK) == 0) {
+        if (access(md[i].pin_location, F_OK) == 0) {
             ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
             return -1;
         }
 
-        ret = pinMap(bpf_map__fd(m), md[i], mapPinLoc);
+        ret = pinMap(bpf_map__fd(m), md[i]);
         if (ret) return ret;
     }
     return 0;

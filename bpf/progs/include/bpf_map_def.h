@@ -143,7 +143,7 @@ struct bpf_map_def {
 
     // These are fixed length ASCIIZ strings, padded with null bytes
     char create_location[BPF_DEF_CHAR_ARRAY_SIZE];
-    char pin_prefix[BPF_DEF_CHAR_ARRAY_SIZE];
+    char pin_location[BPF_DEF_CHAR_ARRAY_SIZE];
 };
 
 // This needs to be updated whenever the above structure definition is expanded.
