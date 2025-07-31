@@ -474,7 +474,7 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
     return getSymName(elfFile, symtab[index].st_name, name);
 }
 
-static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
+static bool mapMatchesExpectations(const unique_fd& fd,
                                    const struct bpf_map_def& mapDef, const enum bpf_map_type type) {
     // bpfGetFd... family of functions require at minimum a 4.14 kernel,
     // so on 4.9-T kernels just pretend the map matches our expectations.
@@ -483,8 +483,6 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
     // is either a source code misconfiguration (which is likely kernel independent)
     // or a newly introduced kernel feature/bug (which is unlikely to get backported to 4.9).
     if (!isAtLeastKernelVersion(4, 14, 0)) return true;
-
-    if (strcmp(mapName.c_str(), mapDef.name())) abort();
 
     // Assuming fd is a valid Bpf Map file descriptor then
     // all the following should always succeed on a 4.14+ kernel.
@@ -527,7 +525,7 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
 
     ALOGE("bpf map name %s mismatch: desired/found (errno: %d): "
           "type:%d/%d key:%u/%d value:%u/%d entries:%u/%d flags:%u/%d",
-          mapName.c_str(), errno, type, fd_type, mapDef.key_size, fd_key_size,
+          mapDef.name(), errno, type, fd_type, mapDef.key_size, fd_key_size,
           mapDef.value_size, fd_value_size, mapDef.max_entries, fd_max_entries,
           desired_map_flags, fd_map_flags);
     return false;
@@ -1000,7 +998,7 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
         // When reusing a pinned map, we need to check the map type/sizes/etc match, but for
         // safety (since reuse code path is rare) run these checks even if we just created it.
         // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
-        if (!mapMatchesExpectations(fd, mapNames[i], md[i], type)) return -ENOTUNIQ;
+        if (!mapMatchesExpectations(fd, md[i], type)) return -ENOTUNIQ;
 
         ret = pinMap(fd, md[i]);
         if (ret) return ret;
