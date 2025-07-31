@@ -1326,11 +1326,8 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
     return 0;
 }
 
-static int pinMaps(const struct bpf_object* obj,
-                   const vector<struct bpf_map_def>& md, const vector<string>& mapNames) {
-    int ret;
-
-    for (int i = 0; i < (int)mapNames.size(); i++) {
+static int pinMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md) {
+    for (unsigned i = 0; i < md.size(); i++) {
         struct bpf_map* m = bpf_object__find_map_by_name(obj, md[i].name());
         if (!m) {
             ALOGE("bpf_object does not contain map: %s", md[i].name());
@@ -1344,7 +1341,7 @@ static int pinMaps(const struct bpf_object* obj,
             return -1;
         }
 
-        ret = pinMap(bpf_map__fd(m), md[i]);
+        int ret = pinMap(bpf_map__fd(m), md[i]);
         if (ret) return ret;
     }
     return 0;
@@ -1416,7 +1413,7 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = bpf_object__load(obj);
     if (ret) return ret;
 
-    ret = pinMaps(obj, md, mapNames);
+    ret = pinMaps(obj, md);
     if (ret) return ret;
 
     ret = pinProgs(obj, cs, bpfloader_ver);
