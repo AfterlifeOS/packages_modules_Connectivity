@@ -17,7 +17,7 @@
 // The resulting .o needs to load on Android T+
 #define BPFLOADER_MIN_VER BPFLOADER_MAINLINE_T_VERSION
 #define BPF_OBJ_NAME "netd"
-#define DEFAULT_BPF_PIN_SUBDIR "netd_shared/"
+#define DEFAULT_BPF_PIN_SUBDIR "netd_shared"
 
 #include "bpf_net_helpers.h"
 #include "netd.h"
@@ -42,13 +42,13 @@ static const int DROP_UNLESS_DNS = 2;  // internal to our program
 // For maps netd does not need to access
 #define DEFINE_BPF_MAP_NO_NETD(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries) \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries,         \
-                       AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", DEFAULT_BPF_PIN_SUBDIR, \
+                       AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared", DEFAULT_BPF_PIN_SUBDIR, \
                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 // For maps netd only needs read only access to
 #define DEFINE_BPF_MAP_RO_NETD(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries)  \
     DEFINE_BPF_MAP_EXT(the_map, TYPE, TypeOfKey, TypeOfValue, num_entries,          \
-                       AID_ROOT, AID_NET_BW_ACCT, 0460, "netd_readonly/", DEFAULT_BPF_PIN_SUBDIR, \
+                       AID_ROOT, AID_NET_BW_ACCT, 0460, "netd_readonly", DEFAULT_BPF_PIN_SUBDIR, \
                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, 0)
 
 // For maps netd needs to be able to read and write
@@ -87,23 +87,23 @@ DEFINE_BPF_MAP_NO_NETD(iface_index_name_map, HASH, uint32_t, IfaceValue, 1000)
 
 // A single-element configuration array, packet tracing is enabled when 'true'.
 DEFINE_BPF_MAP_EXT(packet_trace_enabled_map, ARRAY, uint32_t, bool, 1,
-                   AID_ROOT, AID_SYSTEM, 0060, "net_shared/", DEFAULT_BPF_PIN_SUBDIR,
+                   AID_ROOT, AID_SYSTEM, 0060, "net_shared", DEFAULT_BPF_PIN_SUBDIR,
                    BPFLOADER_MAINLINE_U_VERSION, BPFLOADER_MAX_VER, 0)
 
 // A ring buffer on which packet information is pushed.
 DEFINE_BPF_RINGBUF_EXT(packet_trace_ringbuf, PacketTrace, 32 * 1024,
-                       AID_ROOT, AID_SYSTEM, 0060, "net_shared/", DEFAULT_BPF_PIN_SUBDIR,
+                       AID_ROOT, AID_SYSTEM, 0060, "net_shared", DEFAULT_BPF_PIN_SUBDIR,
                        BPFLOADER_MAINLINE_U_VERSION, BPFLOADER_MAX_VER);
 
 DEFINE_BPF_MAP_RO_NETD(data_saver_enabled_map, ARRAY, uint32_t, bool, 1)
 
 DEFINE_BPF_MAP_EXT(local_net_access_map, LPM_TRIE, LocalNetAccessKey, bool, 1000,
-                   AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", DEFAULT_BPF_PIN_SUBDIR,
+                   AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared", DEFAULT_BPF_PIN_SUBDIR,
                    BPFLOADER_MAINLINE_25Q2_VERSION, BPFLOADER_MAX_VER, 0)
 
 // not preallocated
 DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
-                   AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared/", DEFAULT_BPF_PIN_SUBDIR,
+                   AID_ROOT, AID_NET_BW_ACCT, 0060, "net_shared", DEFAULT_BPF_PIN_SUBDIR,
                    BPFLOADER_MAINLINE_25Q2_VERSION, BPFLOADER_MAX_VER, 0)
 
 // iptables xt_bpf programs need to be usable by both netd and netutils_wrappers
@@ -122,7 +122,7 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
 #define DEFINE_NETD_BPF_PROG_RANGES(SECTION_NAME, the_prog, minKV, maxKV, min_loader, max_loader) \
     DEFINE_BPF_PROG_EXT(SECTION_NAME, AID_ROOT, AID_ROOT, the_prog,                               \
                         minKV, maxKV, min_loader, max_loader, MANDATORY,                          \
-                        "netd_readonly/", DEFAULT_BPF_PIN_SUBDIR)
+                        "netd_readonly", DEFAULT_BPF_PIN_SUBDIR)
 
 #define DEFINE_NETD_BPF_PROG_KVER_RANGE(SECTION_NAME, the_prog, minKV, maxKV) \
     DEFINE_NETD_BPF_PROG_RANGES(SECTION_NAME, the_prog, minKV, maxKV, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER)
@@ -136,13 +136,13 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
 #define DEFINE_NETD_V_BPF_PROG_KVER(SECTION_NAME, the_prog, minKV)                                \
     DEFINE_BPF_PROG_EXT(SECTION_NAME, AID_ROOT, AID_ROOT, the_prog, minKV,                        \
                         KVER_INF, BPFLOADER_MAINLINE_V_VERSION, BPFLOADER_MAX_VER, MANDATORY,     \
-                        "netd_readonly/", DEFAULT_BPF_PIN_SUBDIR)
+                        "netd_readonly", DEFAULT_BPF_PIN_SUBDIR)
 
 // programs that only need to be usable by the system server
 #define DEFINE_SYS_BPF_PROG(SECTION_NAME, the_prog) \
     DEFINE_BPF_PROG_EXT(SECTION_NAME, AID_ROOT, AID_NET_ADMIN, the_prog, KVER_NONE, KVER_INF,  \
                         BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, MANDATORY, \
-                        "net_shared/", DEFAULT_BPF_PIN_SUBDIR)
+                        "net_shared", DEFAULT_BPF_PIN_SUBDIR)
 
 /*
  * Note: this blindly assumes an MTU of 1500, and that packets > MTU are always TCP,

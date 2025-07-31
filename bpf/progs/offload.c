@@ -17,7 +17,7 @@
 // The resulting .o needs to load on Android S+
 #define BPFLOADER_MIN_VER BPFLOADER_MAINLINE_S_VERSION
 #define BPF_OBJ_NAME "offload"
-#define DEFAULT_BPF_PIN_SUBDIR "tethering/"
+#define DEFAULT_BPF_PIN_SUBDIR "tethering"
 
 #include "bpf_net_helpers.h"
 #include "offload.h"
