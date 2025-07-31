@@ -912,14 +912,14 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
         if (bpfloader_ver < md[i].bpfloader_min_ver) {
-            ALOGD("skipping map %s which requires bpfloader min ver 0x%05x", mapNames[i].c_str(),
+            ALOGD("skipping map %s which requires bpfloader min ver 0x%05x", md[i].name(),
                   md[i].bpfloader_min_ver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (bpfloader_ver >= md[i].bpfloader_max_ver) {
-            ALOGD("skipping map %s which requires bpfloader max ver 0x%05x", mapNames[i].c_str(),
+            ALOGD("skipping map %s which requires bpfloader max ver 0x%05x", md[i].name(),
                   md[i].bpfloader_max_ver);
             mapFds.push_back(unique_fd());
             continue;
@@ -927,20 +927,20 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
 
         if (kvers < md[i].min_kver) {
             ALOGD("skipping map %s which requires kernel version 0x%x >= 0x%x",
-                  mapNames[i].c_str(), kvers, md[i].min_kver);
+                  md[i].name(), kvers, md[i].min_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (kvers >= md[i].max_kver) {
             ALOGD("skipping map %s which requires kernel version 0x%x < 0x%x",
-                  mapNames[i].c_str(), kvers, md[i].max_kver);
+                  md[i].name(), kvers, md[i].max_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (!isMapTypeSupported(md[i].type)) {
-            ALOGD("skipping unsupported map type(%d): %s", md[i].type, mapNames[i].c_str());
+            ALOGD("skipping unsupported map type(%d): %s", md[i].type, md[i].name());
             mapFds.push_back(unique_fd());
             continue;
         }
@@ -960,7 +960,7 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
         if (access(md[i].pin_location, F_OK) == 0) {
             fd.reset(mapRetrieveRO(md[i].pin_location));
             saved_errno = errno;
-            ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
+            ALOGD("bpf_create_map reusing map %s, ret: %d", md[i].name(), fd.get());
             abort();
         } else {
             union bpf_attr req = {
@@ -971,12 +971,12 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
               .map_flags = md[i].map_flags,
             };
             if (isAtLeastKernelVersion(4, 15, 0))
-                strlcpy(req.map_name, mapNames[i].c_str(), sizeof(req.map_name));
+                strlcpy(req.map_name, md[i].name(), sizeof(req.map_name));
 
             bool haveBtf = btf && isBtfSupported(type);
             if (haveBtf) {
                 uint32_t kTid, vTid;
-                ret = getKeyValueTids(btf, mapNames[i].c_str(), md[i].key_size,
+                ret = getKeyValueTids(btf, md[i].name(), md[i].key_size,
                                       md[i].value_size, &kTid, &vTid);
                 if (ret) return ret;
                 req.btf_fd = btf__fd(btf);
@@ -988,10 +988,10 @@ static int createMaps(ifstream& elfFile, vector<unique_fd>& mapFds,
             saved_errno = errno;
             if (fd.ok()) {
                 ALOGD("bpf_create_map[%s] btf:%d -> %d",
-                      mapNames[i].c_str(), haveBtf, fd.get());
+                      md[i].name(), haveBtf, fd.get());
             } else {
                 ALOGE("bpf_create_map[%s] btf:%d -> %d errno:%d",
-                      mapNames[i].c_str(), haveBtf, fd.get(), saved_errno);
+                      md[i].name(), haveBtf, fd.get(), saved_errno);
             }
         }
 
@@ -1252,15 +1252,15 @@ static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf
     unsigned kvers = kernelVersion();
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
-        struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
+        struct bpf_map* m = bpf_object__find_map_by_name(obj, md[i].name());
         if (!m) {
-            ALOGE("bpf_object does not contain map: %s", mapNames[i].c_str());
+            ALOGE("bpf_object does not contain map: %s", md[i].name());
             return -1;
         }
 
         if (bpfloader_ver < md[i].bpfloader_min_ver || bpfloader_ver >= md[i].bpfloader_max_ver) {
             ALOGD("skipping map %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
-                  mapNames[i].c_str(), bpfloader_ver,
+                  md[i].name(), bpfloader_ver,
                   md[i].bpfloader_min_ver, md[i].bpfloader_max_ver);
             bpf_map__set_autocreate(m, false);
             continue;
@@ -1268,13 +1268,13 @@ static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf
 
         if (kvers < md[i].min_kver || kvers >= md[i].max_kver) {
             ALOGD("skipping map %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
-                  mapNames[i].c_str(), kvers, md[i].min_kver, md[i].max_kver);
+                  md[i].name(), kvers, md[i].min_kver, md[i].max_kver);
             bpf_map__set_autocreate(m, false);
             continue;
         }
 
         if (!isMapTypeSupported(md[i].type)) {
-            ALOGD("skipping unsupported map type(%d): %s", md[i].type, mapNames[i].c_str());
+            ALOGD("skipping unsupported map type(%d): %s", md[i].type, md[i].name());
             bpf_map__set_autocreate(m, false);
             continue;
         }
@@ -1337,16 +1337,16 @@ static int pinMaps(const struct bpf_object* obj,
     int ret;
 
     for (int i = 0; i < (int)mapNames.size(); i++) {
-        struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
+        struct bpf_map* m = bpf_object__find_map_by_name(obj, md[i].name());
         if (!m) {
-            ALOGE("bpf_object does not contain map: %s", mapNames[i].c_str());
+            ALOGE("bpf_object does not contain map: %s", md[i].name());
             return -1;
         }
         // This map was skipped
         if (!bpf_map__autocreate(m)) continue;
 
         if (access(md[i].pin_location, F_OK) == 0) {
-            ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
+            ALOGE("Reusing map is not supported: %s", md[i].name());
             return -1;
         }
 
