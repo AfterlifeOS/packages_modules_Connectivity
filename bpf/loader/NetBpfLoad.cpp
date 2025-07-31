@@ -1375,7 +1375,6 @@ static int pinProgs(const struct bpf_object * obj,
 
 static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver) {
     int ret;
-    vector<string> mapNames;
     vector<struct bpf_map_def> md;
     vector<codeSection> cs;
 
@@ -1390,9 +1389,6 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     auto objGuard = base::make_scope_guard([&obj] { bpf_object__close(obj); });
 
     ret = readSectionByName(".android_maps", elfFile, md);
-    if (ret) return ret;
-
-    ret = readMapNames(elfFile, mapNames);
     if (ret) return ret;
 
     ret = prepareLoadMaps(obj, md, bpfloader_ver);
