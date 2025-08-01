@@ -19,7 +19,7 @@
 
 #include <dlfcn.h>
 #include <stdbool.h>
-#include <string.h>
+#include <stdlib.h>
 #include <sys/system_properties.h>
 
 #include <android/api-level.h>
@@ -28,10 +28,7 @@
 namespace android {
 namespace netjniutils {
 
-namespace {
-
-
-int GetNativeFileDescriptorWithoutNdk(JNIEnv* env, jobject javaFd) {
+static int GetNativeFileDescriptorWithoutNdk(JNIEnv* env, jobject javaFd) {
   // Prior to Android S, we need to find the descriptor field in the FileDescriptor class. The
   // symbol name has been stable in libcore, but is a private implementation detail.
   // Older libnativehelper_compat_c++ versions had a jniGetFdFromFileDescriptor method, but this
@@ -43,14 +40,15 @@ int GetNativeFileDescriptorWithoutNdk(JNIEnv* env, jobject javaFd) {
     env->DeleteLocalRef(cls);
     if (fieldID == nullptr) {
       __android_log_print(ANDROID_LOG_FATAL, LOG_TAG, "Failed to get descriptor field.");
+      abort();
     }
     return fieldID;
   }();
 
-  return javaFd != nullptr ? env->GetIntField(javaFd, descriptorFieldID) : -1;
+  return env->GetIntField(javaFd, descriptorFieldID);
 }
 
-int GetNativeFileDescriptorWithNdk(JNIEnv* env, jobject javaFd) {
+static int GetNativeFileDescriptorWithNdk(JNIEnv* env, jobject javaFd) {
   // Since Android S, there is an NDK API to get a file descriptor present in libnativehelper.so.
   // libnativehelper is loaded into all processes by the zygote since the zygote uses it
   // to load the Android Runtime and is also a public library (because of the NDK API).
@@ -62,18 +60,17 @@ int GetNativeFileDescriptorWithNdk(JNIEnv* env, jobject javaFd) {
       __android_log_print(ANDROID_LOG_FATAL, LOG_TAG,
                           "Failed to dlsym(AFileDescriptor_getFd): %s", dlerror());
       dlclose(handle);
+      abort();
     }
     return ndkGetFd;
   }();
 
-  return javaFd != nullptr ? ndkGetFd(env, javaFd) : -1;
+  return ndkGetFd(env, javaFd);
 }
 
-}  //  namespace
-
 int GetNativeFileDescriptor(JNIEnv* env, jobject javaFd) {
-  static const bool preferNdkFileDescriptorApi = []() -> bool
-   { return android::modules::sdklevel::IsAtLeastS(); }();
+  if (!javaFd) return -1;
+  static const bool preferNdkFileDescriptorApi = modules::sdklevel::IsAtLeastS();
   if (preferNdkFileDescriptorApi) {
     return GetNativeFileDescriptorWithNdk(env, javaFd);
   } else {
