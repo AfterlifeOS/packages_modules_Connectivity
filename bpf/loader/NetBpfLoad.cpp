@@ -357,6 +357,34 @@ static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vect
     return 0;
 }
 
+static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
+    vector<Elf64_Sym> symtab;
+    int ret = 0;
+
+    ret = readSymTab(elfFile, 0 /* !sort */, symtab);
+    if (ret) return ret;
+
+    if (index >= (int)symtab.size()) return -1;
+
+    return getSymName(elfFile, symtab[index].st_name, name);
+}
+
+static int getSymOffsetByName(ifstream &elfFile, const char *name, int *off) {
+    vector<Elf64_Sym> symtab;
+    int ret = readSymTab(elfFile, 1 /* sort */, symtab);
+    if (ret) return ret;
+    for (int i = 0; i < (int)symtab.size(); i++) {
+        string s;
+        ret = getSymName(elfFile, symtab[i].st_name, s);
+        if (ret) continue;
+        if (!strcmp(s.c_str(), name)) {
+            *off = symtab[i].st_value;
+            return 0;
+        }
+    }
+    return -1;
+}
+
 // Read a section by its index - for ex to get sec hdr strtab blob
 static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
     vector<Elf64_Shdr> shTable;
@@ -434,17 +462,6 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
     return 0;
 }
 
-static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
-    vector<Elf64_Sym> symtab;
-    int ret = 0;
-
-    ret = readSymTab(elfFile, 0 /* !sort */, symtab);
-    if (ret) return ret;
-
-    if (index >= (int)symtab.size()) return -1;
-
-    return getSymName(elfFile, symtab[index].st_name, name);
-}
 
 static bool mapMatchesExpectations(const unique_fd& fd,
                                    const struct bpf_map_def& mapDef, const enum bpf_map_type type) {
@@ -519,22 +536,6 @@ static int setBtfDatasecSize(ifstream &elfFile, struct btf *btf,
     }
     bt->size = data.size();
     return 0;
-}
-
-static int getSymOffsetByName(ifstream &elfFile, const char *name, int *off) {
-    vector<Elf64_Sym> symtab;
-    int ret = readSymTab(elfFile, 1 /* sort */, symtab);
-    if (ret) return ret;
-    for (int i = 0; i < (int)symtab.size(); i++) {
-        string s;
-        ret = getSymName(elfFile, symtab[i].st_name, s);
-        if (ret) continue;
-        if (!strcmp(s.c_str(), name)) {
-            *off = symtab[i].st_value;
-            return 0;
-        }
-    }
-    return -1;
 }
 
 static int setBtfVarOffset(ifstream &elfFile, struct btf *btf,
