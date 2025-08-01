@@ -824,22 +824,6 @@ static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef) {
         return 0;
 }
 
-static int readMapNames(ifstream& elfFile, vector<string>& mapNames) {
-    int ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
-    if (ret) return ret;
-
-    const string suffix = "_def";
-    for (string& name : mapNames) {
-        if (EndsWith(name, suffix)) {
-            name.erase(name.length() - suffix.length());
-        } else {
-           ALOGE("Failed to get map names, invalid symbol in .android_maps: %s", name.c_str());
-           return 1;
-        }
-    }
-    return 0;
-}
-
 static bool isMapTypeSupported(enum bpf_map_type type) {
     if (type == BPF_MAP_TYPE_LPM_TRIE && !isAtLeastKernelVersion(4, 14, 0)) {
         // On Linux Kernels older than 4.14 this map type doesn't exist - autoskip.
@@ -1024,13 +1008,9 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
     insn->src_reg = BPF_PSEUDO_MAP_FD;
 }
 
-static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<codeSection>& cs) {
-    vector<string> mapNames;
-
-    int ret = readMapNames(elfFile, mapNames);
-    if (ret) return;
-
-    for (int k = 0; k != (int)cs.size(); k++) {
+static void applyMapRelo(ifstream& elfFile, const vector<struct bpf_map_def>& md,
+                         vector<unique_fd> &mapFds, vector<codeSection>& cs) {
+    for (unsigned k = 0; k < cs.size(); k++) {
         Elf64_Rel* rel = (Elf64_Rel*)(cs[k].rel_data.data());
         int n_rel = cs[k].rel_data.size() / sizeof(*rel);
 
@@ -1038,12 +1018,12 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
             int symIndex = ELF64_R_SYM(rel[i].r_info);
             string symName;
 
-            ret = getSymNameByIdx(elfFile, symIndex, symName);
+            int ret = getSymNameByIdx(elfFile, symIndex, symName);
             if (ret) return;
 
             // Find the map fd and apply relo
-            for (int j = 0; j < (int)mapNames.size(); j++) {
-                if (!mapNames[j].compare(symName)) {
+            for (unsigned j = 0; j < md.size(); j++) {
+                if (!symName.compare(md[j].name())) {
                     applyRelo(cs[k].data.data(), rel[i].r_offset, mapFds[j]);
                     break;
                 }
@@ -1453,7 +1433,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
         return ret;
     }
 
-    applyMapRelo(elfFile, mapFds, cs);
+    applyMapRelo(elfFile, md, mapFds, cs);
 
     ret = loadCodeSections(elfPath, cs, string(license.data()), bpfloader_ver);
     if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d", ret);
