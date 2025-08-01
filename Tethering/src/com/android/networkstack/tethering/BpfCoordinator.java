@@ -1732,8 +1732,7 @@ public class BpfCoordinator {
          */
         @NonNull
         public Tether6Value makeTether6Value() {
-            return new Tether6Value(upstreamIfindex, outDstMac, outSrcMac, ETH_P_IPV6,
-                    NetworkStackConstants.ETHER_MTU);
+            return new Tether6Value(upstreamIfindex, outDstMac, outSrcMac, ETH_P_IPV6, 1400);
         }
 
         @Override

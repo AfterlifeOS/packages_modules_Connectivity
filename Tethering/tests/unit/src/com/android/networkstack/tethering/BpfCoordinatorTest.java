@@ -769,8 +769,7 @@ public class BpfCoordinatorTest {
             final TetherUpstream6Key key = new TetherUpstream6Key(DOWNSTREAM_IFACE_PARAMS.index,
                     DOWNSTREAM_IFACE_PARAMS.macAddr, prefix64);
             final Tether6Value value = new Tether6Value(upstreamIfindex,
-                    MacAddress.ALL_ZEROS_ADDRESS, MacAddress.ALL_ZEROS_ADDRESS, ETH_P_IPV6,
-                    NetworkStackConstants.ETHER_MTU);
+                    MacAddress.ALL_ZEROS_ADDRESS, MacAddress.ALL_ZEROS_ADDRESS, ETH_P_IPV6, 1400);
             expected.put(key, value);
         }
         ArgumentCaptor<TetherUpstream6Key> keyCaptor =
@@ -1295,7 +1294,7 @@ public class BpfCoordinatorTest {
         assertEquals(MAC_NULL, value.ethDstMac);
         assertEquals(MAC_NULL, value.ethSrcMac);
         assertEquals(ETH_P_IPV6, value.ethProto);
-        assertEquals(NetworkStackConstants.ETHER_MTU, value.pmtu);
+        assertEquals(1400, value.pmtu);
         // oif (4) + ethDstMac (6) + ethSrcMac (6) + ethProto (2) + pmtu (2) = 20
         assertEquals(20, value.writeToBytes().length);
     }
