@@ -1480,25 +1480,23 @@ static bool createDir(const char* const dir) {
 // Technically 'value' doesn't need to be newline terminated, but it's best
 // to include a newline to match 'echo "value" > /proc/sys/...foo' behaviour,
 // which is usually how kernel devs test the actual sysctl interfaces.
-static int writeFile(const char *filename, const char *value) {
+static bool writeFile(const char *filename, const char *value) {
     unique_fd fd(open(filename, O_WRONLY | O_CLOEXEC));
     if (fd < 0) {
-        const int err = errno;
-        ALOGE("open('%s', O_WRONLY | O_CLOEXEC) -> %s", filename, strerror(err));
-        return -err;
+        ALOGE("open('%s', O_WRONLY | O_CLOEXEC) -> %s", filename, strerror(errno));
+        return false;
     }
     int len = strlen(value);
     int v = write(fd, value, len);
     if (v < 0) {
-        const int err = errno;
-        ALOGE("write('%s', '%s', %d) -> %s", filename, value, len, strerror(err));
-        return -err;
+        ALOGE("write('%s', '%s', %d) -> %s", filename, value, len, strerror(errno));
+        return false;
     }
     if (v != len) {
         ALOGE("write('%s', '%s', %d) -> short write [%d]", filename, value, len, v);
-        return -EINVAL;
+        return false;
     }
-    return 0;
+    return true;
 }
 
 #define APEX_MOUNT_POINT "/apex/com.android.tethering"
@@ -1859,7 +1857,7 @@ static int doLoad(char** argv, char * const envp[]) {
         // but we need 0 (enabled)
         // (this writeFile is known to fail on at least 4.19, but always defaults to 0 on
         // pre-5.13, on 5.13+ it depends on CONFIG_BPF_UNPRIV_DEFAULT_OFF)
-        if (writeFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n") &&
+        if (!writeFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n") &&
             isAtLeastKernelVersion(5, 13, 0)) return 23;
     }
 
@@ -1875,12 +1873,12 @@ static int doLoad(char** argv, char * const envp[]) {
         //  kernel does not have CONFIG_BPF_JIT=y)
         // BPF_JIT is required by R VINTF (which means 4.14/4.19/5.4 kernels),
         // but 4.14/4.19 were released with P & Q, and only 5.4 is new in R+.
-        if (writeFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 24;
+        if (!writeFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 24;
 
         // Enable JIT kallsyms export for privileged users only
         // (Note: this (open) will fail with ENOENT 'No such file or directory' if
         //  kernel does not have CONFIG_HAVE_EBPF_JIT=y)
-        if (writeFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 25;
+        if (!writeFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 25;
     }
 
     if (runningAsRoot) {  // implies U QPR3+ and kernel 4.14+
