@@ -312,13 +312,6 @@ static int readSymTab(ifstream& elfFile, int sort, vector<Elf64_Sym>& data) {
     return 0;
 }
 
-static enum bpf_prog_type getSectionType(string& name) {
-    for (auto& snt : sectionNameTypes)
-        if (StartsWith(name, snt.name)) return snt.type;
-
-    return BPF_PROG_TYPE_UNSPEC;
-}
-
 static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vector<string>& names,
                               optional<unsigned> symbolType = std::nullopt) {
     int ret;
@@ -388,20 +381,22 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
         ret = getSymName(elfFile, shTable[i].sh_name, name);
         if (ret) return ret;
 
-        enum bpf_prog_type ptype = getSectionType(name);
-
-        if (ptype == BPF_PROG_TYPE_UNSPEC) continue;
-
         // This must be done before '/' is replaced with '_'.
-        for (auto& snt : sectionNameTypes)
-            if (StartsWith(name, snt.name)) cs_temp.attach_type = snt.attach_type;
+        for (auto& snt : sectionNameTypes) {
+            if (StartsWith(name, snt.name)) {
+                cs_temp.type = snt.type;
+                cs_temp.attach_type = snt.attach_type;
+                break;
+            }
+        }
+
+        if (cs_temp.type == BPF_PROG_TYPE_UNSPEC) continue;
 
         string oldName = name;
 
         // convert all slashes to underscores
         std::replace(name.begin(), name.end(), '/', '_');
 
-        cs_temp.type = ptype;
         cs_temp.name = name;
 
         ret = readSectionByIdx(elfFile, i, cs_temp.data);
