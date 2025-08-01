@@ -1464,20 +1464,17 @@ static int loadAllObjects(const unsigned int bpfloader_ver) {
     return 0;
 }
 
-static int createDir(const char* const dir) {
+static bool createDir(const char* const dir) {
     mode_t prevUmask = umask(0);
 
-    errno = 0;
-    int ret = mkdir(dir, S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO);
-    if (ret && errno != EEXIST) {
-        const int err = errno;
-        umask(prevUmask);
-        ALOGE("Failed to create directory: %s, ret: %s", dir, std::strerror(err));
-        return -err;
+    if (mkdir(dir, S_ISVTX | S_IRWXU | S_IRWXG | S_IRWXO) && errno != EEXIST) {
+        umask(prevUmask); // cannot fail
+        ALOGE("Failed to create directory: %s, ret: %s", dir, std::strerror(errno));
+        return false;
     }
 
     umask(prevUmask);
-    return 0;
+    return true;
 }
 
 // Technically 'value' doesn't need to be newline terminated, but it's best
@@ -1938,17 +1935,17 @@ static int doLoad(char** argv, char * const envp[]) {
     // (this must be done first to allow create_location and pin_subdir functionality,
     //  which could otherwise fail with ENOENT during object pinning or renaming,
     //  due to ordering issues)
-    if (createDir("/sys/fs/bpf/tethering")) return 31;
+    if (!createDir("/sys/fs/bpf/tethering")) return 31;
     // This is technically T+ but S also needs it for the 'mainline_done' file.
-    if (createDir("/sys/fs/bpf/netd_shared")) return 32;
+    if (!createDir("/sys/fs/bpf/netd_shared")) return 32;
 
     if (isAtLeastT) {
-        if (createDir("/sys/fs/bpf/netd_readonly")) return 33;
-        if (createDir("/sys/fs/bpf/net_shared")) return 34;
-        if (createDir("/sys/fs/bpf/net_private")) return 35;
+        if (!createDir("/sys/fs/bpf/netd_readonly")) return 33;
+        if (!createDir("/sys/fs/bpf/net_shared")) return 34;
+        if (!createDir("/sys/fs/bpf/net_private")) return 35;
 
         // This one is primarily meant for triggering genfscon rules.
-        if (createDir("/sys/fs/bpf/loader")) return 36;
+        if (!createDir("/sys/fs/bpf/loader")) return 36;
     }
 
     // Load all ELF objects, create programs and maps, and pin them
@@ -1988,7 +1985,7 @@ static int doLoad(char** argv, char * const envp[]) {
     }
 
     // leave a flag that we're done
-    if (createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 41;
+    if (!createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 41;
 
     // platform bpfloader will only succeed when run as root
     if (!runningAsRoot) {
