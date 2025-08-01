@@ -1683,7 +1683,7 @@ static int doLoad(char** argv, char * const envp[]) {
 
     if (has_platform_bpfloader_rc && has_platform_netbpfload_rc) {
         ALOGE("Platform has *both* bpfloader & netbpfload init scripts.");
-        return 1;
+        return 2;
     }
 
     logTetheringApexVersion();
@@ -1691,58 +1691,58 @@ static int doLoad(char** argv, char * const envp[]) {
     // both S and T require kernel 4.9 (and eBpf support)
     if (!isAtLeastKernelVersion(4, 9, 0)) {
         ALOGE("Android S & T require kernel 4.9.");
-        return 1;
+        return 3;
     }
 
     // U bumps the kernel requirement up to 4.14
     if (isAtLeastU && !isAtLeastKernelVersion(4, 14, 0)) {
         ALOGE("Android U requires kernel 4.14.");
-        return 1;
+        return 4;
     }
 
     // V bumps the kernel requirement up to 4.19
     // see also: //system/netd/tests/kernel_test.cpp TestKernel419
     if (isAtLeastV && !isAtLeastKernelVersion(4, 19, 0)) {
         ALOGE("Android V requires kernel 4.19.");
-        return 1;
+        return 5;
     }
 
     // 25Q2 bumps the kernel requirement up to 5.4
     // see also: //system/netd/tests/kernel_test.cpp TestKernel54
     if (isAtLeast25Q2 && !isAtLeastKernelVersion(5, 4, 0)) {
         ALOGE("Android 25Q2 requires kernel 5.4.");
-        return 1;
+        return 6;
     }
 
     // 25Q4 bumps the kernel requirement up to 5.10
     // see also: //system/netd/tests/kernel_test.cpp TestKernel510
     if (isAtLeast25Q4 && !isAtLeastKernelVersion(5, 10, 0)) {
         ALOGE("Android 25Q4 requires kernel 5.10.");
-        return 1;
+        return 7;
     }
 
     // Technically already required by U, but only enforce on V+
     // see also: //system/netd/tests/kernel_test.cpp TestKernel64Bit
     if (isAtLeastV && isKernel32Bit() && isAtLeastKernelVersion(5, 16, 0)) {
         ALOGE("Android V+ platform with 32 bit kernel version >= 5.16.0 is unsupported");
-        if (!isTV()) return 1;
+        if (!isTV()) return 8;
     }
 
     if (isKernel32Bit() && isAtLeast25Q2) {
         ALOGE("Android 25Q2 requires 64 bit kernel.");
-        return 1;
+        return 9;
     }
 
     // 6.6 is highest version supported by Android V, so this is effectively W+ (sdk=36+)
     if (isKernel32Bit() && isAtLeastKernelVersion(6, 7, 0)) {
         ALOGE("Android platform with 32 bit kernel version >= 6.7.0 is unsupported");
-        return 1;
+        return 10;
     }
 
     // Various known ABI layout issues, particularly wrt. bpf and ipsec/xfrm.
     if (isAtLeastV && isKernel32Bit() && isX86()) {
         ALOGE("Android V requires X86 kernel to be 64-bit.");
-        if (!isTV()) return 1;
+        if (!isTV()) return 11;
     }
 
     if (isAtLeastV) {
@@ -1810,10 +1810,10 @@ static int doLoad(char** argv, char * const envp[]) {
             ALOGW("[Arm KernelUpRev] 32-bit userspace unsupported on 6.2+ kernels.");
         } else if (isArm()) {
             ALOGE("[Arm] 64-bit userspace required on 6.2+ kernels (%d).", first_api_level);
-            return 1;
+            return 12;
         } else { // x86 since RiscV cannot be 32-bit
             ALOGE("[x86] 64-bit userspace required on 6.2+ kernels.");
-            return 1;
+            return 13;
         }
     }
 
@@ -1827,32 +1827,32 @@ static int doLoad(char** argv, char * const envp[]) {
     if (isUserspace32bit() && isAtLeastKernelVersion(6, 13, 0)) {
         // due to previous check only reachable on Arm && (<=T kernel uprev || TV || Wear)
         ALOGE("64-bit userspace required on 6.13+ kernels.");
-        return 1;
+        return 14;
     }
 
     if (isAtLeast25Q2) {
         FILE * f = fopen("/system/etc/init/netbpfload.rc", "re");
         if (!f) {
             ALOGE("failure opening /system/etc/init/netbpfload.rc");
-            return 1;
+            return 15;
         }
         int y = -1, q = -1, a = -1, b = -1, c = -1;
         int v = fscanf(f, "# %d %d %d %d %d #", &y, &q, &a, &b, &c);
         ALOGI("detected %d of 5: %dQ%d api:%d.%d.%d", v, y, q, a, b, c);
         fclose(f);
-        if (v != 5) return 1;
-        if (y < 2025 || y > 2099) return 1;
-        if (q < 1 || q > 4) return 1;
-        if (a < 36) return 1;
-        if (b < 0 || b > 4) return 1;
-        if (c < 0) return 1;
+        if (v != 5) return 16;
+        if (y < 2025 || y > 2099) return 17;
+        if (q < 1 || q > 4) return 18;
+        if (a < 36) return 19;
+        if (b < 0 || b > 4) return 20;
+        if (c < 0) return 21;
     }
 
     // Ensure we can determine the Android build type.
     if (!isEng() && !isUser() && !isUserdebug()) {
         ALOGE("Failed to determine the build type: got %s, want 'eng', 'user', or 'userdebug'",
               getBuildType().c_str());
-        return 1;
+        return 22;
     }
 
     if (runningAsRoot) {
@@ -1863,7 +1863,7 @@ static int doLoad(char** argv, char * const envp[]) {
         // (this writeFile is known to fail on at least 4.19, but always defaults to 0 on
         // pre-5.13, on 5.13+ it depends on CONFIG_BPF_UNPRIV_DEFAULT_OFF)
         if (writeFile("/proc/sys/kernel/unprivileged_bpf_disabled", "0\n") &&
-            isAtLeastKernelVersion(5, 13, 0)) return 1;
+            isAtLeastKernelVersion(5, 13, 0)) return 23;
     }
 
     if (isAtLeastU) {
@@ -1878,12 +1878,12 @@ static int doLoad(char** argv, char * const envp[]) {
         //  kernel does not have CONFIG_BPF_JIT=y)
         // BPF_JIT is required by R VINTF (which means 4.14/4.19/5.4 kernels),
         // but 4.14/4.19 were released with P & Q, and only 5.4 is new in R+.
-        if (writeFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 1;
+        if (writeFile("/proc/sys/net/core/bpf_jit_enable", "1\n")) return 24;
 
         // Enable JIT kallsyms export for privileged users only
         // (Note: this (open) will fail with ENOENT 'No such file or directory' if
         //  kernel does not have CONFIG_HAVE_EBPF_JIT=y)
-        if (writeFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 1;
+        if (writeFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 25;
     }
 
     if (runningAsRoot) {  // implies U QPR3+ and kernel 4.14+
@@ -1892,13 +1892,13 @@ static int doLoad(char** argv, char * const envp[]) {
         uint32_t progId = bpfGetNextProgId(0);  // expect 0 with errno == ENOENT
         if (progId || errno != ENOENT) {
             ALOGE("bpfGetNextProgId(zero) returned %u (errno %d)", progId, errno);
-            return 1;
+            return 26;
         }
         errno = 0;
         uint32_t mapId = bpfGetNextMapId(0);  // expect 0 with errno == ENOENT
         if (mapId || errno != ENOENT) {
             ALOGE("bpfGetNextMapId(zero) returned %u (errno %d)", mapId, errno);
-            return 1;
+            return 27;
         }
     } else if (isAtLeastKernelVersion(4, 14, 0)) {  // implies S through U QPR2
         // bpfGetNext{Prog,Map}Id require 4.14+
@@ -1911,7 +1911,7 @@ static int doLoad(char** argv, char * const envp[]) {
             if (!next && errno == ENOENT) break;
             if (next <= mapId) {
                 ALOGE("bpfGetNextMapId(%u) returned %u errno %d", mapId, next, errno);
-                return 1;
+                return 28;
             }
             mapId = next;
         }
@@ -1924,8 +1924,8 @@ static int doLoad(char** argv, char * const envp[]) {
             // which causes bpfGetNextMapId to behave as bpfGetNextProgId,
             // and thus it should return 0 with errno == ENOENT.
             ALOGE("bpfGetNextMapId(final %d) returned %d errno %d", mapId, next, errno);
-            if (next || errno != ENOENT) return 1;
-            if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 1;
+            if (next || errno != ENOENT) return 29;
+            if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 30;
             // implies Android S with 4.14 or 4.19 kernel
             ALOGW("Enabling bpfCmdFixupIsNeeded.");
             bpfCmdFixupIsNeeded = true;
@@ -1938,17 +1938,17 @@ static int doLoad(char** argv, char * const envp[]) {
     // (this must be done first to allow create_location and pin_subdir functionality,
     //  which could otherwise fail with ENOENT during object pinning or renaming,
     //  due to ordering issues)
-    if (createDir("/sys/fs/bpf/tethering")) return 1;
+    if (createDir("/sys/fs/bpf/tethering")) return 31;
     // This is technically T+ but S also needs it for the 'mainline_done' file.
-    if (createDir("/sys/fs/bpf/netd_shared")) return 1;
+    if (createDir("/sys/fs/bpf/netd_shared")) return 32;
 
     if (isAtLeastT) {
-        if (createDir("/sys/fs/bpf/netd_readonly")) return 1;
-        if (createDir("/sys/fs/bpf/net_shared")) return 1;
-        if (createDir("/sys/fs/bpf/net_private")) return 1;
+        if (createDir("/sys/fs/bpf/netd_readonly")) return 33;
+        if (createDir("/sys/fs/bpf/net_shared")) return 34;
+        if (createDir("/sys/fs/bpf/net_private")) return 35;
 
         // This one is primarily meant for triggering genfscon rules.
-        if (createDir("/sys/fs/bpf/loader")) return 1;
+        if (createDir("/sys/fs/bpf/loader")) return 36;
     }
 
     // Load all ELF objects, create programs and maps, and pin them
@@ -1959,7 +1959,7 @@ static int doLoad(char** argv, char * const envp[]) {
               "problems or startup script race.");
         ALOGE("--- DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY ---");
         sleep(20);
-        return 2;
+        return 37;
     }
 
     {
@@ -1970,26 +1970,25 @@ static int doLoad(char** argv, char * const envp[]) {
         int kernel_bugs = bpfCmdFixupIsNeeded;
         if (writeToMapEntry(map, &zero, &kernel_bugs, BPF_ANY)) {
             ALOGE("Failure to write into index 0 of kernel bugs array.");
-            return 1;
+            return 38;
         }
 
         int one = 1;
         int value = 123;
         if (writeToMapEntry(map, &one, &value, BPF_ANY)) {
             ALOGE("Critical kernel bug - failure to write into index 1 of 2 element bpf map array.");
-            if (isAtLeastT) return 1;
+            if (isAtLeastT) return 39;
         }
 
         int ret = bpfFdPin(map, "/sys/fs/bpf/tethering/map_kernel_bugs");
         if (ret) {
-            const int err = errno;
-            ALOGE("pin -> %d [%d:%s]", ret, err, strerror(err));
-            return -err;
+            ALOGE("pin -> %d [%d:%s]", ret, errno, strerror(errno));
+            return 40;
         }
     }
 
     // leave a flag that we're done
-    if (createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 1;
+    if (createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 41;
 
     // platform bpfloader will only succeed when run as root
     if (!runningAsRoot) {
@@ -2015,7 +2014,7 @@ static int doLoad(char** argv, char * const envp[]) {
     const char * args[] = { platformBpfLoader, NULL, };
     execve(args[0], (char**)args, envp);
     ALOGE("FATAL: execve('%s'): %d[%s]", platformBpfLoader, errno, strerror(errno));
-    return 1;
+    return 42;
 }
 
 }  // namespace bpf
