@@ -28,8 +28,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
-import java.nio.ByteBuffer;
-import java.nio.ByteOrder;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -221,9 +219,7 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
                                  key == null ? null : key.writeToBytes(),
                                  rawKey)) return null;
 
-        final ByteBuffer buffer = ByteBuffer.wrap(rawKey);
-        buffer.order(ByteOrder.nativeOrder());
-        return Struct.parse(mKeyClass, buffer);
+        return Struct.parse(mKeyClass, rawKey);
     }
 
     /**
@@ -261,9 +257,7 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
         byte[] rawValue = new byte[mValueSize];
         if (!nativeFindMapEntry(mMapFd.getFd(), key.writeToBytes(), rawValue)) return null;
 
-        final ByteBuffer buffer = ByteBuffer.wrap(rawValue);
-        buffer.order(ByteOrder.nativeOrder());
-        return Struct.parse(mValueClass, buffer);
+        return Struct.parse(mValueClass, rawValue);
     }
 
     /** Synchronize Kernel RCU */

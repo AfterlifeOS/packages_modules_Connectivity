@@ -654,6 +654,17 @@ public class Struct {
         }
     }
 
+    /**
+     * Parse raw data from a byte array according to the pre-defined annotation rule and return
+     * the type-variable object which is subclass of Struct class.
+     * This assumes the raw data has the same byte order as the native order.
+     */
+    public static <T> T parse(final Class<T> clazz, final byte[] bytes) {
+        final ByteBuffer buf = ByteBuffer.wrap(bytes);
+        buf.order(ByteOrder.nativeOrder());
+        return parse(clazz, buf);
+    }
+
     private static int getSizeInternal(final FieldInfo[] fieldInfos) {
         int size = 0;
         for (FieldInfo fi : fieldInfos) {

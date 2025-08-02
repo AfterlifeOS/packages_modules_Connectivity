@@ -856,7 +856,8 @@ public class IpServer extends StateMachineShim {
                 upstreamIfIndex = upstreamIfaceParams.index;
             }
             params = new RaParams();
-            params.mtu = v6only.getMtu();
+            // Clamp v6 MTU to 1280-1400 range.
+            params.mtu = Math.max(1280, Math.min(1400, v6only.getMtu()));
             params.hasDefaultRoute = v6only.hasIpv6DefaultRoute();
 
             if (params.hasDefaultRoute) params.hopLimit = getHopLimit(upstreamIface, ttlAdjustment);
