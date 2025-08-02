@@ -111,13 +111,6 @@ inline bool isUserdebug() {
 
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
-static string pathToObjName(const string& path) {
-    // extract everything after the final slash, ie. this is the filename 'foo.o'
-    string filename = Split(path, "/").back();
-    // strip off everything from the final period onwards (strip '.o' suffix), ie. 'foo'
-    return filename.substr(0, filename.find_last_of('.'));
-}
-
 typedef struct {
     const char* name;
     enum bpf_prog_type type;
@@ -278,29 +271,6 @@ static int readSectionByName(const char* name, ifstream& elfFile, vector<T>& dat
     return -2;
 }
 
-unsigned int readSectionUint(const char* name, ifstream& elfFile) {
-    vector<char> theBytes;
-    int ret = readSectionByName(name, elfFile, theBytes);
-    if (ret) {
-        ALOGE("Couldn't find section %s.", name);
-        abort();
-    } else if (theBytes.size() < sizeof(unsigned int)) {
-        ALOGE("Section %s is too short.", name);
-        abort();
-    } else {
-        // decode first 4 bytes as LE32 uint, there will likely be more bytes due to alignment.
-        unsigned int value = static_cast<unsigned char>(theBytes[3]);
-        value <<= 8;
-        value += static_cast<unsigned char>(theBytes[2]);
-        value <<= 8;
-        value += static_cast<unsigned char>(theBytes[1]);
-        value <<= 8;
-        value += static_cast<unsigned char>(theBytes[0]);
-        ALOGD("Section %s value is %u [0x%x]", name, value, value);
-        return value;
-    }
-}
-
 static int readSectionByType(ifstream& elfFile, int type, vector<char>& data) {
     int ret;
     vector<Elf64_Shdr> shTable;
@@ -340,13 +310,6 @@ static int readSymTab(ifstream& elfFile, int sort, vector<Elf64_Sym>& data) {
 
     if (sort) std::sort(data.begin(), data.end(), symCompare);
     return 0;
-}
-
-static enum bpf_prog_type getSectionType(string& name) {
-    for (auto& snt : sectionNameTypes)
-        if (StartsWith(name, snt.name)) return snt.type;
-
-    return BPF_PROG_TYPE_UNSPEC;
 }
 
 static int getSectionSymNames(ifstream& elfFile, const string& sectionName, vector<string>& names,
@@ -418,20 +381,22 @@ static int readCodeSections(ifstream& elfFile, vector<codeSection>& cs) {
         ret = getSymName(elfFile, shTable[i].sh_name, name);
         if (ret) return ret;
 
-        enum bpf_prog_type ptype = getSectionType(name);
-
-        if (ptype == BPF_PROG_TYPE_UNSPEC) continue;
-
         // This must be done before '/' is replaced with '_'.
-        for (auto& snt : sectionNameTypes)
-            if (StartsWith(name, snt.name)) cs_temp.attach_type = snt.attach_type;
+        for (auto& snt : sectionNameTypes) {
+            if (StartsWith(name, snt.name)) {
+                cs_temp.type = snt.type;
+                cs_temp.attach_type = snt.attach_type;
+                break;
+            }
+        }
+
+        if (cs_temp.type == BPF_PROG_TYPE_UNSPEC) continue;
 
         string oldName = name;
 
         // convert all slashes to underscores
         std::replace(name.begin(), name.end(), '/', '_');
 
-        cs_temp.type = ptype;
         cs_temp.name = name;
 
         ret = readSectionByIdx(elfFile, i, cs_temp.data);
@@ -481,7 +446,7 @@ static int getSymNameByIdx(ifstream& elfFile, int index, string& name) {
     return getSymName(elfFile, symtab[index].st_name, name);
 }
 
-static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
+static bool mapMatchesExpectations(const unique_fd& fd,
                                    const struct bpf_map_def& mapDef, const enum bpf_map_type type) {
     // bpfGetFd... family of functions require at minimum a 4.14 kernel,
     // so on 4.9-T kernels just pretend the map matches our expectations.
@@ -532,7 +497,7 @@ static bool mapMatchesExpectations(const unique_fd& fd, const string& mapName,
 
     ALOGE("bpf map name %s mismatch: desired/found (errno: %d): "
           "type:%d/%d key:%u/%d value:%u/%d entries:%u/%d flags:%u/%d",
-          mapName.c_str(), errno, type, fd_type, mapDef.key_size, fd_key_size,
+          mapDef.name(), errno, type, fd_type, mapDef.key_size, fd_key_size,
           mapDef.value_size, fd_value_size, mapDef.max_entries, fd_max_entries,
           desired_map_flags, fd_map_flags);
     return false;
@@ -779,7 +744,7 @@ static bool isBtfSupported(enum bpf_map_type type) {
     return type != BPF_MAP_TYPE_DEVMAP_HASH && type != BPF_MAP_TYPE_RINGBUF;
 }
 
-static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const string& mapPinLoc) {
+static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef) {
         int ret;
         if (mapDef.create_location[0]) {
             ret = bpfFdPin(fd, mapDef.create_location);
@@ -789,32 +754,32 @@ static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const
                 return -err;
             }
             ret = renameat2(AT_FDCWD, mapDef.create_location,
-                            AT_FDCWD, mapPinLoc.c_str(), RENAME_NOREPLACE);
+                            AT_FDCWD, mapDef.pin_location, RENAME_NOREPLACE);
             if (ret) {
                 const int err = errno;
-                ALOGE("rename %s %s -> %d [%d:%s]", mapDef.create_location, mapPinLoc.c_str(), ret,
+                ALOGE("rename %s %s -> %d [%d:%s]", mapDef.create_location, mapDef.pin_location, ret,
                       err, strerror(err));
                 return -err;
             }
         } else {
-            ret = bpfFdPin(fd, mapPinLoc.c_str());
+            ret = bpfFdPin(fd, mapDef.pin_location);
             if (ret) {
                 const int err = errno;
-                ALOGE("pin %s -> %d [%d:%s]", mapPinLoc.c_str(), ret, err, strerror(err));
+                ALOGE("pin %s -> %d [%d:%s]", mapDef.pin_location, ret, err, strerror(err));
                 return -err;
             }
         }
-        ret = chmod(mapPinLoc.c_str(), mapDef.mode);
+        ret = chmod(mapDef.pin_location, mapDef.mode);
         if (ret) {
             const int err = errno;
-            ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapPinLoc.c_str(), mapDef.mode, ret, err,
+            ALOGE("chmod(%s, 0%o) = %d [%d:%s]", mapDef.pin_location, mapDef.mode, ret, err,
                   strerror(err));
             return -err;
         }
-        ret = chown(mapPinLoc.c_str(), (uid_t)mapDef.uid, (gid_t)mapDef.gid);
+        ret = chown(mapDef.pin_location, (uid_t)mapDef.uid, (gid_t)mapDef.gid);
         if (ret) {
             const int err = errno;
-            ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapPinLoc.c_str(), mapDef.uid, mapDef.gid,
+            ALOGE("chown(%s, %u, %u) = %d [%d:%s]", mapDef.pin_location, mapDef.uid, mapDef.gid,
                   ret, err, strerror(err));
             return -err;
         }
@@ -826,25 +791,9 @@ static int pinMap(const borrowed_fd& fd, const struct bpf_map_def& mapDef, const
                 ALOGE("bpfGetFdMapId failed, errno: %d", err);
                 return -err;
             }
-            ALOGI("map %s id %d", mapPinLoc.c_str(), mapId);
+            ALOGI("map %s id %d", mapDef.pin_location, mapId);
         }
         return 0;
-}
-
-static int readMapNames(ifstream& elfFile, vector<string>& mapNames) {
-    int ret = getSectionSymNames(elfFile, ".android_maps", mapNames);
-    if (ret) return ret;
-
-    const string suffix = "_def";
-    for (string& name : mapNames) {
-        if (EndsWith(name, suffix)) {
-            name.erase(name.length() - suffix.length());
-        } else {
-           ALOGE("Failed to get map names, invalid symbol in .android_maps: %s", name.c_str());
-           return 1;
-        }
-    }
-    return 0;
 }
 
 static bool isMapTypeSupported(enum bpf_map_type type) {
@@ -880,28 +829,10 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
     return type;
 }
 
-static string buildMapPinLoc(const char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE],
-                             const string& objName, const string& mapName) {
-    // Format of pin location is /sys/fs/bpf/<pin_subdir>map_<objName>_<mapName>
-    // Note: <objName> refers to the extension-less basename of the .o file (without @ suffix).
-    return string(BPF_FS_PATH) + pin_subdir + "map_" + objName + "_" + mapName;
-}
-
-static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>& mapFds,
+static int createMaps(ifstream& elfFile, vector<struct bpf_map_def>& md, vector<unique_fd>& mapFds,
                       const unsigned int bpfloader_ver) {
-    int ret;
+    int ret = 0;
     vector<char> btfData;
-    vector<struct bpf_map_def> md;
-    vector<string> mapNames;
-    string objName = pathToObjName(string(elfPath));
-
-    ret = readSectionByName(".android_maps", elfFile, md);
-    if (ret == -2) return 0;  // no maps to read
-    if (ret) return ret;
-
-    ret = readMapNames(elfFile, mapNames);
-    if (ret) return ret;
-
     struct btf *btf = NULL;
     auto btfGuard = base::make_scope_guard([&btf] { if (btf) btf__free(btf); });
     if (isAtLeastKernelVersion(4, 19, 0)) {
@@ -923,16 +854,16 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
 
     unsigned kvers = kernelVersion();
 
-    for (int i = 0; i < (int)mapNames.size(); i++) {
+    for (unsigned i = 0; i < md.size(); i++) {
         if (bpfloader_ver < md[i].bpfloader_min_ver) {
-            ALOGD("skipping map %s which requires bpfloader min ver 0x%05x", mapNames[i].c_str(),
+            ALOGD("skipping map %s which requires bpfloader min ver 0x%05x", md[i].name(),
                   md[i].bpfloader_min_ver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (bpfloader_ver >= md[i].bpfloader_max_ver) {
-            ALOGD("skipping map %s which requires bpfloader max ver 0x%05x", mapNames[i].c_str(),
+            ALOGD("skipping map %s which requires bpfloader max ver 0x%05x", md[i].name(),
                   md[i].bpfloader_max_ver);
             mapFds.push_back(unique_fd());
             continue;
@@ -940,20 +871,20 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
 
         if (kvers < md[i].min_kver) {
             ALOGD("skipping map %s which requires kernel version 0x%x >= 0x%x",
-                  mapNames[i].c_str(), kvers, md[i].min_kver);
+                  md[i].name(), kvers, md[i].min_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (kvers >= md[i].max_kver) {
             ALOGD("skipping map %s which requires kernel version 0x%x < 0x%x",
-                  mapNames[i].c_str(), kvers, md[i].max_kver);
+                  md[i].name(), kvers, md[i].max_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
         if (!isMapTypeSupported(md[i].type)) {
-            ALOGD("skipping unsupported map type(%d): %s", md[i].type, mapNames[i].c_str());
+            ALOGD("skipping unsupported map type(%d): %s", md[i].type, md[i].name());
             mapFds.push_back(unique_fd());
             continue;
         }
@@ -967,14 +898,13 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             if (max_entries < page_size) max_entries = page_size;
         }
 
-        string mapPinLoc = buildMapPinLoc(md[i].pin_subdir, objName, mapNames[i]);
         unique_fd fd;
         int saved_errno;
 
-        if (access(mapPinLoc.c_str(), F_OK) == 0) {
-            fd.reset(mapRetrieveRO(mapPinLoc.c_str()));
+        if (access(md[i].pin_location, F_OK) == 0) {
+            fd.reset(mapRetrieveRO(md[i].pin_location));
             saved_errno = errno;
-            ALOGD("bpf_create_map reusing map %s, ret: %d", mapNames[i].c_str(), fd.get());
+            ALOGD("bpf_create_map reusing map %s, ret: %d", md[i].name(), fd.get());
             abort();
         } else {
             union bpf_attr req = {
@@ -985,12 +915,12 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
               .map_flags = md[i].map_flags,
             };
             if (isAtLeastKernelVersion(4, 15, 0))
-                strlcpy(req.map_name, mapNames[i].c_str(), sizeof(req.map_name));
+                strlcpy(req.map_name, md[i].name(), sizeof(req.map_name));
 
             bool haveBtf = btf && isBtfSupported(type);
             if (haveBtf) {
                 uint32_t kTid, vTid;
-                ret = getKeyValueTids(btf, mapNames[i].c_str(), md[i].key_size,
+                ret = getKeyValueTids(btf, md[i].name(), md[i].key_size,
                                       md[i].value_size, &kTid, &vTid);
                 if (ret) return ret;
                 req.btf_fd = btf__fd(btf);
@@ -1002,10 +932,10 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
             saved_errno = errno;
             if (fd.ok()) {
                 ALOGD("bpf_create_map[%s] btf:%d -> %d",
-                      mapNames[i].c_str(), haveBtf, fd.get());
+                      md[i].name(), haveBtf, fd.get());
             } else {
                 ALOGE("bpf_create_map[%s] btf:%d -> %d errno:%d",
-                      mapNames[i].c_str(), haveBtf, fd.get(), saved_errno);
+                      md[i].name(), haveBtf, fd.get(), saved_errno);
             }
         }
 
@@ -1014,9 +944,9 @@ static int createMaps(const char* elfPath, ifstream& elfFile, vector<unique_fd>&
         // When reusing a pinned map, we need to check the map type/sizes/etc match, but for
         // safety (since reuse code path is rare) run these checks even if we just created it.
         // We assume failure is due to pinned map mismatch, hence the 'NOT UNIQUE' return code.
-        if (!mapMatchesExpectations(fd, mapNames[i], md[i], type)) return -ENOTUNIQ;
+        if (!mapMatchesExpectations(fd, md[i], type)) return -ENOTUNIQ;
 
-        ret = pinMap(fd, md[i], mapPinLoc);
+        ret = pinMap(fd, md[i]);
         if (ret) return ret;
 
         mapFds.push_back(std::move(fd));
@@ -1050,13 +980,9 @@ static void applyRelo(void* insnsPtr, Elf64_Addr offset, int fd) {
     insn->src_reg = BPF_PSEUDO_MAP_FD;
 }
 
-static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<codeSection>& cs) {
-    vector<string> mapNames;
-
-    int ret = readMapNames(elfFile, mapNames);
-    if (ret) return;
-
-    for (int k = 0; k != (int)cs.size(); k++) {
+static void applyMapRelo(ifstream& elfFile, const vector<struct bpf_map_def>& md,
+                         vector<unique_fd> &mapFds, vector<codeSection>& cs) {
+    for (unsigned k = 0; k < cs.size(); k++) {
         Elf64_Rel* rel = (Elf64_Rel*)(cs[k].rel_data.data());
         int n_rel = cs[k].rel_data.size() / sizeof(*rel);
 
@@ -1064,12 +990,12 @@ static void applyMapRelo(ifstream& elfFile, vector<unique_fd> &mapFds, vector<co
             int symIndex = ELF64_R_SYM(rel[i].r_info);
             string symName;
 
-            ret = getSymNameByIdx(elfFile, symIndex, symName);
+            int ret = getSymNameByIdx(elfFile, symIndex, symName);
             if (ret) return;
 
             // Find the map fd and apply relo
-            for (int j = 0; j < (int)mapNames.size(); j++) {
-                if (!mapNames[j].compare(symName)) {
+            for (unsigned j = 0; j < md.size(); j++) {
+                if (!symName.compare(md[j].name())) {
                     applyRelo(cs[k].data.data(), rel[i].r_offset, mapFds[j]);
                     break;
                 }
@@ -1153,12 +1079,6 @@ static int validateProg(const borrowed_fd& fd, string& progPinLoc,
     return 0;
 }
 
-static string buildProgPinLoc(const char pin_subdir[BPF_PIN_SUBDIR_CHAR_ARRAY_SIZE],
-                              const string& objName, const string& name) {
-    // Format of pin location is /sys/fs/bpf/<prefix>prog_<objName>_<progName>
-    return string(BPF_FS_PATH) + pin_subdir + "prog_" + objName + '_' + string(name);
-}
-
 static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const string& license,
                             const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
@@ -1167,8 +1087,6 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         ALOGE("unable to get kernel version");
         return -EINVAL;
     }
-
-    string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)cs.size(); i++) {
         unique_fd& fd = cs[i].prog_fd;
@@ -1201,7 +1119,7 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
         name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
-        string progPinLoc = buildProgPinLoc(cs[i].prog_def->pin_subdir, objName, name);
+        string progPinLoc = string(cs[i].prog_def->pin_prefix) + name;
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             fd.reset(retrieveProgram(progPinLoc.c_str()));
             ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
@@ -1270,19 +1188,19 @@ static int loadCodeSections(const char* elfPath, vector<codeSection>& cs, const 
 }
 
 static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md,
-                           const vector<string>& mapNames, const unsigned int bpfloader_ver) {
+                           const unsigned int bpfloader_ver) {
     unsigned kvers = kernelVersion();
 
-    for (int i = 0; i < (int)mapNames.size(); i++) {
-        struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
+    for (unsigned i = 0; i < md.size(); i++) {
+        struct bpf_map* m = bpf_object__find_map_by_name(obj, md[i].name());
         if (!m) {
-            ALOGE("bpf_object does not contain map: %s", mapNames[i].c_str());
+            ALOGE("bpf_object does not contain map: %s", md[i].name());
             return -1;
         }
 
         if (bpfloader_ver < md[i].bpfloader_min_ver || bpfloader_ver >= md[i].bpfloader_max_ver) {
             ALOGD("skipping map %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
-                  mapNames[i].c_str(), bpfloader_ver,
+                  md[i].name(), bpfloader_ver,
                   md[i].bpfloader_min_ver, md[i].bpfloader_max_ver);
             bpf_map__set_autocreate(m, false);
             continue;
@@ -1290,13 +1208,13 @@ static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf
 
         if (kvers < md[i].min_kver || kvers >= md[i].max_kver) {
             ALOGD("skipping map %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
-                  mapNames[i].c_str(), kvers, md[i].min_kver, md[i].max_kver);
+                  md[i].name(), kvers, md[i].min_kver, md[i].max_kver);
             bpf_map__set_autocreate(m, false);
             continue;
         }
 
         if (!isMapTypeSupported(md[i].type)) {
-            ALOGD("skipping unsupported map type(%d): %s", md[i].type, mapNames[i].c_str());
+            ALOGD("skipping unsupported map type(%d): %s", md[i].type, md[i].name());
             bpf_map__set_autocreate(m, false);
             continue;
         }
@@ -1354,36 +1272,30 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
     return 0;
 }
 
-static int pinMaps(const char* const elfPath, const struct bpf_object* obj,
-                   const vector<struct bpf_map_def>& md, const vector<string>& mapNames) {
-    int ret;
-    string objName = pathToObjName(string(elfPath));
-
-    for (int i = 0; i < (int)mapNames.size(); i++) {
-        struct bpf_map* m = bpf_object__find_map_by_name(obj, mapNames[i].c_str());
+static int pinMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md) {
+    for (unsigned i = 0; i < md.size(); i++) {
+        struct bpf_map* m = bpf_object__find_map_by_name(obj, md[i].name());
         if (!m) {
-            ALOGE("bpf_object does not contain map: %s", mapNames[i].c_str());
+            ALOGE("bpf_object does not contain map: %s", md[i].name());
             return -1;
         }
         // This map was skipped
         if (!bpf_map__autocreate(m)) continue;
 
-        string mapPinLoc = buildMapPinLoc(md[i].pin_subdir, objName, mapNames[i]);
-        if (access(mapPinLoc.c_str(), F_OK) == 0) {
-            ALOGE("Reusing map is not supported: %s", mapNames[i].c_str());
+        if (access(md[i].pin_location, F_OK) == 0) {
+            ALOGE("Reusing map is not supported: %s", md[i].name());
             return -1;
         }
 
-        ret = pinMap(bpf_map__fd(m), md[i], mapPinLoc);
+        int ret = pinMap(bpf_map__fd(m), md[i]);
         if (ret) return ret;
     }
     return 0;
 }
 
-static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
+static int pinProgs(const struct bpf_object * obj,
                     const vector<codeSection>& cs, const unsigned int bpfloader_ver) {
     int ret;
-    string objName = pathToObjName(string(elfPath));
 
     for (int i = 0; i < (int)cs.size(); i++) {
         string program_name = cs[i].program_name;
@@ -1397,7 +1309,7 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
 
         string name = cs[i].name;
         name = name.substr(0, name.find_last_of('$'));
-        string progPinLoc = buildProgPinLoc(cs[i].prog_def->pin_subdir, objName, name);
+        string progPinLoc = string(cs[i].prog_def->pin_prefix) + name;
         if (access(progPinLoc.c_str(), F_OK) == 0) {
             // TODO: Skip loading lower priority program
             ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());
@@ -1415,7 +1327,6 @@ static int pinProgs(const char* const elfPath, const struct bpf_object * obj,
 
 static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver) {
     int ret;
-    vector<string> mapNames;
     vector<struct bpf_map_def> md;
     vector<codeSection> cs;
 
@@ -1432,10 +1343,7 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = readSectionByName(".android_maps", elfFile, md);
     if (ret) return ret;
 
-    ret = readMapNames(elfFile, mapNames);
-    if (ret) return ret;
-
-    ret = prepareLoadMaps(obj, md, mapNames, bpfloader_ver);
+    ret = prepareLoadMaps(obj, md, bpfloader_ver);
     if (ret) return ret;
 
     ret = readCodeSections(elfFile, cs);
@@ -1447,10 +1355,10 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = bpf_object__load(obj);
     if (ret) return ret;
 
-    ret = pinMaps(elfPath, obj, md, mapNames);
+    ret = pinMaps(obj, md);
     if (ret) return ret;
 
-    ret = pinProgs(elfPath, obj, cs, bpfloader_ver);
+    ret = pinProgs(obj, cs, bpfloader_ver);
     if (ret) return ret;
 
     return 0;
@@ -1459,6 +1367,7 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
 int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
     vector<char> license;
     vector<codeSection> cs;
+    vector<struct bpf_map_def> md;
     vector<unique_fd> mapFds;
     int ret;
 
@@ -1476,13 +1385,17 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
 
     ALOGD("BpfLoader ver 0x%05x processing ELF object %s", bpfloader_ver, elfPath);
 
-    ret = createMaps(elfPath, elfFile, mapFds, bpfloader_ver);
+    ret = readSectionByName(".android_maps", elfFile, md);
+    if (ret == -2) ret = 0; // -2 means there were no maps to read
+    if (ret) return ret;
+
+    ret = createMaps(elfFile, md, mapFds, bpfloader_ver);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
     }
 
-    for (int i = 0; i < (int)mapFds.size(); i++)
+    for (unsigned i = 0; i < mapFds.size(); i++)
         ALOGV("map_fd found at %d is %d in %s", i, mapFds[i].get(), elfPath);
 
     ret = readCodeSections(elfFile, cs);
@@ -1492,7 +1405,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
         return ret;
     }
 
-    applyMapRelo(elfFile, mapFds, cs);
+    applyMapRelo(elfFile, md, mapFds, cs);
 
     ret = loadCodeSections(elfPath, cs, string(license.data()), bpfloader_ver);
     if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d", ret);

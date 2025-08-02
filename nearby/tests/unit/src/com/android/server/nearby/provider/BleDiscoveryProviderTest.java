@@ -40,7 +40,6 @@ import android.nearby.ScanFilter;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 
-import com.android.server.nearby.injector.BluetoothLeAdvertiserWrapper;
 import com.android.server.nearby.injector.Injector;
 
 import org.junit.Before;
@@ -122,11 +121,6 @@ public final class BleDiscoveryProviderTest {
         public BluetoothAdapter getBluetoothAdapter() {
             return mBluetoothAdapter;
         }
-
-        @Override
-        public BluetoothLeAdvertiserWrapper getBluetoothLeAdvertiserWrapper() {
-            return null;
-        };
 
         @Override
         public ContextHubManager getContextHubManager() {

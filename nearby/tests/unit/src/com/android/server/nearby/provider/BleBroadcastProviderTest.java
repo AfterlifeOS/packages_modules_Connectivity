@@ -21,14 +21,19 @@ import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
 
+import android.app.AppOpsManager;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.AdvertiseSettings;
 import android.bluetooth.le.AdvertisingSetCallback;
+import android.content.Context;
+import android.hardware.location.ContextHubManager;
 import android.nearby.BroadcastCallback;
 import android.nearby.BroadcastRequest;
 
-import com.android.server.nearby.injector.BluetoothLeAdvertiserWrapper;
+import androidx.test.core.app.ApplicationProvider;
+
 import com.android.server.nearby.injector.Injector;
 
 import com.google.common.util.concurrent.MoreExecutors;
@@ -37,7 +42,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 import org.mockito.junit.MockitoJUnit;
 import org.mockito.junit.MockitoRule;
 
@@ -49,21 +53,13 @@ public class BleBroadcastProviderTest {
     public final MockitoRule mocks = MockitoJUnit.rule();
 
     @Mock
-    private Injector mInjector;
-
-    @Mock
-    private BluetoothLeAdvertiserWrapper mBluetoothLeAdvertiserWrapper;
-
-    @Mock
     private BleBroadcastProvider.BroadcastListener mBroadcastListener;
     private BleBroadcastProvider mBleBroadcastProvider;
 
     @Before
     public void setUp() {
-        MockitoAnnotations.initMocks(this);
-        when(mInjector.getBluetoothLeAdvertiserWrapper()).thenReturn(mBluetoothLeAdvertiserWrapper);
-        when(mBluetoothLeAdvertiserWrapper.isLeExtendedAdvertisingSupported()).thenReturn(true);
-        mBleBroadcastProvider = new BleBroadcastProvider(mInjector, MoreExecutors.directExecutor());
+        mBleBroadcastProvider = new BleBroadcastProvider(new TestInjector(),
+                MoreExecutors.directExecutor());
     }
 
     @Test
@@ -118,5 +114,24 @@ public class BleBroadcastProviderTest {
     public void testStop() {
         mBleBroadcastProvider.stop();
     }
-}
 
+    private static class TestInjector implements Injector {
+
+        @Override
+        public BluetoothAdapter getBluetoothAdapter() {
+            Context context = ApplicationProvider.getApplicationContext();
+            BluetoothManager bluetoothManager = context.getSystemService(BluetoothManager.class);
+            return bluetoothManager.getAdapter();
+        }
+
+        @Override
+        public ContextHubManager getContextHubManager() {
+            return null;
+        }
+
+        @Override
+        public AppOpsManager getAppOpsManager() {
+            return null;
+        }
+    }
+}
