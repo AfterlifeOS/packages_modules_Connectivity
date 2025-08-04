@@ -1438,40 +1438,39 @@ static bool exists(const char* const path) {
     abort();  // can only hit this if permissions (likely selinux) are screwed up
 }
 
-#define APEXROOT "/apex/com.android.tethering"
-#define BPFROOT APEXROOT "/etc/bpf/mainline/"
-
 static int loadObject(const unsigned int bpfloader_ver,
-                      const char* const fname, const bool useLibbpf = false) {
-    string progPath = string(BPFROOT) + fname;
-    int ret = useLibbpf ? loadProgByLibbpf(progPath.c_str(), bpfloader_ver) :
-                          loadProg(progPath.c_str(), bpfloader_ver);
+                      const char* const progPath, const bool useLibbpf = false) {
+    int ret = useLibbpf ? loadProgByLibbpf(progPath, bpfloader_ver) :
+                          loadProg(progPath, bpfloader_ver);
     if (ret) {
         ALOGE("Failed to load object: %s, ret: %s, libbpf: %d",
-              progPath.c_str(), std::strerror(-ret), useLibbpf);
+              progPath, std::strerror(-ret), useLibbpf);
         return 1;
     }
-    ALOGD("Loaded object: %s, libbpf: %d", progPath.c_str(), useLibbpf);
+    ALOGD("Loaded object: %s, libbpf: %d", progPath, useLibbpf);
     return 0;
 }
+
+#define APEXROOT "/apex/com.android.tethering"
+#define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static int loadAllObjects(const unsigned int bpfloader_ver) {
     // S+ Tethering mainline module (network_stack): tether offload
     // loads under /sys/fs/bpf/tethering:
-    if (loadObject(bpfloader_ver, "offload.o")) return 1;
-    if (loadObject(bpfloader_ver, "test.o", isAtLeast25Q3)) return 1;
+    if (loadObject(bpfloader_ver, BPFROOT "offload.o")) return 1;
+    if (loadObject(bpfloader_ver, BPFROOT "test.o", isAtLeast25Q3)) return 1;
     if (isAtLeastT) {
         // T+ Tethering mainline module loads under:
         // /sys/fs/bpf/net_shared: shared with netd & system server
-        if (loadObject(bpfloader_ver, "clatd.o", isAtLeast25Q3)) return 1;
-        if (loadObject(bpfloader_ver, "dscpPolicy.o", isAtLeast25Q3)) return 1;
+        if (loadObject(bpfloader_ver, BPFROOT "clatd.o", isAtLeast25Q3)) return 1;
+        if (loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", isAtLeast25Q3)) return 1;
 
         // /sys/fs/bpf/netd_shared: shared with netd & system server
         // - netutils_wrapper (for iptables xt_bpf) has access to programs
 
         // WARNING: Android T+ non-updatable netd depends on both of the
         // 'netd_shared' & 'netd' strings for xt_bpf programs it loads
-        if (loadObject(bpfloader_ver, "netd.o", isAtLeast25Q3)) return 1;
+        if (loadObject(bpfloader_ver, BPFROOT "netd.o", isAtLeast25Q3)) return 1;
 
         // /sys/fs/bpf/netd_readonly: shared with netd & system server
         // - netutils_wrapper has no access, netd has read only access
