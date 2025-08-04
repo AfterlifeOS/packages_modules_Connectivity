@@ -26,6 +26,7 @@ cc_library_static {
         "jni_headers",
     ],
     shared_libs: [
+        "libbinder_ndk",
         "liblog",
         "libnativehelper_compat_libc++",
     ],
