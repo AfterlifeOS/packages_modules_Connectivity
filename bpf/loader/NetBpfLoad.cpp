@@ -1453,12 +1453,13 @@ static bool loadObject(const unsigned int bpfloader_ver,
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
+    bool libbpf = isAtLeast25Q3;
     if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
-    if (!loadObject(bpfloader_ver, BPFROOT "test.o", isAtLeast25Q3)) return false;
+    if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {
-        if (!loadObject(bpfloader_ver, BPFROOT "clatd.o", isAtLeast25Q3)) return false;
-        if (!loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", isAtLeast25Q3)) return false;
-        if (!loadObject(bpfloader_ver, BPFROOT "netd.o", isAtLeast25Q3)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "clatd.o", libbpf)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", libbpf)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "netd.o", libbpf)) return false;
     }
     return true;
 }
