@@ -402,10 +402,10 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
     entries = shTable.size();
 
     vector<struct bpf_prog_def> pd;
-    ret = elfObj.readSectionByName("progs", pd);
+    ret = elfObj.readSectionByName(".android_progs", pd);
     if (ret) return ret;
     vector<string> progDefNames;
-    ret = elfObj.getSectionSymNames("progs", progDefNames);
+    ret = elfObj.getSectionSymNames(".android_progs", progDefNames);
     if (!pd.empty() && ret) return ret;
 
     for (int i = 0; i < entries; i++) {

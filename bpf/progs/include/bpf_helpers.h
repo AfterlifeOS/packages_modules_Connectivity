@@ -535,7 +535,7 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
                             min_loader, max_loader, opt, selinux, pindir)                \
     VALIDATE_SELINUX_CONTEXT(min_loader, selinux);                                       \
     VALIDATE_PIN_DIR(min_loader, pindir);                                                \
-    const struct bpf_prog_def SECTION("progs") the_prog##_def = {                        \
+    const struct bpf_prog_def SECTION(".android_progs") the_prog##_def = {               \
         .type = BPF_PROG_TYPE_##TYPE,                                                    \
         .attach_type = BPF_PROG_ATTACH_TYPE_##TYPE,                                      \
         .uid = (prog_uid),                                                               \
