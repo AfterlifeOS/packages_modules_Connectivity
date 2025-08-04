@@ -1455,27 +1455,12 @@ static int loadObject(const unsigned int bpfloader_ver,
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
-    // S+ Tethering mainline module (network_stack): tether offload
-    // loads under /sys/fs/bpf/tethering:
     if (loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
     if (loadObject(bpfloader_ver, BPFROOT "test.o", isAtLeast25Q3)) return false;
     if (isAtLeastT) {
-        // T+ Tethering mainline module loads under:
-        // /sys/fs/bpf/net_shared: shared with netd & system server
         if (loadObject(bpfloader_ver, BPFROOT "clatd.o", isAtLeast25Q3)) return false;
         if (loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", isAtLeast25Q3)) return false;
-
-        // /sys/fs/bpf/netd_shared: shared with netd & system server
-        // - netutils_wrapper (for iptables xt_bpf) has access to programs
-
-        // WARNING: Android T+ non-updatable netd depends on both of the
-        // 'netd_shared' & 'netd' strings for xt_bpf programs it loads
         if (loadObject(bpfloader_ver, BPFROOT "netd.o", isAtLeast25Q3)) return false;
-
-        // /sys/fs/bpf/netd_readonly: shared with netd & system server
-        // - netutils_wrapper has no access, netd has read only access
-
-        // /sys/fs/bpf/net_private: not shared, just network_stack
     }
     return true;
 }
