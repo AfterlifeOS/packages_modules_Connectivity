@@ -479,11 +479,65 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
 // Note: bpf only supports up to 3 arguments, log via: bpf_printf("msg %d %d %d", 1, 2, 3);
 // and read via the blocking: sudo cat /sys/kernel/debug/tracing/trace_pipe
 
+#define BPF_PROG_TYPE_bind4             BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_bind6             BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_cgroupskb         BPF_PROG_TYPE_CGROUP_SKB
+#define BPF_PROG_TYPE_cgroupsock        BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_cgroupsockcreate  BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_cgroupsockrelease BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_connect4          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_connect6          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_egress            BPF_PROG_TYPE_CGROUP_SKB
+#define BPF_PROG_TYPE_getsockopt        BPF_PROG_TYPE_CGROUP_SOCKOPT
+#define BPF_PROG_TYPE_ingress           BPF_PROG_TYPE_CGROUP_SKB
+#define BPF_PROG_TYPE_postbind4         BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_postbind6         BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_recvmsg4          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_recvmsg6          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_schedact          BPF_PROG_TYPE_SCHED_ACT
+#define BPF_PROG_TYPE_schedcls          BPF_PROG_TYPE_SCHED_CLS
+#define BPF_PROG_TYPE_sendmsg4          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_sendmsg6          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_setsockopt        BPF_PROG_TYPE_CGROUP_SOCKOPT
+#define BPF_PROG_TYPE_skfilter          BPF_PROG_TYPE_SOCKET_FILTER
+#define BPF_PROG_TYPE_sockops           BPF_PROG_TYPE_SOCK_OPS
+#define BPF_PROG_TYPE_sysctl            BPF_PROG_TYPE_CGROUP_SYSCTL
+#define BPF_PROG_TYPE_xdp               BPF_PROG_TYPE_XDP
+
+#define BPF_PROG_ATTACH_TYPE_DEFAULT BPF_CGROUP_INET_INGRESS
+
+#define BPF_PROG_ATTACH_TYPE_bind4             BPF_CGROUP_INET4_BIND
+#define BPF_PROG_ATTACH_TYPE_bind6             BPF_CGROUP_INET6_BIND
+#define BPF_PROG_ATTACH_TYPE_cgroupskb         BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_cgroupsock        BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_cgroupsockcreate  BPF_CGROUP_INET_SOCK_CREATE
+#define BPF_PROG_ATTACH_TYPE_cgroupsockrelease BPF_CGROUP_INET_SOCK_RELEASE
+#define BPF_PROG_ATTACH_TYPE_connect4          BPF_CGROUP_INET4_CONNECT
+#define BPF_PROG_ATTACH_TYPE_connect6          BPF_CGROUP_INET6_CONNECT
+#define BPF_PROG_ATTACH_TYPE_egress            BPF_CGROUP_INET_EGRESS
+#define BPF_PROG_ATTACH_TYPE_getsockopt        BPF_CGROUP_GETSOCKOPT
+#define BPF_PROG_ATTACH_TYPE_ingress           BPF_CGROUP_INET_INGRESS
+#define BPF_PROG_ATTACH_TYPE_postbind4         BPF_CGROUP_INET4_POST_BIND
+#define BPF_PROG_ATTACH_TYPE_postbind6         BPF_CGROUP_INET6_POST_BIND
+#define BPF_PROG_ATTACH_TYPE_recvmsg4          BPF_CGROUP_UDP4_RECVMSG
+#define BPF_PROG_ATTACH_TYPE_recvmsg6          BPF_CGROUP_UDP6_RECVMSG
+#define BPF_PROG_ATTACH_TYPE_schedact          BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_schedcls          BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_sendmsg4          BPF_CGROUP_UDP4_SENDMSG
+#define BPF_PROG_ATTACH_TYPE_sendmsg6          BPF_CGROUP_UDP6_SENDMSG
+#define BPF_PROG_ATTACH_TYPE_setsockopt        BPF_CGROUP_SETSOCKOPT
+#define BPF_PROG_ATTACH_TYPE_skfilter          BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_sockops           BPF_CGROUP_SOCK_OPS
+#define BPF_PROG_ATTACH_TYPE_sysctl            BPF_CGROUP_SYSCTL
+#define BPF_PROG_ATTACH_TYPE_xdp               BPF_PROG_ATTACH_TYPE_DEFAULT
+
 #define DEFINE_BPF_PROG_EXT(TYPE, NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv,    \
                             min_loader, max_loader, opt, selinux, pindir)                \
     VALIDATE_SELINUX_CONTEXT(min_loader, selinux);                                       \
     VALIDATE_PIN_DIR(min_loader, pindir);                                                \
     const struct bpf_prog_def SECTION("progs") the_prog##_def = {                        \
+        .type = BPF_PROG_TYPE_##TYPE,                                                    \
+        .attach_type = BPF_PROG_ATTACH_TYPE_##TYPE,                                      \
         .uid = (prog_uid),                                                               \
         .gid = (prog_gid),                                                               \
         .min_kver = (min_kv).kver,                                                       \
