@@ -458,6 +458,11 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
             }
         }
 
+        if (!cs_temp.prog_def) abort();
+
+        if (cs_temp.prog_def->type != cs_temp.type) abort();
+        if (cs_temp.prog_def->attach_type != cs_temp.attach_type) abort();
+
         // Check for rel section
         if (cs_temp.data.size() > 0 && i < entries) {
             ret = elfObj.getSymName(shTable[i + 1].sh_name, name);

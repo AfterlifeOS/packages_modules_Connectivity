@@ -167,6 +167,9 @@ _Static_assert(__alignof__(struct bpf_map_def) == 4, "__alignof__ struct bpf_map
 _Static_assert(_Alignof(struct bpf_map_def) == 4, "_Alignof struct bpf_map_def != 4");
 
 struct bpf_prog_def {
+    enum bpf_prog_type type;
+    enum bpf_attach_type attach_type;
+
     unsigned int uid;
     unsigned int gid;
 
@@ -187,6 +190,6 @@ struct bpf_prog_def {
 
 // This needs to be updated whenever the above structure definition is expanded.
 // These asserts are here to make sure we have cross-6-arch consistency.
-_Static_assert(sizeof(struct bpf_prog_def) == 28 + 2 * BPF_DEF_CHAR_ARRAY_SIZE, "wrong sizeof struct bpf_prog_def");
+_Static_assert(sizeof(struct bpf_prog_def) == 36 + 2 * BPF_DEF_CHAR_ARRAY_SIZE, "wrong sizeof struct bpf_prog_def");
 _Static_assert(__alignof__(struct bpf_prog_def) == 4, "__alignof__ struct bpf_prog_def != 4");
 _Static_assert(_Alignof(struct bpf_prog_def) == 4, "_Alignof struct bpf_prog_def != 4");
