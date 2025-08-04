@@ -207,13 +207,13 @@ struct sdk_level_uint { unsigned int sdk_level; };
  */
 static void* (*bpf_map_lookup_elem_unsafe)(const void* map,
                                            const void* key) = (void*)BPF_FUNC_map_lookup_elem;
-static int (*bpf_map_update_elem_unsafe)(const void* map, const void* key,
-                                         const void* value, unsigned long long flags) = (void*)
+static long (*bpf_map_update_elem_unsafe)(const void* map, const void* key,
+                                          const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_map_update_elem;
-static int (*bpf_map_delete_elem_unsafe)(const void* map,
-                                         const void* key) = (void*)BPF_FUNC_map_delete_elem;
-static int (*bpf_ringbuf_output_unsafe)(const void* ringbuf,
-                                        const void* data, __u64 size, __u64 flags) = (void*)
+static long (*bpf_map_delete_elem_unsafe)(const void* map,
+                                          const void* key) = (void*)BPF_FUNC_map_delete_elem;
+static long (*bpf_ringbuf_output_unsafe)(const void* ringbuf,
+                                         const void* data, __u64 size, __u64 flags) = (void*)
         BPF_FUNC_ringbuf_output;
 static void* (*bpf_ringbuf_reserve_unsafe)(const void* ringbuf,
                                            __u64 size, __u64 flags) = (void*)
@@ -223,8 +223,8 @@ static void (*bpf_ringbuf_submit_unsafe)(const void* data, __u64 flags) = (void*
 static void* (*bpf_sk_storage_get_unsafe) (const void* sk_storage, const void* sk,
                                            const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_sk_storage_get;
-static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
-                                            const void* sk) = (void*) BPF_FUNC_sk_storage_delete;
+static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
+                                             const void* sk) = (void*) BPF_FUNC_sk_storage_delete;
 
 #define BPF_ANNOTATE_KV_PAIR(name, type_key, type_val)  \
         struct ____btf_map_##name {                     \
@@ -459,10 +459,10 @@ unsigned long long load_byte(void* skb, unsigned long long off) asm("llvm.bpf.lo
 unsigned long long load_half(void* skb, unsigned long long off) asm("llvm.bpf.load.half");
 unsigned long long load_word(void* skb, unsigned long long off) asm("llvm.bpf.load.word");
 
-static int (*bpf_probe_read)(void* dst, int size, void* unsafe_ptr) = (void*) BPF_FUNC_probe_read;
-static int (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*) BPF_FUNC_probe_read_str;
-static int (*bpf_probe_read_user)(void* dst, int size, const void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user;
-static int (*bpf_probe_read_user_str)(void* dst, int size, const void* unsafe_ptr) = (void*) BPF_FUNC_probe_read_user_str;
+static long (*bpf_probe_read)(void* dst, int size, void* unsafe_ptr) = (void*) BPF_FUNC_probe_read;
+static long (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*) BPF_FUNC_probe_read_str;
+static long (*bpf_probe_read_user)(void* dst, int size, const void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user;
+static long (*bpf_probe_read_user_str)(void* dst, int size, const void* unsafe_ptr) = (void*) BPF_FUNC_probe_read_user_str;
 static unsigned long long (*bpf_ktime_get_ns)(void) = (void*) BPF_FUNC_ktime_get_ns;
 static unsigned long long (*bpf_ktime_get_boot_ns)(void) = (void*)BPF_FUNC_ktime_get_boot_ns;
 static unsigned long long (*bpf_get_current_pid_tgid)(void) = (void*) BPF_FUNC_get_current_pid_tgid;
@@ -474,7 +474,7 @@ static long (*bpf_get_current_comm)(void* buf, uint32_t buf_size) = (void*) BPF_
 static struct bpf_sock* (*bpf_sk_fullsock)(struct bpf_sock* sk) = (void*) BPF_FUNC_sk_fullsock;
 
 // GPL only:
-static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF_FUNC_trace_printk;
+static long (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF_FUNC_trace_printk;
 #define bpf_printf(s, n...) bpf_trace_printk(s, sizeof(s), ## n)
 // Note: bpf only supports up to 3 arguments, log via: bpf_printf("msg %d %d %d", 1, 2, 3);
 // and read via the blocking: sudo cat /sys/kernel/debug/tracing/trace_pipe
