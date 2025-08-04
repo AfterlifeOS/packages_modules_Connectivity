@@ -107,8 +107,6 @@ inline bool isUserdebug() {
     return getBuildType() == "userdebug";
 }
 
-#define BPF_FS_PATH "/sys/fs/bpf/"
-
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
 typedef struct {
