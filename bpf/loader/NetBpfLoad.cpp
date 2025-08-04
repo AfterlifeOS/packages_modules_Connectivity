@@ -1438,29 +1438,27 @@ static bool exists(const char* const path) {
     abort();  // can only hit this if permissions (likely selinux) are screwed up
 }
 
-static int loadObject(const unsigned int bpfloader_ver,
+static bool loadObject(const unsigned int bpfloader_ver,
                       const char* const progPath, const bool useLibbpf = false) {
-    int ret = useLibbpf ? loadProgByLibbpf(progPath, bpfloader_ver) :
-                          loadProg(progPath, bpfloader_ver);
-    if (ret) {
-        ALOGE("Failed to load object: %s, ret: %s, libbpf: %d",
-              progPath, std::strerror(-ret), useLibbpf);
-        return 1;
+    if (useLibbpf ? loadProgByLibbpf(progPath, bpfloader_ver) :
+                          loadProg(progPath, bpfloader_ver)) {
+        ALOGE("Failed to load object: %s, libbpf: %d", progPath, useLibbpf);
+        return false;
     }
     ALOGD("Loaded object: %s, libbpf: %d", progPath, useLibbpf);
-    return 0;
+    return true;
 }
 
 #define APEXROOT "/apex/com.android.tethering"
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
-    if (loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
-    if (loadObject(bpfloader_ver, BPFROOT "test.o", isAtLeast25Q3)) return false;
+    if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
+    if (!loadObject(bpfloader_ver, BPFROOT "test.o", isAtLeast25Q3)) return false;
     if (isAtLeastT) {
-        if (loadObject(bpfloader_ver, BPFROOT "clatd.o", isAtLeast25Q3)) return false;
-        if (loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", isAtLeast25Q3)) return false;
-        if (loadObject(bpfloader_ver, BPFROOT "netd.o", isAtLeast25Q3)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "clatd.o", isAtLeast25Q3)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", isAtLeast25Q3)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "netd.o", isAtLeast25Q3)) return false;
     }
     return true;
 }
