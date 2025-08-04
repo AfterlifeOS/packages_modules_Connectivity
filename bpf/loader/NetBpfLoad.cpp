@@ -431,8 +431,15 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
 
         string oldName = name;
 
-        // convert all slashes to underscores
-        std::replace(name.begin(), name.end(), '/', '_');
+        // Find the first slash
+        size_t first_slash_pos = name.find('/');
+
+        // If a slash is found, replace it
+        if (first_slash_pos != std::string::npos) {
+            name[first_slash_pos] = '_';
+
+            if (name.find('/') != std::string::npos) abort(); // There should only be one!
+        }
 
         cs_temp.name = name;
 
