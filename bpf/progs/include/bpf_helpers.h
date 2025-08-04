@@ -549,7 +549,7 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
         .pin_prefix = "/sys/fs/bpf/" pindir "/prog_" BPF_OBJ_NAME "_",                   \
     };                                                                                   \
     SECTION(#TYPE "/" NAME)                                                              \
-    int the_prog
+    long the_prog
 
 #define DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv, \
                                        opt)                                                      \
