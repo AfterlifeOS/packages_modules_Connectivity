@@ -321,7 +321,11 @@ public class MultinetworkPolicyTracker {
     @TargetApi(Build.VERSION_CODES.S)
     public void start() {
         for (Uri uri : mSettingsUris) {
-            mResolver.registerContentObserver(uri, true, mSettingObserver);
+            mResolver.registerContentObserver(
+                    uri,
+                    mAvoidBadWifiSource == FROM_CARRIER_CONFIG,
+                    mSettingObserver
+            );
         }
 
         final IntentFilter intentFilter = new IntentFilter();
