@@ -1438,47 +1438,29 @@ static bool exists(const char* const path) {
     abort();  // can only hit this if permissions (likely selinux) are screwed up
 }
 
+static bool loadObject(const unsigned int bpfloader_ver,
+                      const char* const progPath, const bool useLibbpf = false) {
+    if (useLibbpf ? loadProgByLibbpf(progPath, bpfloader_ver) :
+                          loadProg(progPath, bpfloader_ver)) {
+        ALOGE("Failed to load object: %s, libbpf: %d", progPath, useLibbpf);
+        return false;
+    }
+    ALOGD("Loaded object: %s, libbpf: %d", progPath, useLibbpf);
+    return true;
+}
+
 #define APEXROOT "/apex/com.android.tethering"
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
-static int loadObject(const unsigned int bpfloader_ver,
-                      const char* const fname, const bool useLibbpf = false) {
-    string progPath = string(BPFROOT) + fname;
-    int ret = useLibbpf ? loadProgByLibbpf(progPath.c_str(), bpfloader_ver) :
-                          loadProg(progPath.c_str(), bpfloader_ver);
-    if (ret) {
-        ALOGE("Failed to load object: %s, ret: %s, libbpf: %d",
-              progPath.c_str(), std::strerror(-ret), useLibbpf);
-        return 1;
-    }
-    ALOGD("Loaded object: %s, libbpf: %d", progPath.c_str(), useLibbpf);
-    return 0;
-}
-
-static int loadAllObjects(const unsigned int bpfloader_ver) {
-    // S+ Tethering mainline module (network_stack): tether offload
-    // loads under /sys/fs/bpf/tethering:
-    if (loadObject(bpfloader_ver, "offload.o")) return 1;
-    if (loadObject(bpfloader_ver, "test.o", isAtLeast25Q3)) return 1;
+static bool loadAllObjects(const unsigned int bpfloader_ver) {
+    if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
+    if (!loadObject(bpfloader_ver, BPFROOT "test.o", isAtLeast25Q3)) return false;
     if (isAtLeastT) {
-        // T+ Tethering mainline module loads under:
-        // /sys/fs/bpf/net_shared: shared with netd & system server
-        if (loadObject(bpfloader_ver, "clatd.o", isAtLeast25Q3)) return 1;
-        if (loadObject(bpfloader_ver, "dscpPolicy.o", isAtLeast25Q3)) return 1;
-
-        // /sys/fs/bpf/netd_shared: shared with netd & system server
-        // - netutils_wrapper (for iptables xt_bpf) has access to programs
-
-        // WARNING: Android T+ non-updatable netd depends on both of the
-        // 'netd_shared' & 'netd' strings for xt_bpf programs it loads
-        if (loadObject(bpfloader_ver, "netd.o", isAtLeast25Q3)) return 1;
-
-        // /sys/fs/bpf/netd_readonly: shared with netd & system server
-        // - netutils_wrapper has no access, netd has read only access
-
-        // /sys/fs/bpf/net_private: not shared, just network_stack
+        if (!loadObject(bpfloader_ver, BPFROOT "clatd.o", isAtLeast25Q3)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", isAtLeast25Q3)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "netd.o", isAtLeast25Q3)) return false;
     }
-    return 0;
+    return true;
 }
 
 static bool createDir(const char* const dir) {
@@ -1964,7 +1946,7 @@ static int doLoad(char** argv, char * const envp[]) {
     }
 
     // Load all ELF objects, create programs and maps, and pin them
-    if (loadAllObjects(bpfloader_ver)) {
+    if (!loadAllObjects(bpfloader_ver)) {
         ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS ===");
         ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
         ALOGE("If this triggers randomly, you might be hitting some memory allocation "
