@@ -181,6 +181,8 @@ private const val DEFAULT_TIMEOUT_MS = 5000L
 
 private const val QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER =
     "queue_network_agent_events_in_system_server"
+private const val INGRESS_TO_VPN_ADDRESS_FILTERING =
+        "ingress_to_vpn_address_filtering"
 
 // When waiting for a NetworkCallback to determine there was no timeout, waiting is the
 // only possible thing (the relevant handler is the one in the real ConnectivityService,
@@ -2078,5 +2080,68 @@ class NetworkAgentTest {
             SystemClock.sleep(50 /* ms */)
         } while (SystemClock.elapsedRealtime() < deadline)
         fail("Binder Proxy is leaked: $startCount -> $endCount")
+    }
+
+    fun doTestIngressToVpnAddressFiltering(vpnType: Int, expectFiltering: Boolean) {
+        assumeTrue(mCM.isConnectivityServiceFeatureEnabledForTesting(
+                INGRESS_TO_VPN_ADDRESS_FILTERING
+        ))
+
+        val ifname = createTunInterface(listOf(LINK_ADDRESS)).interfaceName
+        val lp = makeTestLinkProperties(ifname)
+        val nc = makeTestNetworkCapabilities(transports = intArrayOf(TRANSPORT_VPN)).apply {
+            setTransportInfo(VpnTransportInfo(
+                    vpnType,
+                    "MySession12345",
+                    /*bypassable=*/
+                    false,
+                    /*longLivedTcpConnectionsExpensive=*/
+                    false
+            ))
+        }
+        val agent = createNetworkAgent(initialNc = nc, initialLp = lp)
+        agent.register()
+        agent.markConnected()
+
+        val cb = TestableNetworkCallback()
+        registerNetworkCallback(makeTestNetworkRequest(), cb)
+        cb.eventuallyExpect<LinkPropertiesChanged> {
+            it.network == agent.network
+        }
+
+        val ifIndex = Os.if_nametoindex(ifname)
+        val ruleString = "[" + LINK_ADDRESS.address + "]: " + ifIndex + "(" + ifname + ")"
+        assertEquals(
+                expectFiltering,
+                "dumpsys connectivity trafficcontroller".execute().contains(ruleString)
+        )
+    }
+
+    @Test
+    fun testIngressToVpnAddressFiltering_VpnPlatform() {
+        doTestIngressToVpnAddressFiltering(
+            vpnType = VpnManager.TYPE_VPN_PLATFORM,
+            expectFiltering = true
+        )
+    }
+
+    @Test
+    fun testIngressToVpnAddressFiltering_VpnOem() {
+        // Ingress to VPN address filtering rule should not be added because OEM VPNs might need to
+        // receive packets to VPN address via non-VPN interface.
+        doTestIngressToVpnAddressFiltering(
+            vpnType = VpnManager.TYPE_VPN_OEM,
+            expectFiltering = false
+        )
+    }
+
+    @Test
+    fun testIngressToVpnAddressFiltering_VpnLegacy() {
+        // Ingress to VPN address filtering rule should not be added because legacy VPNs might need
+        // to receive packets to VPN address via non-VPN interface.
+        doTestIngressToVpnAddressFiltering(
+            vpnType = VpnManager.TYPE_VPN_LEGACY,
+            expectFiltering = false
+        )
     }
 }
