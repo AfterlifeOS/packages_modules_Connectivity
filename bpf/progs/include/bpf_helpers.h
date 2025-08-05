@@ -547,6 +547,7 @@ static long (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BP
         .bpfloader_max_ver = (max_loader),                                                    \
         .create_location = CREATE_LOCATION(selinux),                                          \
         .pin_location = "/sys/fs/bpf/" pindir "/prog_" BPF_OBJ_NAME "_" #TYPE "_" #NAME "\0", \
+        .name_idx = __builtin_strlen("/sys/fs/bpf/" pindir "/prog_" BPF_OBJ_NAME "_"),        \
     };                                                                                        \
     SECTION(#TYPE "/" #NAME "$" #VER)                                                         \
     long TYPE##_##NAME##_##VER
