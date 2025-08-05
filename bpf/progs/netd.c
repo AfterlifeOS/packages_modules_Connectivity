@@ -114,7 +114,7 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
 // the kernel acting on behalf of it) must be able to retrieve the pinned program
 // for the reload to succeed
 #define DEFINE_XTBPF_PROG(TYPE, NAME, VER) \
-    DEFINE_BPF_PROG(TYPE, NAME, VER, AID_ROOT, AID_NET_ADMIN)
+    DEFINE_BPF_PROG(TYPE, NAME, VER, AID_NET_ADMIN)
 
 // programs that need to be usable by netd, but not by netutils_wrappers
 // (this is because these are currently attached by the mainline provided libnetd_updatable .so

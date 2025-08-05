@@ -552,10 +552,9 @@ static long (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BP
     SECTION(#TYPE "/" #NAME "$" #VER)                                                         \
     long TYPE##_##NAME##_##VER
 
-#define DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv, \
-                                       opt)                                                 \
-    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv,                \
-                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, opt,                          \
+#define DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, min_kv, max_kv, opt) \
+    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, AID_ROOT, prog_gid, min_kv, max_kv,           \
+                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, opt,                     \
                         DEFAULT_BPF_MAP_SELINUX_CONTEXT, DEFAULT_BPF_PIN_SUBDIR)
 
 // Programs (here used in the sense of functions/sections) marked optional are allowed to fail
@@ -570,25 +569,25 @@ static long (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BP
 // ie. a non-optional program in a critical .o is mandatory for kernels matching the min/max kver.
 
 // programs requiring a kernel version >= min_kv && < max_kv
-#define DEFINE_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv) \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv, \
+#define DEFINE_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, prog_gid, min_kv, max_kv) \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, min_kv, max_kv, \
                                    MANDATORY)
-#define DEFINE_OPTIONAL_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv)  \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv, \
+#define DEFINE_OPTIONAL_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, prog_gid, min_kv, max_kv)  \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, min_kv, max_kv, \
                                    OPTIONAL)
 
 // programs requiring a kernel version >= min_kv
-#define DEFINE_BPF_PROG_KVER(TYPE, NAME, VER, prog_uid, prog_gid, min_kv)                 \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, KVER_INF, \
+#define DEFINE_BPF_PROG_KVER(TYPE, NAME, VER, prog_gid, min_kv)                 \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, min_kv, KVER_INF, \
                                    MANDATORY)
-#define DEFINE_OPTIONAL_BPF_PROG_KVER(TYPE, NAME, VER, prog_uid, prog_gid, min_kv)        \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, KVER_INF, \
+#define DEFINE_OPTIONAL_BPF_PROG_KVER(TYPE, NAME, VER, prog_gid, min_kv)        \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, min_kv, KVER_INF, \
                                    OPTIONAL)
 
 // programs with no kernel version requirements
-#define DEFINE_BPF_PROG(TYPE, NAME, VER, prog_uid, prog_gid) \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, KVER_NONE, KVER_INF, \
+#define DEFINE_BPF_PROG(TYPE, NAME, VER, prog_gid) \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, KVER_NONE, KVER_INF, \
                                    MANDATORY)
-#define DEFINE_OPTIONAL_BPF_PROG(TYPE, NAME, VER, prog_uid, prog_gid) \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, KVER_NONE, KVER_INF, \
+#define DEFINE_OPTIONAL_BPF_PROG(TYPE, NAME, VER, prog_gid) \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, KVER_NONE, KVER_INF, \
                                    OPTIONAL)
