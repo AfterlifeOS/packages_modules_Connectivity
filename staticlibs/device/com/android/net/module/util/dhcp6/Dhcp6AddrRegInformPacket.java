@@ -40,7 +40,7 @@ public class Dhcp6AddrRegInformPacket extends Dhcp6Packet {
     /**
      * Generates a ADDR-REG-INFORM packet with the specified parameters.
      */
-    Dhcp6AddrRegInformPacket(int transId, int elapsedTime, @NonNull final byte[] clientDuid,
+    public Dhcp6AddrRegInformPacket(int transId, int elapsedTime, @NonNull final byte[] clientDuid,
             @NonNull final Inet6Address iaAddress, long preferred, long valid) {
         super(transId, elapsedTime, clientDuid, null /* serverDuid */, null /* iapd */);
         mIaAddress = iaAddress;
