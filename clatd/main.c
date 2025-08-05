@@ -37,8 +37,6 @@
 #include "config.h"
 #include "logging.h"
 
-#define DEVICEPREFIX "v4-"
-
 /* function: handle_sigterm
  * signal handler: stop the event loop
  */
@@ -261,7 +259,7 @@ int main(int argc, char **argv) {
     exit(1);
   }
 
-  unsigned len = snprintf(tunnel.device4, sizeof(tunnel.device4), "%s%s", DEVICEPREFIX, uplink_interface);
+  unsigned len = snprintf(tunnel.device4, sizeof(tunnel.device4), "v4-%s", uplink_interface);
   if (len >= sizeof(tunnel.device4)) {
     logmsg(ANDROID_LOG_FATAL, "interface name too long '%s'", tunnel.device4);
     exit(1);
