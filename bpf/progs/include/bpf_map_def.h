@@ -109,7 +109,7 @@ struct optional_bool { bool optional; };
 
 // Length of strings (incl. selinux_context and pin_subdir)
 // in the bpf_map_def and bpf_prog_def structs.
-#define BPF_DEF_CHAR_ARRAY_SIZE 66  // must be even for alignment sanity
+#define BPF_DEF_CHAR_ARRAY_SIZE 70  // must be even for alignment sanity
 
 /*
  * Map structure to be used by Android eBPF C programs. The Android eBPF loader
@@ -167,6 +167,9 @@ _Static_assert(__alignof__(struct bpf_map_def) == 4, "__alignof__ struct bpf_map
 _Static_assert(_Alignof(struct bpf_map_def) == 4, "_Alignof struct bpf_map_def != 4");
 
 struct bpf_prog_def {
+    enum bpf_prog_type type;
+    enum bpf_attach_type attach_type;
+
     unsigned int uid;
     unsigned int gid;
 
@@ -182,11 +185,11 @@ struct bpf_prog_def {
     unsigned int bpfloader_max_ver;
 
     char create_location[BPF_DEF_CHAR_ARRAY_SIZE];
-    char pin_prefix[BPF_DEF_CHAR_ARRAY_SIZE];
+    char pin_location[BPF_DEF_CHAR_ARRAY_SIZE];
 };
 
 // This needs to be updated whenever the above structure definition is expanded.
 // These asserts are here to make sure we have cross-6-arch consistency.
-_Static_assert(sizeof(struct bpf_prog_def) == 28 + 2 * BPF_DEF_CHAR_ARRAY_SIZE, "wrong sizeof struct bpf_prog_def");
+_Static_assert(sizeof(struct bpf_prog_def) == 36 + 2 * BPF_DEF_CHAR_ARRAY_SIZE, "wrong sizeof struct bpf_prog_def");
 _Static_assert(__alignof__(struct bpf_prog_def) == 4, "__alignof__ struct bpf_prog_def != 4");
 _Static_assert(_Alignof(struct bpf_prog_def) == 4, "_Alignof struct bpf_prog_def != 4");

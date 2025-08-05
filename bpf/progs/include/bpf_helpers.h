@@ -207,13 +207,13 @@ struct sdk_level_uint { unsigned int sdk_level; };
  */
 static void* (*bpf_map_lookup_elem_unsafe)(const void* map,
                                            const void* key) = (void*)BPF_FUNC_map_lookup_elem;
-static int (*bpf_map_update_elem_unsafe)(const void* map, const void* key,
-                                         const void* value, unsigned long long flags) = (void*)
+static long (*bpf_map_update_elem_unsafe)(const void* map, const void* key,
+                                          const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_map_update_elem;
-static int (*bpf_map_delete_elem_unsafe)(const void* map,
-                                         const void* key) = (void*)BPF_FUNC_map_delete_elem;
-static int (*bpf_ringbuf_output_unsafe)(const void* ringbuf,
-                                        const void* data, __u64 size, __u64 flags) = (void*)
+static long (*bpf_map_delete_elem_unsafe)(const void* map,
+                                          const void* key) = (void*)BPF_FUNC_map_delete_elem;
+static long (*bpf_ringbuf_output_unsafe)(const void* ringbuf,
+                                         const void* data, __u64 size, __u64 flags) = (void*)
         BPF_FUNC_ringbuf_output;
 static void* (*bpf_ringbuf_reserve_unsafe)(const void* ringbuf,
                                            __u64 size, __u64 flags) = (void*)
@@ -223,8 +223,8 @@ static void (*bpf_ringbuf_submit_unsafe)(const void* data, __u64 flags) = (void*
 static void* (*bpf_sk_storage_get_unsafe) (const void* sk_storage, const void* sk,
                                            const void* value, unsigned long long flags) = (void*)
         BPF_FUNC_sk_storage_get;
-static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
-                                            const void* sk) = (void*) BPF_FUNC_sk_storage_delete;
+static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
+                                             const void* sk) = (void*) BPF_FUNC_sk_storage_delete;
 
 #define BPF_ANNOTATE_KV_PAIR(name, type_key, type_val)  \
         struct ____btf_map_##name {                     \
@@ -244,26 +244,26 @@ static int (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
          type == BPF_MAP_TYPE_SK_STORAGE) ? BPF_F_NO_PREALLOC : 0) \
     )
 
-#define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, usr, grp, md,      \
-                            selinux, pindir, minkver, maxkver, minloader, maxloader, mapflags) \
-    VALIDATE_SELINUX_CONTEXT(minloader, selinux);                                              \
-    VALIDATE_PIN_DIR(minloader, pindir);                                                       \
-    const struct bpf_map_def SECTION(".android_maps") the_map##_def = {                        \
-        .type = BPF_MAP_TYPE_##TYPE,                                                           \
-        .key_size = (keysize),                                                                 \
-        .value_size = (valuesize),                                                             \
-        .max_entries = ABSOLUTE(num_entries),                                                  \
-        .map_flags = DEFAULT_BPF_MAP_FLAGS(BPF_MAP_TYPE_##TYPE, num_entries, mapflags),        \
-        .uid = (usr),                                                                          \
-        .gid = (grp),                                                                          \
-        .mode = (md),                                                                          \
-        .bpfloader_min_ver = (minloader),                                                      \
-        .bpfloader_max_ver = (maxloader),                                                      \
-        .min_kver = (minkver).kver,                                                            \
-        .max_kver = (maxkver).kver,                                                            \
-        .create_location = CREATE_LOCATION(selinux),                                           \
-        .pin_location = "/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_" #the_map,               \
-        .name_idx = __builtin_strlen("/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_"),          \
+#define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, usr, grp, md,       \
+                            selinux, pindir, minkver, maxkver, minloader, maxloader, mapflags)  \
+    VALIDATE_SELINUX_CONTEXT(minloader, selinux);                                               \
+    VALIDATE_PIN_DIR(minloader, pindir);                                                        \
+    const struct bpf_map_def SECTION(".android_maps") the_map##_def = {                         \
+        .type = BPF_MAP_TYPE_##TYPE,                                                            \
+        .key_size = (keysize),                                                                  \
+        .value_size = (valuesize),                                                              \
+        .max_entries = ABSOLUTE(num_entries),                                                   \
+        .map_flags = DEFAULT_BPF_MAP_FLAGS(BPF_MAP_TYPE_##TYPE, num_entries, mapflags),         \
+        .uid = (usr),                                                                           \
+        .gid = (grp),                                                                           \
+        .mode = (md),                                                                           \
+        .bpfloader_min_ver = (minloader),                                                       \
+        .bpfloader_max_ver = (maxloader),                                                       \
+        .min_kver = (minkver).kver,                                                             \
+        .max_kver = (maxkver).kver,                                                             \
+        .create_location = CREATE_LOCATION(selinux),                                            \
+        .pin_location = "/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_" #the_map "\0",           \
+        .name_idx = __builtin_strlen("/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_"),           \
     };
 
 #define __uint(name, val) int (*name)[val]
@@ -459,10 +459,10 @@ unsigned long long load_byte(void* skb, unsigned long long off) asm("llvm.bpf.lo
 unsigned long long load_half(void* skb, unsigned long long off) asm("llvm.bpf.load.half");
 unsigned long long load_word(void* skb, unsigned long long off) asm("llvm.bpf.load.word");
 
-static int (*bpf_probe_read)(void* dst, int size, void* unsafe_ptr) = (void*) BPF_FUNC_probe_read;
-static int (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*) BPF_FUNC_probe_read_str;
-static int (*bpf_probe_read_user)(void* dst, int size, const void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user;
-static int (*bpf_probe_read_user_str)(void* dst, int size, const void* unsafe_ptr) = (void*) BPF_FUNC_probe_read_user_str;
+static long (*bpf_probe_read)(void* dst, int size, void* unsafe_ptr) = (void*) BPF_FUNC_probe_read;
+static long (*bpf_probe_read_str)(void* dst, int size, void* unsafe_ptr) = (void*) BPF_FUNC_probe_read_str;
+static long (*bpf_probe_read_user)(void* dst, int size, const void* unsafe_ptr) = (void*)BPF_FUNC_probe_read_user;
+static long (*bpf_probe_read_user_str)(void* dst, int size, const void* unsafe_ptr) = (void*) BPF_FUNC_probe_read_user_str;
 static unsigned long long (*bpf_ktime_get_ns)(void) = (void*) BPF_FUNC_ktime_get_ns;
 static unsigned long long (*bpf_ktime_get_boot_ns)(void) = (void*)BPF_FUNC_ktime_get_boot_ns;
 static unsigned long long (*bpf_get_current_pid_tgid)(void) = (void*) BPF_FUNC_get_current_pid_tgid;
@@ -474,33 +474,87 @@ static long (*bpf_get_current_comm)(void* buf, uint32_t buf_size) = (void*) BPF_
 static struct bpf_sock* (*bpf_sk_fullsock)(struct bpf_sock* sk) = (void*) BPF_FUNC_sk_fullsock;
 
 // GPL only:
-static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF_FUNC_trace_printk;
+static long (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF_FUNC_trace_printk;
 #define bpf_printf(s, n...) bpf_trace_printk(s, sizeof(s), ## n)
 // Note: bpf only supports up to 3 arguments, log via: bpf_printf("msg %d %d %d", 1, 2, 3);
 // and read via the blocking: sudo cat /sys/kernel/debug/tracing/trace_pipe
 
-#define DEFINE_BPF_PROG_EXT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv,  \
-                            min_loader, max_loader, opt, selinux, pindir)                \
-    VALIDATE_SELINUX_CONTEXT(min_loader, selinux);                                       \
-    VALIDATE_PIN_DIR(min_loader, pindir);                                                \
-    const struct bpf_prog_def SECTION("progs") the_prog##_def = {                        \
-        .uid = (prog_uid),                                                               \
-        .gid = (prog_gid),                                                               \
-        .min_kver = (min_kv).kver,                                                       \
-        .max_kver = (max_kv).kver,                                                       \
-        .optional = (opt).optional,                                                      \
-        .bpfloader_min_ver = (min_loader),                                               \
-        .bpfloader_max_ver = (max_loader),                                               \
-        .create_location = CREATE_LOCATION(selinux),                                     \
-        .pin_prefix = "/sys/fs/bpf/" pindir "/prog_" BPF_OBJ_NAME "_",                   \
-    };                                                                                   \
-    SECTION(SECTION_NAME)                                                                \
-    int the_prog
+#define BPF_PROG_TYPE_bind4             BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_bind6             BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_cgroupskb         BPF_PROG_TYPE_CGROUP_SKB
+#define BPF_PROG_TYPE_cgroupsock        BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_cgroupsockcreate  BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_cgroupsockrelease BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_connect4          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_connect6          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_egress            BPF_PROG_TYPE_CGROUP_SKB
+#define BPF_PROG_TYPE_getsockopt        BPF_PROG_TYPE_CGROUP_SOCKOPT
+#define BPF_PROG_TYPE_ingress           BPF_PROG_TYPE_CGROUP_SKB
+#define BPF_PROG_TYPE_postbind4         BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_postbind6         BPF_PROG_TYPE_CGROUP_SOCK
+#define BPF_PROG_TYPE_recvmsg4          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_recvmsg6          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_schedact          BPF_PROG_TYPE_SCHED_ACT
+#define BPF_PROG_TYPE_schedcls          BPF_PROG_TYPE_SCHED_CLS
+#define BPF_PROG_TYPE_sendmsg4          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_sendmsg6          BPF_PROG_TYPE_CGROUP_SOCK_ADDR
+#define BPF_PROG_TYPE_setsockopt        BPF_PROG_TYPE_CGROUP_SOCKOPT
+#define BPF_PROG_TYPE_skfilter          BPF_PROG_TYPE_SOCKET_FILTER
+#define BPF_PROG_TYPE_sockops           BPF_PROG_TYPE_SOCK_OPS
+#define BPF_PROG_TYPE_sysctl            BPF_PROG_TYPE_CGROUP_SYSCTL
+#define BPF_PROG_TYPE_xdp               BPF_PROG_TYPE_XDP
 
-#define DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv, \
-                                       opt)                                                        \
-    DEFINE_BPF_PROG_EXT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv,                \
-                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, opt,                                 \
+#define BPF_PROG_ATTACH_TYPE_DEFAULT BPF_CGROUP_INET_INGRESS
+
+#define BPF_PROG_ATTACH_TYPE_bind4             BPF_CGROUP_INET4_BIND
+#define BPF_PROG_ATTACH_TYPE_bind6             BPF_CGROUP_INET6_BIND
+#define BPF_PROG_ATTACH_TYPE_cgroupskb         BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_cgroupsock        BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_cgroupsockcreate  BPF_CGROUP_INET_SOCK_CREATE
+#define BPF_PROG_ATTACH_TYPE_cgroupsockrelease BPF_CGROUP_INET_SOCK_RELEASE
+#define BPF_PROG_ATTACH_TYPE_connect4          BPF_CGROUP_INET4_CONNECT
+#define BPF_PROG_ATTACH_TYPE_connect6          BPF_CGROUP_INET6_CONNECT
+#define BPF_PROG_ATTACH_TYPE_egress            BPF_CGROUP_INET_EGRESS
+#define BPF_PROG_ATTACH_TYPE_getsockopt        BPF_CGROUP_GETSOCKOPT
+#define BPF_PROG_ATTACH_TYPE_ingress           BPF_CGROUP_INET_INGRESS
+#define BPF_PROG_ATTACH_TYPE_postbind4         BPF_CGROUP_INET4_POST_BIND
+#define BPF_PROG_ATTACH_TYPE_postbind6         BPF_CGROUP_INET6_POST_BIND
+#define BPF_PROG_ATTACH_TYPE_recvmsg4          BPF_CGROUP_UDP4_RECVMSG
+#define BPF_PROG_ATTACH_TYPE_recvmsg6          BPF_CGROUP_UDP6_RECVMSG
+#define BPF_PROG_ATTACH_TYPE_schedact          BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_schedcls          BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_sendmsg4          BPF_CGROUP_UDP4_SENDMSG
+#define BPF_PROG_ATTACH_TYPE_sendmsg6          BPF_CGROUP_UDP6_SENDMSG
+#define BPF_PROG_ATTACH_TYPE_setsockopt        BPF_CGROUP_SETSOCKOPT
+#define BPF_PROG_ATTACH_TYPE_skfilter          BPF_PROG_ATTACH_TYPE_DEFAULT
+#define BPF_PROG_ATTACH_TYPE_sockops           BPF_CGROUP_SOCK_OPS
+#define BPF_PROG_ATTACH_TYPE_sysctl            BPF_CGROUP_SYSCTL
+#define BPF_PROG_ATTACH_TYPE_xdp               BPF_PROG_ATTACH_TYPE_DEFAULT
+
+#define DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv,              \
+                            min_loader, max_loader, opt, selinux, pindir)                     \
+    VALIDATE_SELINUX_CONTEXT(min_loader, selinux);                                            \
+    VALIDATE_PIN_DIR(min_loader, pindir);                                                     \
+    const struct bpf_prog_def SECTION(".android_progs") TYPE##_##NAME##_##VER##_def = {       \
+        .type = BPF_PROG_TYPE_##TYPE,                                                         \
+        .attach_type = BPF_PROG_ATTACH_TYPE_##TYPE,                                           \
+        .uid = (prog_uid),                                                                    \
+        .gid = (prog_gid),                                                                    \
+        .min_kver = (min_kv).kver,                                                            \
+        .max_kver = (max_kv).kver,                                                            \
+        .optional = (opt).optional,                                                           \
+        .bpfloader_min_ver = (min_loader),                                                    \
+        .bpfloader_max_ver = (max_loader),                                                    \
+        .create_location = CREATE_LOCATION(selinux),                                          \
+        .pin_location = "/sys/fs/bpf/" pindir "/prog_" BPF_OBJ_NAME "_" #TYPE "_" #NAME "\0", \
+    };                                                                                        \
+    SECTION(#TYPE "/" #NAME "$" #VER)                                                         \
+    long TYPE##_##NAME##_##VER
+
+#define DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv, \
+                                       opt)                                                 \
+    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv,                \
+                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, opt,                          \
                         DEFAULT_BPF_MAP_SELINUX_CONTEXT, DEFAULT_BPF_PIN_SUBDIR)
 
 // Programs (here used in the sense of functions/sections) marked optional are allowed to fail
@@ -515,26 +569,25 @@ static int (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BPF
 // ie. a non-optional program in a critical .o is mandatory for kernels matching the min/max kver.
 
 // programs requiring a kernel version >= min_kv && < max_kv
-#define DEFINE_BPF_PROG_KVER_RANGE(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv) \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv, \
+#define DEFINE_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv) \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv, \
                                    MANDATORY)
-#define DEFINE_OPTIONAL_BPF_PROG_KVER_RANGE(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, \
-                                            max_kv)                                             \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, max_kv, \
+#define DEFINE_OPTIONAL_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv)  \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv, \
                                    OPTIONAL)
 
 // programs requiring a kernel version >= min_kv
-#define DEFINE_BPF_PROG_KVER(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv)                 \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, KVER_INF, \
+#define DEFINE_BPF_PROG_KVER(TYPE, NAME, VER, prog_uid, prog_gid, min_kv)                 \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, KVER_INF, \
                                    MANDATORY)
-#define DEFINE_OPTIONAL_BPF_PROG_KVER(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv)        \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, min_kv, KVER_INF, \
+#define DEFINE_OPTIONAL_BPF_PROG_KVER(TYPE, NAME, VER, prog_uid, prog_gid, min_kv)        \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, KVER_INF, \
                                    OPTIONAL)
 
 // programs with no kernel version requirements
-#define DEFINE_BPF_PROG(SECTION_NAME, prog_uid, prog_gid, the_prog) \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, KVER_NONE, KVER_INF, \
+#define DEFINE_BPF_PROG(TYPE, NAME, VER, prog_uid, prog_gid) \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, KVER_NONE, KVER_INF, \
                                    MANDATORY)
-#define DEFINE_OPTIONAL_BPF_PROG(SECTION_NAME, prog_uid, prog_gid, the_prog) \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(SECTION_NAME, prog_uid, prog_gid, the_prog, KVER_NONE, KVER_INF, \
+#define DEFINE_OPTIONAL_BPF_PROG(TYPE, NAME, VER, prog_uid, prog_gid) \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, KVER_NONE, KVER_INF, \
                                    OPTIONAL)

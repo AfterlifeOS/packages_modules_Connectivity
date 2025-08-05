@@ -107,60 +107,9 @@ inline bool isUserdebug() {
     return getBuildType() == "userdebug";
 }
 
-#define BPF_FS_PATH "/sys/fs/bpf/"
-
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
 typedef struct {
-    const char* name;
-    enum bpf_prog_type type;
-    enum bpf_attach_type attach_type;
-} sectionType;
-
-/*
- * Map section name prefixes to program types, the section name will be:
- *   SECTION(<prefix>/<name-of-program>)
- * For example:
- *   SECTION("tracepoint/sched_switch_func") where sched_switch_funcs
- * is the name of the program, and tracepoint is the type.
- *
- * However, be aware that you should not be directly using the SECTION() macro.
- * Instead use the DEFINE_(BPF|XDP)_(PROG|MAP)... & LICENSE macros.
- *
- * Programs shipped inside the tethering apex should be limited to networking stuff,
- * as KPROBE, PERF_EVENT, TRACEPOINT are dangerous to use from mainline updatable code,
- * since they are less stable abi/api and may conflict with platform uses of bpf.
- */
-sectionType sectionNameTypes[] = {
-        {"bind4/",             BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_INET4_BIND},
-        {"bind6/",             BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_INET6_BIND},
-        {"cgroupskb/",         BPF_PROG_TYPE_CGROUP_SKB},
-        {"cgroupsock/",        BPF_PROG_TYPE_CGROUP_SOCK},
-        {"cgroupsockcreate/",  BPF_PROG_TYPE_CGROUP_SOCK,      BPF_CGROUP_INET_SOCK_CREATE},
-        {"cgroupsockrelease/", BPF_PROG_TYPE_CGROUP_SOCK,      BPF_CGROUP_INET_SOCK_RELEASE},
-        {"connect4/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_INET4_CONNECT},
-        {"connect6/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_INET6_CONNECT},
-        {"egress/",            BPF_PROG_TYPE_CGROUP_SKB,       BPF_CGROUP_INET_EGRESS},
-        {"getsockopt/",        BPF_PROG_TYPE_CGROUP_SOCKOPT,   BPF_CGROUP_GETSOCKOPT},
-        {"ingress/",           BPF_PROG_TYPE_CGROUP_SKB,       BPF_CGROUP_INET_INGRESS},
-        {"postbind4/",         BPF_PROG_TYPE_CGROUP_SOCK,      BPF_CGROUP_INET4_POST_BIND},
-        {"postbind6/",         BPF_PROG_TYPE_CGROUP_SOCK,      BPF_CGROUP_INET6_POST_BIND},
-        {"recvmsg4/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_UDP4_RECVMSG},
-        {"recvmsg6/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_UDP6_RECVMSG},
-        {"schedact/",          BPF_PROG_TYPE_SCHED_ACT},
-        {"schedcls/",          BPF_PROG_TYPE_SCHED_CLS},
-        {"sendmsg4/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_UDP4_SENDMSG},
-        {"sendmsg6/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_UDP6_SENDMSG},
-        {"setsockopt/",        BPF_PROG_TYPE_CGROUP_SOCKOPT,   BPF_CGROUP_SETSOCKOPT},
-        {"skfilter/",          BPF_PROG_TYPE_SOCKET_FILTER},
-        {"sockops/",           BPF_PROG_TYPE_SOCK_OPS,         BPF_CGROUP_SOCK_OPS},
-        {"sysctl",             BPF_PROG_TYPE_CGROUP_SYSCTL,    BPF_CGROUP_SYSCTL},
-        {"xdp/",               BPF_PROG_TYPE_XDP},
-};
-
-typedef struct {
-    enum bpf_prog_type type;
-    enum bpf_attach_type attach_type;
     string name; // The canonicalized section name.
     string program_name;
     vector<char> data;
@@ -404,35 +353,35 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
     entries = shTable.size();
 
     vector<struct bpf_prog_def> pd;
-    ret = elfObj.readSectionByName("progs", pd);
+    ret = elfObj.readSectionByName(".android_progs", pd);
     if (ret) return ret;
     vector<string> progDefNames;
-    ret = elfObj.getSectionSymNames("progs", progDefNames);
+    ret = elfObj.getSectionSymNames(".android_progs", progDefNames);
     if (!pd.empty() && ret) return ret;
 
     for (int i = 0; i < entries; i++) {
         string name;
         codeSection cs_temp;
-        cs_temp.type = BPF_PROG_TYPE_UNSPEC;
 
         ret = elfObj.getSymName(shTable[i].sh_name, name);
         if (ret) return ret;
 
-        // This must be done before '/' is replaced with '_'.
-        for (auto& snt : sectionNameTypes) {
-            if (StartsWith(name, snt.name)) {
-                cs_temp.type = snt.type;
-                cs_temp.attach_type = snt.attach_type;
-                break;
-            }
-        }
+        // all we want to process is sections FOO/BAR, but:
+        // - section 0 has an empty name (experimentally observed)
+        // - .relFOO/BAR would break us later (relocations)
+        // - 'license' is special, but doesn't have a /
+        if (name[0] == '.') continue;
 
-        if (cs_temp.type == BPF_PROG_TYPE_UNSPEC) continue;
+        // Find the first slash
+        size_t first_slash_pos = name.find('/');
+
+        // Ignore sections without a /  (basically 'license' section)
+        if (first_slash_pos == std::string::npos) continue;
 
         string oldName = name;
+        name[first_slash_pos] = '_';
 
-        // convert all slashes to underscores
-        std::replace(name.begin(), name.end(), '/', '_');
+        if (name.find('/') != std::string::npos) abort(); // There should only be one!
 
         cs_temp.name = name;
 
@@ -450,6 +399,8 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
                 break;
             }
         }
+
+        if (!cs_temp.prog_def) abort();
 
         // Check for rel section
         if (cs_temp.data.size() > 0 && i < entries) {
@@ -1013,8 +964,7 @@ static void applyMapRelo(ElfObject& elfObj, const vector<struct bpf_map_def>& md
     }
 }
 
-static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef,
-                   const string& progPinLoc) {
+static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef) {
     int ret;
     if (progDef.create_location[0]) {
         ret = bpfFdPin(fd, progDef.create_location);
@@ -1024,37 +974,37 @@ static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef,
             return -err;
         }
         ret = renameat2(AT_FDCWD, progDef.create_location,
-                        AT_FDCWD, progPinLoc.c_str(), RENAME_NOREPLACE);
+                        AT_FDCWD, progDef.pin_location, RENAME_NOREPLACE);
         if (ret) {
             const int err = errno;
-            ALOGE("rename %s %s -> %d [%d:%s]", progDef.create_location, progPinLoc.c_str(), ret,
+            ALOGE("rename %s %s -> %d [%d:%s]", progDef.create_location, progDef.pin_location, ret,
                   err, strerror(err));
             return -err;
         }
     } else {
-        ret = bpfFdPin(fd, progPinLoc.c_str());
+        ret = bpfFdPin(fd, progDef.pin_location);
         if (ret) {
             const int err = errno;
-            ALOGE("create %s -> %d [%d:%s]", progPinLoc.c_str(), ret, err, strerror(err));
+            ALOGE("create %s -> %d [%d:%s]", progDef.pin_location, ret, err, strerror(err));
             return -err;
         }
     }
-    if (chmod(progPinLoc.c_str(), 0440)) {
+    if (chmod(progDef.pin_location, 0440)) {
         const int err = errno;
-        ALOGE("chmod %s 0440 -> [%d:%s]", progPinLoc.c_str(), err, strerror(err));
+        ALOGE("chmod %s 0440 -> [%d:%s]", progDef.pin_location, err, strerror(err));
         return -err;
     }
-    if (chown(progPinLoc.c_str(), (uid_t)progDef.uid,
+    if (chown(progDef.pin_location, (uid_t)progDef.uid,
               (gid_t)progDef.gid)) {
         const int err = errno;
-        ALOGE("chown %s %d %d -> [%d:%s]", progPinLoc.c_str(), progDef.uid,
+        ALOGE("chown %s %d %d -> [%d:%s]", progDef.pin_location, progDef.uid,
               progDef.gid, err, strerror(err));
         return -err;
     }
     return 0;
 }
 
-static int validateProg(const borrowed_fd& fd, string& progPinLoc,
+static int validateProg(const borrowed_fd& fd, const char* const progPinLoc,
                         const unsigned int bpfloader_ver) {
     if (!isAtLeastKernelVersion(4, 14, 0)) {
         return 0;
@@ -1079,10 +1029,10 @@ static int validateProg(const borrowed_fd& fd, string& progPinLoc,
         ALOGE("bpfGetFdXlatProgLen failed, ret: %d", err);
         return -err;
     }
-    ALOGI("prog %s id %d len jit:%d xlat:%d", progPinLoc.c_str(), progId, jitLen, xlatLen);
+    ALOGI("prog %s id %d len jit:%d xlat:%d", progPinLoc, progId, jitLen, xlatLen);
 
     if (!jitLen && bpfloader_ver >= BPFLOADER_MAINLINE_25Q2_VERSION) {
-        ALOGE("Kernel eBPF JIT failure for %s", progPinLoc.c_str());
+        ALOGE("Kernel eBPF JIT failure for %s", progPinLoc);
         return -ENOTSUP;
     }
     return 0;
@@ -1128,24 +1078,23 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
         name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
-        string progPinLoc = string(cs[i].prog_def->pin_prefix) + name;
-        if (access(progPinLoc.c_str(), F_OK) == 0) {
-            fd.reset(retrieveProgram(progPinLoc.c_str()));
-            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
+        if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
+            fd.reset(retrieveProgram(cs[i].prog_def->pin_location));
+            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", cs[i].prog_def->pin_location, fd.get(),
                   !fd.ok() ? std::strerror(errno) : "ok");
             reuse = true;
         } else {
             static char log_buf[1 << 20];  // 1 MiB logging buffer
 
             union bpf_attr req = {
-              .prog_type = cs[i].type,
+              .prog_type = cs[i].prog_def->type,
               .insn_cnt = static_cast<__u32>(cs[i].data.size() / sizeof(struct bpf_insn)),
               .insns = ptr_to_u64(cs[i].data.data()),
               .license = ptr_to_u64(license.c_str()),
               .log_level = 1,
               .log_size = sizeof(log_buf),
               .log_buf = ptr_to_u64(log_buf),
-              .expected_attach_type = cs[i].attach_type,
+              .expected_attach_type = cs[i].prog_def->attach_type,
             };
             if (isAtLeastKernelVersion(4, 15, 0))
                 strlcpy(req.prog_name, cs[i].name.c_str(), sizeof(req.prog_name));
@@ -1186,10 +1135,10 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
         if (!fd.ok()) return fd.get();
 
         if (!reuse) {
-            ret = pinProg(fd, cs[i].prog_def.value(), progPinLoc);
+            ret = pinProg(fd, cs[i].prog_def.value());
             if (ret) return ret;
         }
-        ret = validateProg(fd, progPinLoc, bpfloader_ver);
+        ret = validateProg(fd, cs[i].prog_def->pin_location, bpfloader_ver);
         if (ret) return ret;
     }
 
@@ -1275,8 +1224,8 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
             return -1;
         }
 
-        bpf_program__set_type(prog, cs[i].type);
-        bpf_program__set_expected_attach_type(prog, cs[i].attach_type);
+        bpf_program__set_type(prog, cs[i].prog_def->type);
+        bpf_program__set_expected_attach_type(prog, cs[i].prog_def->attach_type);
     }
     return 0;
 }
@@ -1318,17 +1267,16 @@ static int pinProgs(const struct bpf_object * obj,
 
         string name = cs[i].name;
         name = name.substr(0, name.find_last_of('$'));
-        string progPinLoc = string(cs[i].prog_def->pin_prefix) + name;
-        if (access(progPinLoc.c_str(), F_OK) == 0) {
+        if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
             // TODO: Skip loading lower priority program
             ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());
             continue;
         }
 
         int fd = bpf_program__fd(prog);
-        ret = pinProg(fd, cs[i].prog_def.value(), progPinLoc);
+        ret = pinProg(fd, cs[i].prog_def.value());
         if (ret) return ret;
-        ret = validateProg(fd, progPinLoc, bpfloader_ver);
+        ret = validateProg(fd, cs[i].prog_def->pin_location, bpfloader_ver);
         if (ret) return ret;
     }
     return 0;
@@ -1426,47 +1374,30 @@ static bool exists(const char* const path) {
     abort();  // can only hit this if permissions (likely selinux) are screwed up
 }
 
+static bool loadObject(const unsigned int bpfloader_ver,
+                      const char* const progPath, const bool useLibbpf = false) {
+    if (useLibbpf ? loadProgByLibbpf(progPath, bpfloader_ver) :
+                          loadProg(progPath, bpfloader_ver)) {
+        ALOGE("Failed to load object: %s, libbpf: %d", progPath, useLibbpf);
+        return false;
+    }
+    ALOGD("Loaded object: %s, libbpf: %d", progPath, useLibbpf);
+    return true;
+}
+
 #define APEXROOT "/apex/com.android.tethering"
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
-static int loadObject(const unsigned int bpfloader_ver,
-                      const char* const fname, const bool useLibbpf = false) {
-    string progPath = string(BPFROOT) + fname;
-    int ret = useLibbpf ? loadProgByLibbpf(progPath.c_str(), bpfloader_ver) :
-                          loadProg(progPath.c_str(), bpfloader_ver);
-    if (ret) {
-        ALOGE("Failed to load object: %s, ret: %s, libbpf: %d",
-              progPath.c_str(), std::strerror(-ret), useLibbpf);
-        return 1;
-    }
-    ALOGD("Loaded object: %s, libbpf: %d", progPath.c_str(), useLibbpf);
-    return 0;
-}
-
-static int loadAllObjects(const unsigned int bpfloader_ver) {
-    // S+ Tethering mainline module (network_stack): tether offload
-    // loads under /sys/fs/bpf/tethering:
-    if (loadObject(bpfloader_ver, "offload.o")) return 1;
-    if (loadObject(bpfloader_ver, "test.o", isAtLeast25Q3)) return 1;
+static bool loadAllObjects(const unsigned int bpfloader_ver) {
+    bool libbpf = isAtLeast25Q3;
+    if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
+    if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {
-        // T+ Tethering mainline module loads under:
-        // /sys/fs/bpf/net_shared: shared with netd & system server
-        if (loadObject(bpfloader_ver, "clatd.o", isAtLeast25Q3)) return 1;
-        if (loadObject(bpfloader_ver, "dscpPolicy.o", isAtLeast25Q3)) return 1;
-
-        // /sys/fs/bpf/netd_shared: shared with netd & system server
-        // - netutils_wrapper (for iptables xt_bpf) has access to programs
-
-        // WARNING: Android T+ non-updatable netd depends on both of the
-        // 'netd_shared' & 'netd' strings for xt_bpf programs it loads
-        if (loadObject(bpfloader_ver, "netd.o", isAtLeast25Q3)) return 1;
-
-        // /sys/fs/bpf/netd_readonly: shared with netd & system server
-        // - netutils_wrapper has no access, netd has read only access
-
-        // /sys/fs/bpf/net_private: not shared, just network_stack
+        if (!loadObject(bpfloader_ver, BPFROOT "clatd.o", libbpf)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", libbpf)) return false;
+        if (!loadObject(bpfloader_ver, BPFROOT "netd.o", libbpf)) return false;
     }
-    return 0;
+    return true;
 }
 
 static bool createDir(const char* const dir) {
@@ -1952,7 +1883,7 @@ static int doLoad(char** argv, char * const envp[]) {
     }
 
     // Load all ELF objects, create programs and maps, and pin them
-    if (loadAllObjects(bpfloader_ver)) {
+    if (!loadAllObjects(bpfloader_ver)) {
         ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS ===");
         ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
         ALOGE("If this triggers randomly, you might be hitting some memory allocation "
