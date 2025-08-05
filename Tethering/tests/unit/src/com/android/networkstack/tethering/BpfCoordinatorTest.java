@@ -484,8 +484,8 @@ public class BpfCoordinatorTest {
             spy(new TestBpfMap<>(TetherStatsKey.class, TetherStatsValue.class));
     private final IBpfMap<TetherLimitKey, TetherLimitValue> mBpfLimitMap =
             spy(new TestBpfMap<>(TetherLimitKey.class, TetherLimitValue.class));
-    private final IBpfMap<S32, TetherDevValue> mBpfDevMap =
-            spy(new TestBpfMap<>(S32.class, TetherDevValue.class));
+    private final IBpfMap<S32, S32> mBpfDevMap =
+            spy(new TestBpfMap<>(S32.class, S32.class));
     private final IBpfMap<S32, S32> mBpfErrorMap =
             spy(new TestBpfMap<>(S32.class, S32.class));
     private BpfCoordinator.Dependencies mDeps =
@@ -564,7 +564,7 @@ public class BpfCoordinatorTest {
                     }
 
                     @Nullable
-                    public IBpfMap<S32, TetherDevValue> getBpfDevMap() {
+                    public IBpfMap<S32, S32> getBpfDevMap() {
                         return mBpfDevMap;
                     }
 
@@ -1973,9 +1973,9 @@ public class BpfCoordinatorTest {
         dispatchIpv6UpstreamChanged(
                 coordinator, mIpServer, UPSTREAM_IFINDEX, UPSTREAM_IFACE, UPSTREAM_PREFIXES);
         verify(mBpfDevMap).updateEntry(eq(new S32(UPSTREAM_IFINDEX)),
-                eq(new TetherDevValue(UPSTREAM_IFINDEX)));
+                eq(new S32(UPSTREAM_IFINDEX)));
         verify(mBpfDevMap).updateEntry(eq(new S32(DOWNSTREAM_IFINDEX)),
-                eq(new TetherDevValue(DOWNSTREAM_IFINDEX)));
+                eq(new S32(DOWNSTREAM_IFINDEX)));
         clearInvocations(mBpfDevMap);
 
         // Adding the second downstream, only the second downstream ifindex is added to DevMap,
@@ -1984,9 +1984,9 @@ public class BpfCoordinatorTest {
         dispatchIpv6UpstreamChanged(
                 coordinator, mIpServer2, UPSTREAM_IFINDEX, UPSTREAM_IFACE, UPSTREAM_PREFIXES);
         verify(mBpfDevMap).updateEntry(eq(new S32(DOWNSTREAM_IFINDEX2)),
-                eq(new TetherDevValue(DOWNSTREAM_IFINDEX2)));
+                eq(new S32(DOWNSTREAM_IFINDEX2)));
         verify(mBpfDevMap, never()).updateEntry(eq(new S32(UPSTREAM_IFINDEX)),
-                eq(new TetherDevValue(UPSTREAM_IFINDEX)));
+                eq(new S32(UPSTREAM_IFINDEX)));
     }
 
     @Test
@@ -2000,9 +2000,9 @@ public class BpfCoordinatorTest {
                 .setProto(IPPROTO_TCP)
                 .build());
         verify(mBpfDevMap).updateEntry(eq(new S32(UPSTREAM_IFINDEX)),
-                eq(new TetherDevValue(UPSTREAM_IFINDEX)));
+                eq(new S32(UPSTREAM_IFINDEX)));
         verify(mBpfDevMap).updateEntry(eq(new S32(DOWNSTREAM_IFINDEX)),
-                eq(new TetherDevValue(DOWNSTREAM_IFINDEX)));
+                eq(new S32(DOWNSTREAM_IFINDEX)));
         clearInvocations(mBpfDevMap);
 
         mConsumer.accept(new TestConntrackEvent.Builder()
@@ -2738,7 +2738,7 @@ public class BpfCoordinatorTest {
         coordinator.maybeAddUpstreamToLookupTable(UPSTREAM_IFINDEX, UPSTREAM_IFACE);
         mBpfDevMap.insertEntry(
                 new S32(UPSTREAM_IFINDEX),
-                new TetherDevValue(UPSTREAM_IFINDEX));
+                new S32(UPSTREAM_IFINDEX));
 
         // dumpCounters
         // The error code is defined in packages/modules/Connectivity/bpf_progs/offload.h.
