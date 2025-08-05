@@ -110,7 +110,6 @@ inline bool isUserdebug() {
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
 typedef struct {
-    string name; // The canonicalized section name.
     string program_name;
     vector<char> data;
     vector<char> rel_data;
@@ -382,8 +381,6 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
         name[first_slash_pos] = '_';
 
         if (name.find('/') != std::string::npos) abort(); // There should only be one!
-
-        cs_temp.name = name;
 
         ret = elfObj.readSectionByIdx(i, cs_temp.data);
         if (ret) return ret;
@@ -1050,32 +1047,26 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
     for (int i = 0; i < (int)cs.size(); i++) {
         unique_fd& fd = cs[i].prog_fd;
         int ret;
-        string name = cs[i].name;
 
         if (!cs[i].prog_def.has_value()) {
-            ALOGE("[%d] '%s' missing program definition! bad bpf.o build?", i, name.c_str());
+            ALOGE("[%d] missing program definition! bad bpf.o build?", i);
             return -EINVAL;
         }
 
         unsigned min_kver = cs[i].prog_def->min_kver;
         unsigned max_kver = cs[i].prog_def->max_kver;
-        ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kvers:%x)", i, name.c_str(), min_kver,
-             max_kver, kvers);
+        ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kvers:%x)",
+             i, cs[i].prog_def->name(), min_kver, max_kver, kvers);
         if (kvers < min_kver) continue;
         if (kvers >= max_kver) continue;
 
         unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
         unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
 
-        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)", i, name.c_str(),
-              bpfMinVer, bpfMaxVer);
+        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)",
+              i, cs[i].prog_def->name(), bpfMinVer, bpfMaxVer);
         if (bpfloader_ver < bpfMinVer) continue;
         if (bpfloader_ver >= bpfMaxVer) continue;
-
-        // strip any potential $foo suffix
-        // this can be used to provide duplicate programs
-        // conditionally loaded based on running kernel version
-        name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
         if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
@@ -1097,7 +1088,7 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
               .expected_attach_type = cs[i].prog_def->attach_type,
             };
             if (isAtLeastKernelVersion(4, 15, 0))
-                strlcpy(req.prog_name, cs[i].name.c_str(), sizeof(req.prog_name));
+                strlcpy(req.prog_name, cs[i].prog_def->name(), sizeof(req.prog_name));
             fd.reset(bpf(BPF_PROG_LOAD, req));
 
             // Kernel should have NULL terminated the log buffer, but force it anyway for safety
@@ -1110,7 +1101,7 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
             bool log_oneline = !strchr(log_buf, '\n');
 
             ALOGD("BPF_PROG_LOAD call for %s (%s) returned '%s' fd: %d (%s)", elfObj.path,
-                  cs[i].name.c_str(), log_oneline ? log_buf : "{multiline}",
+                  cs[i].prog_def->name(), log_oneline ? log_buf : "{multiline}",
                   fd.get(), !fd.ok() ? std::strerror(errno) : "ok");
 
             if (!fd.ok()) {
@@ -1125,10 +1116,10 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
 
                 if (cs[i].prog_def->optional) {
                     ALOGW("failed program %s is marked optional - continuing...",
-                          cs[i].name.c_str());
+                          cs[i].prog_def->name());
                     continue;
                 }
-                ALOGE("non-optional program %s failed to load.", cs[i].name.c_str());
+                ALOGE("non-optional program %s failed to load.", cs[i].prog_def->name());
             }
         }
 
@@ -1188,9 +1179,8 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
     unsigned kvers = kernelVersion();
 
     for (int i = 0; i < (int)cs.size(); i++) {
-        string name = cs[i].name;
         if (!cs[i].prog_def.has_value()) {
-            ALOGE("[%d] '%s' missing program definition! bad bpf.o build?", i, name.c_str());
+            ALOGE("[%d] missing program definition! bad bpf.o build?", i);
             return -EINVAL;
         }
         string program_name = cs[i].program_name;
@@ -1204,7 +1194,7 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
         unsigned max_kver = cs[i].prog_def->max_kver;
         if (kvers < min_kver || kvers >= max_kver) {
             ALOGD("skipping prog %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
-                  name.c_str(), kvers, min_kver, max_kver);
+                  cs[i].prog_def->name(), kvers, min_kver, max_kver);
             bpf_program__set_autoload(prog, false);
             continue;
         }
@@ -1213,7 +1203,7 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
         unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
         if (bpfloader_ver < bpfMinVer || bpfloader_ver >= bpfMaxVer) {
             ALOGD("skipping prog %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
-                  name.c_str(), bpfloader_ver, bpfMinVer, bpfMaxVer);
+                  cs[i].prog_def->name(), bpfloader_ver, bpfMinVer, bpfMaxVer);
             bpf_program__set_autoload(prog, false);
             continue;
         }
@@ -1265,11 +1255,9 @@ static int pinProgs(const struct bpf_object * obj,
         // This program was skipped
         if (!bpf_program__autoload(prog)) continue;
 
-        string name = cs[i].name;
-        name = name.substr(0, name.find_last_of('$'));
         if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
             // TODO: Skip loading lower priority program
-            ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());
+            ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].prog_def->name());
             continue;
         }
 
