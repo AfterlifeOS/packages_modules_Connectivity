@@ -460,11 +460,11 @@ public class BpfCoordinator {
         }
 
         /** Get limit BPF map. */
-        @Nullable public IBpfMap<TetherLimitKey, TetherLimitValue> getBpfLimitMap() {
+        @Nullable public IBpfMap<S32, TetherLimitValue> getBpfLimitMap() {
             if (!isAtLeastS()) return null;
             try {
                 return new BpfMap<>(TETHER_LIMIT_MAP_PATH,
-                    TetherLimitKey.class, TetherLimitValue.class);
+                    S32.class, TetherLimitValue.class);
             } catch (ErrnoException e) {
                 Log.e(TAG, "Cannot create limit map: " + e);
                 return null;

@@ -44,7 +44,6 @@ import com.android.networkstack.tethering.BpfCoordinator.Ipv6UpstreamRule;
 import com.android.networkstack.tethering.BpfUtils;
 import com.android.networkstack.tethering.Tether6Value;
 import com.android.networkstack.tethering.TetherDownstream6Key;
-import com.android.networkstack.tethering.TetherLimitKey;
 import com.android.networkstack.tethering.TetherLimitValue;
 import com.android.networkstack.tethering.TetherUpstream6Key;
 
@@ -88,7 +87,7 @@ public class BpfCoordinatorShimImpl
 
     // BPF map of per-interface quota for tethering offload.
     @Nullable
-    private final IBpfMap<TetherLimitKey, TetherLimitValue> mBpfLimitMap;
+    private final IBpfMap<S32, TetherLimitValue> mBpfLimitMap;
 
     // BPF map of interface index mapping for XDP.
     @Nullable
@@ -304,7 +303,7 @@ public class BpfCoordinatorShimImpl
         if (newLimit < rxBytes + txBytes) newLimit = QUOTA_UNLIMITED;
 
         try {
-            mBpfLimitMap.updateEntry(new TetherLimitKey(ifIndex), new TetherLimitValue(newLimit));
+            mBpfLimitMap.updateEntry(new S32(ifIndex), new TetherLimitValue(newLimit));
         } catch (ErrnoException e) {
             mLog.e("Fail to set quota " + quotaBytes + " for interface index " + ifIndex + ": ", e);
             return false;
@@ -349,7 +348,7 @@ public class BpfCoordinatorShimImpl
         }
 
         try {
-            mBpfLimitMap.deleteEntry(new TetherLimitKey(ifIndex));
+            mBpfLimitMap.deleteEntry(new S32(ifIndex));
         } catch (ErrnoException e) {
             mLog.e("Could not delete limit for interface index " + ifIndex + ": ", e);
             return null;

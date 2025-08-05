@@ -482,8 +482,8 @@ public class BpfCoordinatorTest {
             spy(new TestBpfMap<>(TetherUpstream6Key.class, Tether6Value.class));
     private final IBpfMap<TetherStatsKey, TetherStatsValue> mBpfStatsMap =
             spy(new TestBpfMap<>(TetherStatsKey.class, TetherStatsValue.class));
-    private final IBpfMap<TetherLimitKey, TetherLimitValue> mBpfLimitMap =
-            spy(new TestBpfMap<>(TetherLimitKey.class, TetherLimitValue.class));
+    private final IBpfMap<S32, TetherLimitValue> mBpfLimitMap =
+            spy(new TestBpfMap<>(S32.class, TetherLimitValue.class));
     private final IBpfMap<S32, S32> mBpfDevMap =
             spy(new TestBpfMap<>(S32.class, S32.class));
     private final IBpfMap<S32, S32> mBpfErrorMap =
@@ -559,7 +559,7 @@ public class BpfCoordinatorTest {
                     }
 
                     @Nullable
-                    public IBpfMap<TetherLimitKey, TetherLimitValue> getBpfLimitMap() {
+                    public IBpfMap<S32, TetherLimitValue> getBpfLimitMap() {
                         return mBpfLimitMap;
                     }
 
@@ -932,7 +932,7 @@ public class BpfCoordinatorTest {
                         0L /* rxPackets */, 0L /* rxBytes */, 0L /* rxErrors */,
                         0L /* txPackets */, 0L /* txBytes */, 0L /* txErrors */));
             }
-            verifyWithOrder(inOrder, mBpfLimitMap).updateEntry(new TetherLimitKey(ifIndex),
+            verifyWithOrder(inOrder, mBpfLimitMap).updateEntry(new S32(ifIndex),
                     new TetherLimitValue(quotaBytes));
         } else {
             verifyWithOrder(inOrder, mNetd).tetherOffloadSetInterfaceQuota(ifIndex, quotaBytes);
@@ -955,7 +955,7 @@ public class BpfCoordinatorTest {
         if (mDeps.isAtLeastS()) {
             inOrder.verify(mBpfStatsMap).getValue(new TetherStatsKey(ifIndex));
             inOrder.verify(mBpfStatsMap).deleteEntry(new TetherStatsKey(ifIndex));
-            inOrder.verify(mBpfLimitMap).deleteEntry(new TetherLimitKey(ifIndex));
+            inOrder.verify(mBpfLimitMap).deleteEntry(new S32(ifIndex));
         } else {
             inOrder.verify(mNetd).tetherOffloadGetAndClearStats(ifIndex);
         }
