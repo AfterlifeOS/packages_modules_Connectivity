@@ -110,55 +110,6 @@ inline bool isUserdebug() {
 static unsigned int page_size = static_cast<unsigned int>(getpagesize());
 
 typedef struct {
-    const char* name;
-    enum bpf_prog_type type;
-    enum bpf_attach_type attach_type;
-} sectionType;
-
-/*
- * Map section name prefixes to program types, the section name will be:
- *   SECTION(<prefix>/<name-of-program>)
- * For example:
- *   SECTION("tracepoint/sched_switch_func") where sched_switch_funcs
- * is the name of the program, and tracepoint is the type.
- *
- * However, be aware that you should not be directly using the SECTION() macro.
- * Instead use the DEFINE_(BPF|XDP)_(PROG|MAP)... & LICENSE macros.
- *
- * Programs shipped inside the tethering apex should be limited to networking stuff,
- * as KPROBE, PERF_EVENT, TRACEPOINT are dangerous to use from mainline updatable code,
- * since they are less stable abi/api and may conflict with platform uses of bpf.
- */
-sectionType sectionNameTypes[] = {
-        {"bind4/",             BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_INET4_BIND},
-        {"bind6/",             BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_INET6_BIND},
-        {"cgroupskb/",         BPF_PROG_TYPE_CGROUP_SKB},
-        {"cgroupsock/",        BPF_PROG_TYPE_CGROUP_SOCK},
-        {"cgroupsockcreate/",  BPF_PROG_TYPE_CGROUP_SOCK,      BPF_CGROUP_INET_SOCK_CREATE},
-        {"cgroupsockrelease/", BPF_PROG_TYPE_CGROUP_SOCK,      BPF_CGROUP_INET_SOCK_RELEASE},
-        {"connect4/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_INET4_CONNECT},
-        {"connect6/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_INET6_CONNECT},
-        {"egress/",            BPF_PROG_TYPE_CGROUP_SKB,       BPF_CGROUP_INET_EGRESS},
-        {"getsockopt/",        BPF_PROG_TYPE_CGROUP_SOCKOPT,   BPF_CGROUP_GETSOCKOPT},
-        {"ingress/",           BPF_PROG_TYPE_CGROUP_SKB,       BPF_CGROUP_INET_INGRESS},
-        {"postbind4/",         BPF_PROG_TYPE_CGROUP_SOCK,      BPF_CGROUP_INET4_POST_BIND},
-        {"postbind6/",         BPF_PROG_TYPE_CGROUP_SOCK,      BPF_CGROUP_INET6_POST_BIND},
-        {"recvmsg4/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_UDP4_RECVMSG},
-        {"recvmsg6/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_UDP6_RECVMSG},
-        {"schedact/",          BPF_PROG_TYPE_SCHED_ACT},
-        {"schedcls/",          BPF_PROG_TYPE_SCHED_CLS},
-        {"sendmsg4/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_UDP4_SENDMSG},
-        {"sendmsg6/",          BPF_PROG_TYPE_CGROUP_SOCK_ADDR, BPF_CGROUP_UDP6_SENDMSG},
-        {"setsockopt/",        BPF_PROG_TYPE_CGROUP_SOCKOPT,   BPF_CGROUP_SETSOCKOPT},
-        {"skfilter/",          BPF_PROG_TYPE_SOCKET_FILTER},
-        {"sockops/",           BPF_PROG_TYPE_SOCK_OPS,         BPF_CGROUP_SOCK_OPS},
-        {"sysctl",             BPF_PROG_TYPE_CGROUP_SYSCTL,    BPF_CGROUP_SYSCTL},
-        {"xdp/",               BPF_PROG_TYPE_XDP},
-};
-
-typedef struct {
-    enum bpf_prog_type type;
-    enum bpf_attach_type attach_type;
     string name; // The canonicalized section name.
     string program_name;
     vector<char> data;
@@ -402,42 +353,35 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
     entries = shTable.size();
 
     vector<struct bpf_prog_def> pd;
-    ret = elfObj.readSectionByName("progs", pd);
+    ret = elfObj.readSectionByName(".android_progs", pd);
     if (ret) return ret;
     vector<string> progDefNames;
-    ret = elfObj.getSectionSymNames("progs", progDefNames);
+    ret = elfObj.getSectionSymNames(".android_progs", progDefNames);
     if (!pd.empty() && ret) return ret;
 
     for (int i = 0; i < entries; i++) {
         string name;
         codeSection cs_temp;
-        cs_temp.type = BPF_PROG_TYPE_UNSPEC;
 
         ret = elfObj.getSymName(shTable[i].sh_name, name);
         if (ret) return ret;
 
-        // This must be done before '/' is replaced with '_'.
-        for (auto& snt : sectionNameTypes) {
-            if (StartsWith(name, snt.name)) {
-                cs_temp.type = snt.type;
-                cs_temp.attach_type = snt.attach_type;
-                break;
-            }
-        }
-
-        if (cs_temp.type == BPF_PROG_TYPE_UNSPEC) continue;
-
-        string oldName = name;
+        // all we want to process is sections FOO/BAR, but:
+        // - section 0 has an empty name (experimentally observed)
+        // - .relFOO/BAR would break us later (relocations)
+        // - 'license' is special, but doesn't have a /
+        if (name[0] == '.') continue;
 
         // Find the first slash
         size_t first_slash_pos = name.find('/');
 
-        // If a slash is found, replace it
-        if (first_slash_pos != std::string::npos) {
-            name[first_slash_pos] = '_';
+        // Ignore sections without a /  (basically 'license' section)
+        if (first_slash_pos == std::string::npos) continue;
 
-            if (name.find('/') != std::string::npos) abort(); // There should only be one!
-        }
+        string oldName = name;
+        name[first_slash_pos] = '_';
+
+        if (name.find('/') != std::string::npos) abort(); // There should only be one!
 
         cs_temp.name = name;
 
@@ -457,9 +401,6 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
         }
 
         if (!cs_temp.prog_def) abort();
-
-        if (cs_temp.prog_def->type != cs_temp.type) abort();
-        if (cs_temp.prog_def->attach_type != cs_temp.attach_type) abort();
 
         // Check for rel section
         if (cs_temp.data.size() > 0 && i < entries) {
@@ -1148,14 +1089,14 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
             static char log_buf[1 << 20];  // 1 MiB logging buffer
 
             union bpf_attr req = {
-              .prog_type = cs[i].type,
+              .prog_type = cs[i].prog_def->type,
               .insn_cnt = static_cast<__u32>(cs[i].data.size() / sizeof(struct bpf_insn)),
               .insns = ptr_to_u64(cs[i].data.data()),
               .license = ptr_to_u64(license.c_str()),
               .log_level = 1,
               .log_size = sizeof(log_buf),
               .log_buf = ptr_to_u64(log_buf),
-              .expected_attach_type = cs[i].attach_type,
+              .expected_attach_type = cs[i].prog_def->attach_type,
             };
             if (isAtLeastKernelVersion(4, 15, 0))
                 strlcpy(req.prog_name, cs[i].name.c_str(), sizeof(req.prog_name));
@@ -1285,8 +1226,8 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
             return -1;
         }
 
-        bpf_program__set_type(prog, cs[i].type);
-        bpf_program__set_expected_attach_type(prog, cs[i].attach_type);
+        bpf_program__set_type(prog, cs[i].prog_def->type);
+        bpf_program__set_expected_attach_type(prog, cs[i].prog_def->attach_type);
     }
     return 0;
 }
