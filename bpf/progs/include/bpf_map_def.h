@@ -109,7 +109,7 @@ struct optional_bool { bool optional; };
 
 // Length of strings (incl. selinux_context and pin_subdir)
 // in the bpf_map_def and bpf_prog_def structs.
-#define BPF_DEF_CHAR_ARRAY_SIZE 66  // must be even for alignment sanity
+#define BPF_DEF_CHAR_ARRAY_SIZE 70  // must be even for alignment sanity
 
 /*
  * Map structure to be used by Android eBPF C programs. The Android eBPF loader
@@ -185,7 +185,7 @@ struct bpf_prog_def {
     unsigned int bpfloader_max_ver;
 
     char create_location[BPF_DEF_CHAR_ARRAY_SIZE];
-    char pin_prefix[BPF_DEF_CHAR_ARRAY_SIZE];
+    char pin_location[BPF_DEF_CHAR_ARRAY_SIZE];
 };
 
 // This needs to be updated whenever the above structure definition is expanded.
