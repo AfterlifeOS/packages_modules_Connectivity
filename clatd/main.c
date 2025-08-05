@@ -139,6 +139,9 @@ void enable_seccomp(void) {
     BPF2_SECCOMP_ALLOW_IF_EQUAL(__NR_sendmsg),       // 211
     BPF2_SECCOMP_ALLOW_IF_EQUAL(__NR_recvmsg),       // 212
     BPF2_SECCOMP_ALLOW_IF_EQUAL(__NR_writev),        // 66
+#if defined(__i386__)
+    BPF2_SECCOMP_ALLOW_IF_EQUAL(__NR_socketcall),    // x86-32 only
+#endif
 
     // logging: getuid writev
     BPF2_SECCOMP_ALLOW_IF_EQUAL(__NR_getuid),        // 174
