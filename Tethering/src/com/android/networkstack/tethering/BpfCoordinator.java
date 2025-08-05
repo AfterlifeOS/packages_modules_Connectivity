@@ -472,11 +472,11 @@ public class BpfCoordinator {
         }
 
         /** Get dev BPF map. */
-        @Nullable public IBpfMap<TetherDevKey, TetherDevValue> getBpfDevMap() {
+        @Nullable public IBpfMap<S32, TetherDevValue> getBpfDevMap() {
             if (!isAtLeastS()) return null;
             try {
                 return new BpfMap<>(TETHER_DEV_MAP_PATH,
-                    TetherDevKey.class, TetherDevValue.class);
+                    S32.class, TetherDevValue.class);
             } catch (ErrnoException e) {
                 Log.e(TAG, "Cannot create dev map: " + e);
                 return null;
@@ -1636,7 +1636,7 @@ public class BpfCoordinator {
     }
 
     private void dumpDevmap(@NonNull IndentingPrintWriter pw) {
-        try (IBpfMap<TetherDevKey, TetherDevValue> map = mDeps.getBpfDevMap()) {
+        try (IBpfMap<S32, TetherDevValue> map = mDeps.getBpfDevMap()) {
             if (map == null) {
                 pw.println("No devmap support");
                 return;
@@ -1651,7 +1651,7 @@ public class BpfCoordinator {
                 // Only get upstream interface name. Just do the best to make the index readable.
                 // TODO: get downstream interface name because the index is either upstream or
                 // downstream interface in dev map.
-                pw.println(String.format("%d (%s) -> %d (%s)", k.ifIndex, getIfName(k.ifIndex),
+                pw.println(String.format("%d (%s) -> %d (%s)", k.val, getIfName(k.val),
                         v.ifIndex, getIfName(v.ifIndex)));
             });
         } catch (ErrnoException | IOException e) {
