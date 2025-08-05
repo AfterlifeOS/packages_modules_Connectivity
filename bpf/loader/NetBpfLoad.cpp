@@ -1005,7 +1005,7 @@ static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef,
     return 0;
 }
 
-static int validateProg(const borrowed_fd& fd, string& progPinLoc,
+static int validateProg(const borrowed_fd& fd, const char* const progPinLoc,
                         const unsigned int bpfloader_ver) {
     if (!isAtLeastKernelVersion(4, 14, 0)) {
         return 0;
@@ -1030,10 +1030,10 @@ static int validateProg(const borrowed_fd& fd, string& progPinLoc,
         ALOGE("bpfGetFdXlatProgLen failed, ret: %d", err);
         return -err;
     }
-    ALOGI("prog %s id %d len jit:%d xlat:%d", progPinLoc.c_str(), progId, jitLen, xlatLen);
+    ALOGI("prog %s id %d len jit:%d xlat:%d", progPinLoc, progId, jitLen, xlatLen);
 
     if (!jitLen && bpfloader_ver >= BPFLOADER_MAINLINE_25Q2_VERSION) {
-        ALOGE("Kernel eBPF JIT failure for %s", progPinLoc.c_str());
+        ALOGE("Kernel eBPF JIT failure for %s", progPinLoc);
         return -ENOTSUP;
     }
     return 0;
@@ -1079,10 +1079,9 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
         name = name.substr(0, name.find_last_of('$'));
 
         bool reuse = false;
-        string progPinLoc = string(cs[i].prog_def->pin_prefix) + name;
-        if (access(progPinLoc.c_str(), F_OK) == 0) {
-            fd.reset(retrieveProgram(progPinLoc.c_str()));
-            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", progPinLoc.c_str(), fd.get(),
+        if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
+            fd.reset(retrieveProgram(cs[i].prog_def->pin_location));
+            ALOGD("New bpf prog load reusing prog %s, ret: %d (%s)", cs[i].prog_def->pin_location, fd.get(),
                   !fd.ok() ? std::strerror(errno) : "ok");
             reuse = true;
         } else {
@@ -1137,10 +1136,10 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
         if (!fd.ok()) return fd.get();
 
         if (!reuse) {
-            ret = pinProg(fd, cs[i].prog_def.value(), progPinLoc);
+            ret = pinProg(fd, cs[i].prog_def.value(), cs[i].prog_def->pin_location);
             if (ret) return ret;
         }
-        ret = validateProg(fd, progPinLoc, bpfloader_ver);
+        ret = validateProg(fd, cs[i].prog_def->pin_location, bpfloader_ver);
         if (ret) return ret;
     }
 
@@ -1269,17 +1268,16 @@ static int pinProgs(const struct bpf_object * obj,
 
         string name = cs[i].name;
         name = name.substr(0, name.find_last_of('$'));
-        string progPinLoc = string(cs[i].prog_def->pin_prefix) + name;
-        if (access(progPinLoc.c_str(), F_OK) == 0) {
+        if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
             // TODO: Skip loading lower priority program
             ALOGI("Higher priority program is already pinned, skip pinning %s", cs[i].name.c_str());
             continue;
         }
 
         int fd = bpf_program__fd(prog);
-        ret = pinProg(fd, cs[i].prog_def.value(), progPinLoc);
+        ret = pinProg(fd, cs[i].prog_def.value(), cs[i].prog_def->pin_location);
         if (ret) return ret;
-        ret = validateProg(fd, progPinLoc, bpfloader_ver);
+        ret = validateProg(fd, cs[i].prog_def->pin_location, bpfloader_ver);
         if (ret) return ret;
     }
     return 0;

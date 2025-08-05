@@ -244,26 +244,26 @@ static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
          type == BPF_MAP_TYPE_SK_STORAGE) ? BPF_F_NO_PREALLOC : 0) \
     )
 
-#define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, usr, grp, md,      \
-                            selinux, pindir, minkver, maxkver, minloader, maxloader, mapflags) \
-    VALIDATE_SELINUX_CONTEXT(minloader, selinux);                                              \
-    VALIDATE_PIN_DIR(minloader, pindir);                                                       \
-    const struct bpf_map_def SECTION(".android_maps") the_map##_def = {                        \
-        .type = BPF_MAP_TYPE_##TYPE,                                                           \
-        .key_size = (keysize),                                                                 \
-        .value_size = (valuesize),                                                             \
-        .max_entries = ABSOLUTE(num_entries),                                                  \
-        .map_flags = DEFAULT_BPF_MAP_FLAGS(BPF_MAP_TYPE_##TYPE, num_entries, mapflags),        \
-        .uid = (usr),                                                                          \
-        .gid = (grp),                                                                          \
-        .mode = (md),                                                                          \
-        .bpfloader_min_ver = (minloader),                                                      \
-        .bpfloader_max_ver = (maxloader),                                                      \
-        .min_kver = (minkver).kver,                                                            \
-        .max_kver = (maxkver).kver,                                                            \
-        .create_location = CREATE_LOCATION(selinux),                                           \
-        .pin_location = "/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_" #the_map,               \
-        .name_idx = __builtin_strlen("/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_"),          \
+#define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, usr, grp, md,       \
+                            selinux, pindir, minkver, maxkver, minloader, maxloader, mapflags)  \
+    VALIDATE_SELINUX_CONTEXT(minloader, selinux);                                               \
+    VALIDATE_PIN_DIR(minloader, pindir);                                                        \
+    const struct bpf_map_def SECTION(".android_maps") the_map##_def = {                         \
+        .type = BPF_MAP_TYPE_##TYPE,                                                            \
+        .key_size = (keysize),                                                                  \
+        .value_size = (valuesize),                                                              \
+        .max_entries = ABSOLUTE(num_entries),                                                   \
+        .map_flags = DEFAULT_BPF_MAP_FLAGS(BPF_MAP_TYPE_##TYPE, num_entries, mapflags),         \
+        .uid = (usr),                                                                           \
+        .gid = (grp),                                                                           \
+        .mode = (md),                                                                           \
+        .bpfloader_min_ver = (minloader),                                                       \
+        .bpfloader_max_ver = (maxloader),                                                       \
+        .min_kver = (minkver).kver,                                                             \
+        .max_kver = (maxkver).kver,                                                             \
+        .create_location = CREATE_LOCATION(selinux),                                            \
+        .pin_location = "/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_" #the_map "\0",           \
+        .name_idx = __builtin_strlen("/sys/fs/bpf/" pindir "/map_" BPF_OBJ_NAME "_"),           \
     };
 
 #define __uint(name, val) int (*name)[val]
@@ -531,24 +531,24 @@ static long (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BP
 #define BPF_PROG_ATTACH_TYPE_sysctl            BPF_CGROUP_SYSCTL
 #define BPF_PROG_ATTACH_TYPE_xdp               BPF_PROG_ATTACH_TYPE_DEFAULT
 
-#define DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv,        \
-                            min_loader, max_loader, opt, selinux, pindir)               \
-    VALIDATE_SELINUX_CONTEXT(min_loader, selinux);                                      \
-    VALIDATE_PIN_DIR(min_loader, pindir);                                               \
-    const struct bpf_prog_def SECTION(".android_progs") TYPE##_##NAME##_##VER##_def = { \
-        .type = BPF_PROG_TYPE_##TYPE,                                                   \
-        .attach_type = BPF_PROG_ATTACH_TYPE_##TYPE,                                     \
-        .uid = (prog_uid),                                                              \
-        .gid = (prog_gid),                                                              \
-        .min_kver = (min_kv).kver,                                                      \
-        .max_kver = (max_kv).kver,                                                      \
-        .optional = (opt).optional,                                                     \
-        .bpfloader_min_ver = (min_loader),                                              \
-        .bpfloader_max_ver = (max_loader),                                              \
-        .create_location = CREATE_LOCATION(selinux),                                    \
-        .pin_prefix = "/sys/fs/bpf/" pindir "/prog_" BPF_OBJ_NAME "_",                  \
-    };                                                                                  \
-    SECTION(#TYPE "/" #NAME "$" #VER)                                                   \
+#define DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv,              \
+                            min_loader, max_loader, opt, selinux, pindir)                     \
+    VALIDATE_SELINUX_CONTEXT(min_loader, selinux);                                            \
+    VALIDATE_PIN_DIR(min_loader, pindir);                                                     \
+    const struct bpf_prog_def SECTION(".android_progs") TYPE##_##NAME##_##VER##_def = {       \
+        .type = BPF_PROG_TYPE_##TYPE,                                                         \
+        .attach_type = BPF_PROG_ATTACH_TYPE_##TYPE,                                           \
+        .uid = (prog_uid),                                                                    \
+        .gid = (prog_gid),                                                                    \
+        .min_kver = (min_kv).kver,                                                            \
+        .max_kver = (max_kv).kver,                                                            \
+        .optional = (opt).optional,                                                           \
+        .bpfloader_min_ver = (min_loader),                                                    \
+        .bpfloader_max_ver = (max_loader),                                                    \
+        .create_location = CREATE_LOCATION(selinux),                                          \
+        .pin_location = "/sys/fs/bpf/" pindir "/prog_" BPF_OBJ_NAME "_" #TYPE "_" #NAME "\0", \
+    };                                                                                        \
+    SECTION(#TYPE "/" #NAME "$" #VER)                                                         \
     long TYPE##_##NAME##_##VER
 
 #define DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_uid, prog_gid, min_kv, max_kv, \
