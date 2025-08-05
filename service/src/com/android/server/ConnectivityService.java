@@ -112,6 +112,7 @@ import static android.net.NetworkCapabilities.REDACT_FOR_NETWORK_SETTINGS;
 import static android.net.NetworkCapabilities.RES_ID_MATCH_ALL_RESERVATIONS;
 import static android.net.NetworkCapabilities.RES_ID_UNSET;
 import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
+import static android.net.NetworkCapabilities.TRANSPORT_SATELLITE;
 import static android.net.NetworkCapabilities.TRANSPORT_TEST;
 import static android.net.NetworkCapabilities.TRANSPORT_THREAD;
 import static android.net.NetworkCapabilities.TRANSPORT_VPN;
@@ -169,6 +170,7 @@ import static com.android.server.connectivity.ConnectivityFlags.QUEUE_CALLBACKS_
 import static com.android.server.connectivity.ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER;
 import static com.android.server.connectivity.ConnectivityFlags.REQUEST_RESTRICTED_WIFI;
 import static com.android.server.connectivity.ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS;
+import static com.android.server.connectivity.ConnectivityFlags.USE_SATELLITE_REPORTED_SUSPENDED_AND_ROAMING;
 import static com.android.server.connectivity.ConnectivityFlags.WIFI_DATA_INACTIVITY_TIMEOUT;
 
 import android.Manifest;
@@ -572,6 +574,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
     // Flag for early link properties update
     private final boolean mSupportEarlyLinkPropertiesUpdateForVPN;
     private final boolean mConstrainedDataSatelliteMetrics;
+    private final boolean mUseSatelliteReportedSuspendedAndRoaming;
 
     /**
      * Uids ConnectivityService tracks blocked status of to send blocked status callbacks.
@@ -2358,6 +2361,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         } else {
             mQuicConnectionCloser = null;
         }
+
+        mUseSatelliteReportedSuspendedAndRoaming = mDeps.isFeatureNotChickenedOut(
+                context, USE_SATELLITE_REPORTED_SUSPENDED_AND_ROAMING);
     }
 
     /**
@@ -10926,7 +10932,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         newNc.setPrivateDnsBroken(nai.networkCapabilities.isPrivateDnsBroken());
 
         // TODO : remove this once all factories are updated to send NOT_SUSPENDED and NOT_ROAMING
-        if (!newNc.hasTransport(TRANSPORT_CELLULAR)) {
+        if (!newNc.hasTransport(TRANSPORT_CELLULAR)
+                && !(mUseSatelliteReportedSuspendedAndRoaming
+                     && newNc.hasTransport(TRANSPORT_SATELLITE))) {
             newNc.addCapability(NET_CAPABILITY_NOT_SUSPENDED);
             newNc.addCapability(NET_CAPABILITY_NOT_ROAMING);
         }

@@ -189,6 +189,7 @@ open class CSTest {
         it[ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN] = true
         it[ConnectivityFlags.CONSTRAINED_DATA_SATELLITE_METRICS] = true
         it[ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS] = true
+        it[ConnectivityFlags.USE_SATELLITE_REPORTED_SUSPENDED_AND_ROAMING] = true
     }
     fun setFeatureEnabled(flag: String, enabled: Boolean) = enabledFeatures.set(flag, enabled)
 
