@@ -2242,6 +2242,7 @@ public class ConnectivityServiceTest {
                 case ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN:
                 case ConnectivityFlags.CONSTRAINED_DATA_SATELLITE_METRICS:
                 case ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS:
+                case ConnectivityFlags.USE_SATELLITE_REPORTED_SUSPENDED_AND_ROAMING:
                     return true;
                 default:
                     throw new UnsupportedOperationException("Unknown flag " + name

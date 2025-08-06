@@ -76,6 +76,9 @@ public final class ConnectivityFlags {
     public static final String SATISFIED_BY_LOCAL_NETWORK_METRICS =
             "satisfied_by_local_network_metrics";
 
+    public static final String USE_SATELLITE_REPORTED_SUSPENDED_AND_ROAMING =
+            "use_satellite_reported_suspended_and_roaming";
+
     /**
      * A feature flag to control whether the early link properties update for vpn should be enabled.
      *
