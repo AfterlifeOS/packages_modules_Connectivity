@@ -254,7 +254,6 @@ import android.app.usage.NetworkStatsManager;
 import android.compat.testing.PlatformCompatChangeRule;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
-import android.content.ContentProvider;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -267,6 +266,7 @@ import android.content.pm.ResolveInfo;
 import android.content.pm.ServiceInfo;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
+import android.database.ContentObserver;
 import android.location.LocationManager;
 import android.net.CaptivePortal;
 import android.net.CaptivePortalData;
@@ -373,7 +373,6 @@ import android.telephony.SubscriptionManager;
 import android.telephony.TelephonyManager;
 import android.telephony.data.EpsBearerQosSessionAttributes;
 import android.telephony.data.NrQosSessionAttributes;
-import android.test.mock.MockContentResolver;
 import android.text.TextUtils;
 import android.util.ArraySet;
 import android.util.Log;
@@ -429,6 +428,7 @@ import com.android.server.connectivity.SatelliteAccessController;
 import com.android.server.connectivity.TcpKeepaliveController;
 import com.android.server.connectivity.UidRangeUtils;
 import com.android.server.net.NetworkPinner;
+import com.android.testutils.ContentResolverWithFakeSettingsProvider;
 import com.android.testutils.DevSdkIgnoreRule;
 import com.android.testutils.DevSdkIgnoreRunner;
 import com.android.testutils.FunctionalUtils.Function3;
@@ -686,7 +686,7 @@ public class ConnectivityServiceTest {
     }
 
     private class MockContext extends BroadcastInterceptingContext {
-        private final MockContentResolver mContentResolver;
+        private final ContentResolverWithFakeSettingsProvider mContentResolver;
 
         @Spy private Resources mInternalResources;
         private final LinkedBlockingQueue<Intent> mStartedActivities = new LinkedBlockingQueue<>();
@@ -703,7 +703,7 @@ public class ConnectivityServiceTest {
             }).when(mInternalResources).getString(resId);
         }
 
-        MockContext(Context base, ContentProvider settingsProvider) {
+        MockContext(Context base) {
             super(base);
 
             mInternalResources = spy(base.getResources());
@@ -727,8 +727,7 @@ public class ConnectivityServiceTest {
                 mockStringResource(resId);
             }
 
-            mContentResolver = new MockContentResolver();
-            mContentResolver.addProvider(Settings.AUTHORITY, settingsProvider);
+            mContentResolver = new ContentResolverWithFakeSettingsProvider();
         }
 
         @Override
@@ -1908,8 +1907,7 @@ public class ConnectivityServiceTest {
         doReturn(mTelephonyManager).when(mTelephonyManager).createForSubscriptionId(anyInt());
 
         FakeSettingsProvider.clearSettingsProvider();
-        mServiceContext = new MockContext(InstrumentationRegistry.getContext(),
-                new FakeSettingsProvider());
+        mServiceContext = new MockContext(InstrumentationRegistry.getContext());
         mServiceContext.setUseRegisteredHandlers(true);
         mServiceContext.setPermission(NETWORK_FACTORY, PERMISSION_GRANTED);
         mServiceContext.setPermission(NETWORK_STACK, PERMISSION_GRANTED);
@@ -2029,6 +2027,13 @@ public class ConnectivityServiceTest {
         @Override
         public HandlerThread makeHandlerThread(@NonNull final String tag) {
             return mCsHandlerThread;
+        }
+
+        @Override
+        public void registerContentObserver(ContentResolver cr, Uri uri,
+                boolean notifyForDescendants, ContentObserver observer) {
+            ((ContentResolverWithFakeSettingsProvider) mServiceContext.getContentResolver())
+                    .registerContentObserver(uri, observer);
         }
 
         @Override
@@ -5889,21 +5894,18 @@ public class ConnectivityServiceTest {
         ContentResolver cr = mServiceContext.getContentResolver();
         Settings.Global.putInt(cr, ConnectivitySettingsManager.MOBILE_DATA_ALWAYS_ON,
                 enable ? 1 : 0);
-        mService.updateAlwaysOnNetworks();
         waitForIdle();
     }
 
     private void setPrivateDnsSettings(int mode, String specifier) {
         ConnectivitySettingsManager.setPrivateDnsMode(mServiceContext, mode);
         ConnectivitySettingsManager.setPrivateDnsHostname(mServiceContext, specifier);
-        mService.updatePrivateDnsSettings();
         waitForIdle();
     }
 
     private void setIngressRateLimit(int rateLimitInBytesPerSec) {
         ConnectivitySettingsManager.setIngressRateLimitInBytesPerSecond(mServiceContext,
                 rateLimitInBytesPerSec);
-        mService.updateIngressRateLimit();
         waitForIdle();
     }
 
@@ -18119,7 +18121,6 @@ public class ConnectivityServiceTest {
 
     private void setAndUpdateMobileDataPreferredUids(Set<Integer> uids) {
         ConnectivitySettingsManager.setMobileDataPreferredUids(mServiceContext, uids);
-        mService.updateMobileDataPreferredUids();
         waitForIdle();
     }
 
@@ -18323,19 +18324,17 @@ public class ConnectivityServiceTest {
      */
     @Test
     public void testMobileDataPreferredUidsChangedCountsRequestsCorrectlyOnSet() throws Exception {
-        ConnectivitySettingsManager.setMobileDataPreferredUids(mServiceContext,
-                Set.of(PRIMARY_USER_HANDLE.getUid(TEST_PACKAGE_UID)));
+        Set uids = Set.of(PRIMARY_USER_HANDLE.getUid(TEST_PACKAGE_UID));
+        ConnectivitySettingsManager.setMobileDataPreferredUids(mServiceContext, uids);
         // Leave one request available so MDO preference set up above can be set.
         withRequestCountersAcquired(1 /* countToLeaveAvailable */, () ->
                 withPermission(NetworkStack.PERMISSION_MAINLINE_NETWORK_STACK,
                         Process.myPid(), Process.myUid(), () -> {
                             // Set initially to test the limit prior to having existing requests.
-                            mService.updateMobileDataPreferredUids();
-                            waitForIdle();
+                            setAndUpdateMobileDataPreferredUids(uids);
 
                             // re-set so as to test the limit as part of replacing existing requests
-                            mService.updateMobileDataPreferredUids();
-                            waitForIdle();
+                            setAndUpdateMobileDataPreferredUids(uids);
                         }));
     }
 

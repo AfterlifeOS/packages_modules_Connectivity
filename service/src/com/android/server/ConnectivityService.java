@@ -1588,6 +1588,15 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
 
         /**
+         * Register a content observer. This method exists because ContentResolver#registerObserver
+         * is final and cannot be overridden by tests.
+         */
+        public void registerContentObserver(ContentResolver cr, Uri uri,
+                boolean notifyForDescendants, ContentObserver observer) {
+            cr.registerContentObserver(uri, notifyForDescendants, observer);
+        }
+
+        /**
          * Get a reference to the ModuleNetworkStackClient.
          */
         public NetworkStackClientBase getNetworkStack() {
@@ -2249,7 +2258,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
             loge("Error registering event listener :" + e);
         }
 
-        mSettingsObserver = new SettingsObserver(mContext, mHandler);
+        mSettingsObserver = new SettingsObserver(mContext, mHandler, mDeps);
         registerSettingsCallbacks();
 
         mKeepaliveTracker = mDeps.makeAutomaticOnOffKeepaliveTracker(mContext, mHandler);
@@ -2424,33 +2433,6 @@ public class ConnectivityService extends IConnectivityManager.Stub
         netCap.addCapability(capability);
         netCap.setRequestorUidAndPackageName(Process.myUid(), mContext.getPackageName());
         return new NetworkRequest(netCap, TYPE_NONE, nextNetworkRequestId(), type);
-    }
-
-    // Used only for testing.
-    // TODO: Delete this and either:
-    // 1. Give FakeSettingsProvider the ability to send settings change notifications (requires
-    //    changing ContentResolver to make registerContentObserver non-final).
-    // 2. Give FakeSettingsProvider an alternative notification mechanism and have the test use it
-    //    by subclassing SettingsObserver.
-    @VisibleForTesting
-    void updateAlwaysOnNetworks() {
-        mHandler.sendEmptyMessage(EVENT_CONFIGURE_ALWAYS_ON_NETWORKS);
-    }
-
-    // See FakeSettingsProvider comment above.
-    @VisibleForTesting
-    void updatePrivateDnsSettings() {
-        mHandler.sendEmptyMessage(EVENT_PRIVATE_DNS_SETTINGS_CHANGED);
-    }
-
-    @VisibleForTesting
-    public void updateMobileDataPreferredUids() {
-        mHandler.sendEmptyMessage(EVENT_MOBILE_DATA_PREFERRED_UIDS_CHANGED);
-    }
-
-    @VisibleForTesting
-    void updateIngressRateLimit() {
-        mHandler.sendEmptyMessage(EVENT_INGRESS_RATE_LIMIT_CHANGED);
     }
 
     @VisibleForTesting
@@ -4402,7 +4384,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         // rules are applied before system ready. Normally, the empty uid list means to clear
         // the uids rules on netd.
         if (!ConnectivitySettingsManager.getMobileDataPreferredUids(mContext).isEmpty()) {
-            updateMobileDataPreferredUids();
+            mHandler.sendEmptyMessage(EVENT_MOBILE_DATA_PREFERRED_UIDS_CHANGED);
         }
 
         if (mSatelliteAccessController != null) {
@@ -7685,21 +7667,22 @@ public class ConnectivityService extends IConnectivityManager.Stub
     }
 
     private static class SettingsObserver extends ContentObserver {
-        final private HashMap<Uri, Integer> mUriEventMap;
-        final private Context mContext;
-        final private Handler mHandler;
+        private final HashMap<Uri, Integer> mUriEventMap;
+        private final Context mContext;
+        private final Handler mHandler;
+        private final Dependencies mDeps;
 
-        SettingsObserver(Context context, Handler handler) {
+        SettingsObserver(Context context, Handler handler, Dependencies deps) {
             super(null);
             mUriEventMap = new HashMap<>();
             mContext = context;
             mHandler = handler;
+            mDeps = deps;
         }
 
         void observe(Uri uri, int what) {
             mUriEventMap.put(uri, what);
-            final ContentResolver resolver = mContext.getContentResolver();
-            resolver.registerContentObserver(uri, false, this);
+            mDeps.registerContentObserver(mContext.getContentResolver(), uri, false, this);
         }
 
         @Override

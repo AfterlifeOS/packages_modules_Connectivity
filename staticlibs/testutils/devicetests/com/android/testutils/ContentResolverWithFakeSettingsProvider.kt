@@ -40,11 +40,13 @@ class ContentResolverWithFakeSettingsProvider : MockContentResolver() {
             val callbackUser = p.second
             val user = UserHandle(userId)
             val currentUser = UserHandle.getUserHandleForUid(Process.myUid())
-            if (callbackUser == UserHandle.ALL ||
-                UserHandle.CURRENT.equals(callbackUser) && currentUser.equals(user) ||
-                callbackUser.equals(user)
-            ) {
+            if (callbackUser == UserHandle.CURRENT && currentUser == user) {
+                // Use the overload without the user parameter since it works on S.
+                // TODO: when S is no longer supported, remove this and always use the branch below.
                 Log.d(TAG, "Notifying change in $uri")
+                observer.onChange(false, Collections.singletonList(uri), 0)
+            } else if (callbackUser == UserHandle.ALL || callbackUser.equals(user)) {
+                Log.d(TAG, "Notifying change in $uri on user $user")
                 observer.onChange(false, Collections.singletonList(uri), 0, user)
             }
         }))
