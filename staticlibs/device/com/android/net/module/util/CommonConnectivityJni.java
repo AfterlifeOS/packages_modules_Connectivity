@@ -16,6 +16,9 @@
 
 package com.android.net.module.util;
 
+import android.annotation.RequiresApi;
+import android.os.Build;
+import android.os.IBinder;
 import android.system.ErrnoException;
 
 /**
@@ -48,4 +51,15 @@ public class CommonConnectivityJni {
      * @throws ErrnoException if setting expiration time is failed.
      */
     public static native void setTimerFdTime(int fd, long timeMs) throws ErrnoException;
+
+    /**
+     * Returns the specified service from the service manager.
+     *
+     * If the service is not running, service manager will attempt to start it, and this function
+     * will wait for it to be ready.
+     *
+     * @return {@code null} only if there are permission problems or fatal errors
+     */
+    @RequiresApi(Build.VERSION_CODES.S)
+    public static native IBinder waitForService(String serviceName);
 }

@@ -123,10 +123,10 @@ import android.util.SparseArray;
 
 import com.android.connectivity.resources.R;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.net.module.util.CommonConnectivityJni;
 import com.android.net.module.util.IIpv4PrefixRequest;
 import com.android.net.module.util.RoutingCoordinatorManager;
 import com.android.net.module.util.SharedLog;
-import com.android.server.ServiceManagerWrapper;
 import com.android.server.connectivity.ConnectivityResources;
 import com.android.server.connectivity.MockableSystemProperties;
 import com.android.server.thread.openthread.BackboneRouterState;
@@ -292,7 +292,7 @@ final class ThreadNetworkControllerService extends IThreadNetworkController.Stub
                 handler,
                 new MockableSystemProperties(),
                 networkProvider,
-                () -> IOtDaemon.Stub.asInterface(ServiceManagerWrapper.waitForService("ot_daemon")),
+                () -> IOtDaemon.Stub.asInterface(CommonConnectivityJni.waitForService("ot_daemon")),
                 connectivityManager,
                 routingCoordinatorManager,
                 new TunInterfaceController(TUN_IF_NAME),
