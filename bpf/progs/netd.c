@@ -131,7 +131,7 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
     DEFINE_NETD_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, min_kv, KVER_INF)
 
 #define DEFINE_NETD_BPF_PROG(TYPE, NAME, VER) \
-    DEFINE_NETD_BPF_PROG_KVER(TYPE, NAME, VER, KVER_NONE)
+    DEFINE_NETD_BPF_PROG_KVER(TYPE, NAME, VER, KVER_4_9)
 
 #define DEFINE_NETD_V_BPF_PROG_KVER(TYPE, NAME, VER, minKV)                                   \
     DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, AID_ROOT, AID_ROOT, minKV,                           \
@@ -140,7 +140,7 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
 
 // programs that only need to be usable by the system server
 #define DEFINE_SYS_BPF_PROG(TYPE, NAME, VER) \
-    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, AID_ROOT, AID_NET_ADMIN, KVER_NONE, KVER_INF, \
+    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, AID_ROOT, AID_NET_ADMIN, KVER_4_9, KVER_INF, \
                         BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, MANDATORY, \
                         "net_shared", DEFAULT_BPF_PIN_SUBDIR)
 
@@ -641,9 +641,9 @@ return bpf_traffic_account(skb, INGRESS, KVER_4_19, SDK_LEVEL_T);
 }
 
 // Android T 4.9 & T/U 4.14
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, ingress_stats, 4_9, KVER_NONE, KVER_4_19)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, ingress_stats, 4_9, KVER_4_9, KVER_4_19)
 (struct __sk_buff* skb) {
-    return bpf_traffic_account(skb, INGRESS, KVER_NONE, SDK_LEVEL_T);
+    return bpf_traffic_account(skb, INGRESS, KVER_4_9, SDK_LEVEL_T);
 }
 
 // ----- cgroupskb/egress/stats -----
@@ -682,9 +682,9 @@ return bpf_traffic_account(skb, EGRESS, KVER_4_19, SDK_LEVEL_T);
 }
 
 // Android T 4.9 & T/U 4.14
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, egress_stats, 4_9, KVER_NONE, KVER_4_19)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, egress_stats, 4_9, KVER_4_9, KVER_4_19)
 (struct __sk_buff* skb) {
-    return bpf_traffic_account(skb, EGRESS, KVER_NONE, SDK_LEVEL_T);
+    return bpf_traffic_account(skb, EGRESS, KVER_4_9, SDK_LEVEL_T);
 }
 
 // -----
@@ -704,7 +704,7 @@ DEFINE_XTBPF_PROG(skfilter, egress_xtbpf, )
     }
 
     uint32_t key = skb->ifindex;
-    update_iface_stats_map(skb, &key, EGRESS, KVER_NONE);
+    update_iface_stats_map(skb, &key, EGRESS, KVER_4_9);
     return XTBPF_MATCH;
 }
 
@@ -717,7 +717,7 @@ DEFINE_XTBPF_PROG(skfilter, ingress_xtbpf, )
     // Keep that in mind when moving this out of iptables xt_bpf and into tc ingress (or xdp).
 
     uint32_t key = skb->ifindex;
-    update_iface_stats_map(skb, &key, INGRESS, KVER_NONE);
+    update_iface_stats_map(skb, &key, INGRESS, KVER_4_9);
     return XTBPF_MATCH;
 }
 
@@ -726,7 +726,7 @@ DEFINE_SYS_BPF_PROG(schedact, ingress_account, )
     if (is_received_skb(skb)) {
         // Account for ingress traffic before tc drops it.
         uint32_t key = skb->ifindex;
-        update_iface_stats_map(skb, &key, INGRESS, KVER_NONE);
+        update_iface_stats_map(skb, &key, INGRESS, KVER_4_9);
     }
     return TC_ACT_UNSPEC;
 }

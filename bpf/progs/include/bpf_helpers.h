@@ -61,7 +61,6 @@
 struct kver_uint { unsigned int kver; };
 #define KVER_(v) ((struct kver_uint){ .kver = (v) })
 #define KVER(a, b, c) KVER_(((a) << 24) + ((b) << 16) + (c))
-#define KVER_NONE KVER_(0)
 #define KVER_4_9  KVER(4, 9, 0)
 #define KVER_4_14 KVER(4, 14, 0)
 #define KVER_4_19 KVER(4, 19, 0)
@@ -371,7 +370,7 @@ static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
                            selinux, pindir, min_loader, max_loader, mapFlags)                    \
   DEFINE_BPF_MAP_BASE(the_map, TYPE, sizeof(KeyType), sizeof(ValueType),                         \
                       num_entries, usr, grp, md, selinux, pindir,                                \
-                      KVER_NONE, KVER_INF, min_loader, max_loader, mapFlags);                    \
+                      KVER_4_9, KVER_INF, min_loader, max_loader, mapFlags);                     \
     DEFINE_LIBBPF_MAP(the_map, TYPE, KeyType, ValueType, num_entries);                           \
     BPF_MAP_ASSERT_OK(BPF_MAP_TYPE_##TYPE, (num_entries), (md));                                 \
     _Static_assert(sizeof(KeyType) < 1024, "aosp/2370288 requires < 1024 byte keys");            \
@@ -586,8 +585,8 @@ static long (*bpf_trace_printk)(const char* fmt, int fmt_size, ...) = (void*) BP
 
 // programs with no kernel version requirements
 #define DEFINE_BPF_PROG(TYPE, NAME, VER, prog_gid) \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, KVER_NONE, KVER_INF, \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, KVER_4_9, KVER_INF, \
                                    MANDATORY)
 #define DEFINE_OPTIONAL_BPF_PROG(TYPE, NAME, VER, prog_gid) \
-    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, KVER_NONE, KVER_INF, \
+    DEFINE_BPF_PROG_KVER_RANGE_OPT(TYPE, NAME, VER, prog_gid, KVER_4_9, KVER_INF, \
                                    OPTIONAL)
