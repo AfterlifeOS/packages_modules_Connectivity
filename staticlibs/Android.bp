@@ -618,6 +618,9 @@ aidl_interface {
     visibility: [
         "//system/tools/aidl/build",
     ],
+    imports: [
+        "netd_aidl_interface-V17", // For RouteInfoParcel.
+    ],
 }
 
 // Use a filegroup and not a library for telephony sources, as framework-annotations cannot be
