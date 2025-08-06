@@ -114,7 +114,7 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
 // the kernel acting on behalf of it) must be able to retrieve the pinned program
 // for the reload to succeed
 #define DEFINE_XTBPF_PROG(TYPE, NAME, VER) \
-    DEFINE_BPF_PROG(TYPE, NAME, VER, AID_ROOT, AID_NET_ADMIN)
+    DEFINE_BPF_PROG(TYPE, NAME, VER, AID_NET_ADMIN)
 
 // programs that need to be usable by netd, but not by netutils_wrappers
 // (this is because these are currently attached by the mainline provided libnetd_updatable .so
@@ -128,20 +128,20 @@ DEFINE_BPF_MAP_EXT(local_net_blocked_uid_map, HASH, uint32_t, bool, -1000,
     DEFINE_NETD_BPF_PROG_RANGES(TYPE, NAME, VER, minKV, maxKV, BPFLOADER_MIN_VER, BPFLOADER_MAX_VER)
 
 #define DEFINE_NETD_BPF_PROG_KVER(TYPE, NAME, VER, min_kv) \
-    DEFINE_NETD_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, min_kv, KVER_INF)
+    DEFINE_NETD_BPF_PROG_KVER_RANGE(TYPE, NAME, VER, min_kv, INF)
 
 #define DEFINE_NETD_BPF_PROG(TYPE, NAME, VER) \
-    DEFINE_NETD_BPF_PROG_KVER(TYPE, NAME, VER, KVER_NONE)
+    DEFINE_NETD_BPF_PROG_KVER(TYPE, NAME, VER, 4_9)
 
-#define DEFINE_NETD_V_BPF_PROG_KVER(TYPE, NAME, VER, minKV)                                   \
-    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, AID_ROOT, AID_ROOT, minKV,                           \
-                        KVER_INF, BPFLOADER_MAINLINE_V_VERSION, BPFLOADER_MAX_VER, MANDATORY, \
+#define DEFINE_NETD_V_BPF_PROG_KVER(TYPE, NAME, VER, minKV)                         \
+    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, AID_ROOT, AID_ROOT, minKV, INF,            \
+                        BPFLOADER_MAINLINE_V_VERSION, BPFLOADER_MAX_VER, MANDATORY, \
                         "netd_readonly", DEFAULT_BPF_PIN_SUBDIR)
 
 // programs that only need to be usable by the system server
 #define DEFINE_SYS_BPF_PROG(TYPE, NAME, VER) \
-    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, AID_ROOT, AID_NET_ADMIN, KVER_NONE, KVER_INF, \
-                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, MANDATORY, \
+    DEFINE_BPF_PROG_EXT(TYPE, NAME, VER, AID_ROOT, AID_NET_ADMIN, 4_9, INF, \
+                        BPFLOADER_MIN_VER, BPFLOADER_MAX_VER, MANDATORY,    \
                         "net_shared", DEFAULT_BPF_PIN_SUBDIR)
 
 /*
@@ -608,83 +608,83 @@ static __always_inline inline int bpf_traffic_account(struct __sk_buff* skb,
 // ----- cgroupskb/ingress/stats -----
 
 // Android 25Q2+ 5.10+ (localnet protection + tracing)
-DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, ingress_stats, 5_10_25q2, KVER_5_10, KVER_INF,
+DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, ingress_stats, 5_10_25q2, 5_10, INF,
                             BPFLOADER_MAINLINE_25Q2_VERSION, BPFLOADER_MAX_VER)
 (struct __sk_buff* skb) {
     return bpf_traffic_account(skb, INGRESS, KVER_5_10, SDK_LEVEL_25Q2);
 }
 
 // Android 25Q2+ 5.4 (localnet protection)
-DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, ingress_stats, 5_4_25q2, KVER_5_4, KVER_5_10,
+DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, ingress_stats, 5_4_25q2, 5_4, 5_10,
                             BPFLOADER_MAINLINE_25Q2_VERSION, BPFLOADER_MAX_VER)
 (struct __sk_buff* skb) {
     return bpf_traffic_account(skb, INGRESS, KVER_5_4, SDK_LEVEL_25Q2);
 }
 
 // Android U/V 5.10+ (tracing)
-DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, ingress_stats, 5_10_u, KVER_5_10, KVER_INF,
+DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, ingress_stats, 5_10_u, 5_10, INF,
                             BPFLOADER_MAINLINE_U_VERSION, BPFLOADER_MAINLINE_25Q2_VERSION)
 (struct __sk_buff* skb) {
     return bpf_traffic_account(skb, INGRESS, KVER_5_10, SDK_LEVEL_U);
 }
 
 // Android T/U/V/25Q2 5.4 & T 5.10/5.15
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, ingress_stats, 5_4, KVER_5_4, KVER_INF)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, ingress_stats, 5_4, 5_4, INF)
 (struct __sk_buff* skb) {
     return bpf_traffic_account(skb, INGRESS, KVER_5_4, SDK_LEVEL_T);
 }
 
 // Android T/U/V 4.19
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, ingress_stats, 4_19, KVER_4_19, KVER_5_4)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, ingress_stats, 4_19, 4_19, 5_4)
 (struct __sk_buff* skb) {
 return bpf_traffic_account(skb, INGRESS, KVER_4_19, SDK_LEVEL_T);
 }
 
 // Android T 4.9 & T/U 4.14
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, ingress_stats, 4_9, KVER_NONE, KVER_4_19)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, ingress_stats, 4_9, 4_9, 4_19)
 (struct __sk_buff* skb) {
-    return bpf_traffic_account(skb, INGRESS, KVER_NONE, SDK_LEVEL_T);
+    return bpf_traffic_account(skb, INGRESS, KVER_4_9, SDK_LEVEL_T);
 }
 
 // ----- cgroupskb/egress/stats -----
 
 // Android 25Q2+ 5.10+ (localnet protection + tracing)
-DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, egress_stats, 5_10_25q2, KVER_5_10, KVER_INF,
+DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, egress_stats, 5_10_25q2, 5_10, INF,
                             BPFLOADER_MAINLINE_25Q2_VERSION, BPFLOADER_MAX_VER)
 (struct __sk_buff* skb) {
     return bpf_traffic_account(skb, EGRESS, KVER_5_10, SDK_LEVEL_25Q2);
 }
 
 // Android 25Q2+ 5.4 (localnet protection)
-DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, egress_stats, 5_4_25q2, KVER_5_4, KVER_5_10,
+DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, egress_stats, 5_4_25q2, 5_4, 5_10,
                             BPFLOADER_MAINLINE_25Q2_VERSION, BPFLOADER_MAX_VER)
 (struct __sk_buff* skb) {
     return bpf_traffic_account(skb, EGRESS, KVER_5_4, SDK_LEVEL_25Q2);
 }
 
 // Android U/V 5.10+ (tracing)
-DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, egress_stats, 5_10_u, KVER_5_10, KVER_INF,
+DEFINE_NETD_BPF_PROG_RANGES(cgroupskb, egress_stats, 5_10_u, 5_10, INF,
                             BPFLOADER_MAINLINE_U_VERSION, BPFLOADER_MAINLINE_25Q2_VERSION)
 (struct __sk_buff* skb) {
     return bpf_traffic_account(skb, EGRESS, KVER_5_10, SDK_LEVEL_U);
 }
 
 // Android T/U/V/25Q2 5.4 & T 5.10/5.15
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, egress_stats, 5_4, KVER_5_4, KVER_INF)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, egress_stats, 5_4, 5_4, INF)
 (struct __sk_buff* skb) {
     return bpf_traffic_account(skb, EGRESS, KVER_5_4, SDK_LEVEL_T);
 }
 
 // Android T/U/V 4.19
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, egress_stats, 4_19, KVER_4_19, KVER_5_4)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, egress_stats, 4_19, 4_19, 5_4)
 (struct __sk_buff* skb) {
 return bpf_traffic_account(skb, EGRESS, KVER_4_19, SDK_LEVEL_T);
 }
 
 // Android T 4.9 & T/U 4.14
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, egress_stats, 4_9, KVER_NONE, KVER_4_19)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupskb, egress_stats, 4_9, 4_9, 4_19)
 (struct __sk_buff* skb) {
-    return bpf_traffic_account(skb, EGRESS, KVER_NONE, SDK_LEVEL_T);
+    return bpf_traffic_account(skb, EGRESS, KVER_4_9, SDK_LEVEL_T);
 }
 
 // -----
@@ -704,7 +704,7 @@ DEFINE_XTBPF_PROG(skfilter, egress_xtbpf, )
     }
 
     uint32_t key = skb->ifindex;
-    update_iface_stats_map(skb, &key, EGRESS, KVER_NONE);
+    update_iface_stats_map(skb, &key, EGRESS, KVER_4_9);
     return XTBPF_MATCH;
 }
 
@@ -717,7 +717,7 @@ DEFINE_XTBPF_PROG(skfilter, ingress_xtbpf, )
     // Keep that in mind when moving this out of iptables xt_bpf and into tc ingress (or xdp).
 
     uint32_t key = skb->ifindex;
-    update_iface_stats_map(skb, &key, INGRESS, KVER_NONE);
+    update_iface_stats_map(skb, &key, INGRESS, KVER_4_9);
     return XTBPF_MATCH;
 }
 
@@ -726,7 +726,7 @@ DEFINE_SYS_BPF_PROG(schedact, ingress_account, )
     if (is_received_skb(skb)) {
         // Account for ingress traffic before tc drops it.
         uint32_t key = skb->ifindex;
-        update_iface_stats_map(skb, &key, INGRESS, KVER_NONE);
+        update_iface_stats_map(skb, &key, INGRESS, KVER_4_9);
     }
     return TC_ACT_UNSPEC;
 }
@@ -783,17 +783,17 @@ static __always_inline inline int inet_socket_create(struct bpf_sock* sk,
     return (get_app_permissions() & BPF_PERMISSION_INTERNET) ? BPF_ALLOW : BPF_DISALLOW;
 }
 
-DEFINE_NETD_BPF_PROG_KVER(cgroupsock, inet_create, 5_10, KVER_5_10)
+DEFINE_NETD_BPF_PROG_KVER(cgroupsock, inet_create, 5_10, 5_10)
 (struct bpf_sock* sk) {
     return inet_socket_create(sk, KVER_5_10);
 }
 
-DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupsock, inet_create, 4_14, KVER_4_14, KVER_5_10)
+DEFINE_NETD_BPF_PROG_KVER_RANGE(cgroupsock, inet_create, 4_14, 4_14, 5_10)
 (struct bpf_sock* sk) {
     return inet_socket_create(sk, KVER_4_14);
 }
 
-DEFINE_NETD_BPF_PROG_KVER(cgroupsockrelease, inet_release, , KVER_5_10)
+DEFINE_NETD_BPF_PROG_KVER(cgroupsockrelease, inet_release, , 5_10)
 (struct bpf_sock* sk) {
     uint64_t cookie = bpf_get_sk_cookie(sk);
     if (cookie) bpf_cookie_tag_map_delete_elem(&cookie);
@@ -846,47 +846,47 @@ static inline __always_inline int block_port(struct bpf_sock_addr *ctx) {
     return BPF_ALLOW;
 }
 
-DEFINE_NETD_BPF_PROG_KVER(bind4, inet4_bind, , KVER_4_19)
+DEFINE_NETD_BPF_PROG_KVER(bind4, inet4_bind, , 4_19)
 (struct bpf_sock_addr *ctx) {
     return block_port(ctx);
 }
 
-DEFINE_NETD_BPF_PROG_KVER(bind6, inet6_bind, , KVER_4_19)
+DEFINE_NETD_BPF_PROG_KVER(bind6, inet6_bind, , 4_19)
 (struct bpf_sock_addr *ctx) {
     return block_port(ctx);
 }
 
-DEFINE_NETD_V_BPF_PROG_KVER(connect4, inet4_connect, , KVER_4_19)
+DEFINE_NETD_V_BPF_PROG_KVER(connect4, inet4_connect, , 4_19)
 (struct bpf_sock_addr *ctx) {
     return check_localhost(ctx);
 }
 
-DEFINE_NETD_V_BPF_PROG_KVER(connect6, inet6_connect, , KVER_4_19)
+DEFINE_NETD_V_BPF_PROG_KVER(connect6, inet6_connect, , 4_19)
 (struct bpf_sock_addr *ctx) {
     return check_localhost(ctx);
 }
 
-DEFINE_NETD_V_BPF_PROG_KVER(recvmsg4, udp4_recvmsg, , KVER_4_19)
+DEFINE_NETD_V_BPF_PROG_KVER(recvmsg4, udp4_recvmsg, , 4_19)
 (struct bpf_sock_addr *ctx) {
     return check_localhost(ctx);
 }
 
-DEFINE_NETD_V_BPF_PROG_KVER(recvmsg6, udp6_recvmsg, , KVER_4_19)
+DEFINE_NETD_V_BPF_PROG_KVER(recvmsg6, udp6_recvmsg, , 4_19)
 (struct bpf_sock_addr *ctx) {
     return check_localhost(ctx);
 }
 
-DEFINE_NETD_V_BPF_PROG_KVER(sendmsg4, udp4_sendmsg, , KVER_4_19)
+DEFINE_NETD_V_BPF_PROG_KVER(sendmsg4, udp4_sendmsg, , 4_19)
 (struct bpf_sock_addr *ctx) {
     return check_localhost(ctx);
 }
 
-DEFINE_NETD_V_BPF_PROG_KVER(sendmsg6, udp6_sendmsg, , KVER_4_19)
+DEFINE_NETD_V_BPF_PROG_KVER(sendmsg6, udp6_sendmsg, , 4_19)
 (struct bpf_sock_addr *ctx) {
     return check_localhost(ctx);
 }
 
-DEFINE_NETD_V_BPF_PROG_KVER(getsockopt, prog, , KVER_5_4)
+DEFINE_NETD_V_BPF_PROG_KVER(getsockopt, prog, , 5_4)
 (struct bpf_sockopt *ctx) {
     // Tell kernel to return 'original' kernel reply (instead of the bpf modified buffer)
     // This is important if the answer is larger than PAGE_SIZE (max size this bpf hook can provide)
@@ -894,7 +894,7 @@ DEFINE_NETD_V_BPF_PROG_KVER(getsockopt, prog, , KVER_5_4)
     return BPF_ALLOW;
 }
 
-DEFINE_NETD_V_BPF_PROG_KVER(setsockopt, prog, , KVER_5_4)
+DEFINE_NETD_V_BPF_PROG_KVER(setsockopt, prog, , 5_4)
 (struct bpf_sockopt *ctx) {
     // Tell kernel to use/process original buffer provided by userspace.
     // This is important if it is larger than PAGE_SIZE (max size this bpf hook can handle).
