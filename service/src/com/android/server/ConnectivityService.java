@@ -360,6 +360,7 @@ import com.android.net.module.util.LinkPropertiesUtils;
 import com.android.net.module.util.LinkPropertiesUtils.CompareOrUpdateResult;
 import com.android.net.module.util.LinkPropertiesUtils.CompareResult;
 import com.android.net.module.util.LocationPermissionChecker;
+import com.android.net.module.util.NetdUtils;
 import com.android.net.module.util.PerUidCounter;
 import com.android.net.module.util.PermissionUtils;
 import com.android.net.module.util.RoutingCoordinatorService;
@@ -10594,7 +10595,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
             if (route.hasGateway()) continue;
             if (VDBG || DDBG) log("Adding Route [" + route + "] to network " + netId);
             try {
-                mRoutingCoordinatorService.addRoute(netId, route);
+                mRoutingCoordinatorService.addRouteParcel(netId,
+                        NetdUtils.toRouteInfoParcel(route));
             } catch (Exception e) {
                 if ((route.getDestination().getAddress() instanceof Inet4Address) || VDBG) {
                     loge("Exception in addRoute for non-gateway: " + e);
@@ -10605,7 +10607,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
             if (!route.hasGateway()) continue;
             if (VDBG || DDBG) log("Adding Route [" + route + "] to network " + netId);
             try {
-                mRoutingCoordinatorService.addRoute(netId, route);
+                mRoutingCoordinatorService.addRouteParcel(netId,
+                        NetdUtils.toRouteInfoParcel(route));
             } catch (Exception e) {
                 if ((route.getGateway() instanceof Inet4Address) || VDBG) {
                     loge("Exception in addRoute for gateway: " + e);
@@ -10616,7 +10619,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
         for (RouteInfo route : routeDiff.removed) {
             if (VDBG || DDBG) log("Removing Route [" + route + "] from network " + netId);
             try {
-                mRoutingCoordinatorService.removeRoute(netId, route);
+                mRoutingCoordinatorService.removeRouteParcel(netId,
+                        NetdUtils.toRouteInfoParcel(route));
             } catch (Exception e) {
                 loge("Exception in removeRoute: " + e);
             }
@@ -10625,7 +10629,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
         for (RouteInfo route : routeDiff.updated) {
             if (VDBG || DDBG) log("Updating Route [" + route + "] from network " + netId);
             try {
-                mRoutingCoordinatorService.updateRoute(netId, route);
+                mRoutingCoordinatorService.updateRouteParcel(netId,
+                        NetdUtils.toRouteInfoParcel(route));
             } catch (Exception e) {
                 loge("Exception in updateRoute: " + e);
             }
