@@ -21,6 +21,7 @@ import android.content.Context
 import android.net.NetworkCapabilities
 import android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET
 import android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED
+import android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VCN_MANAGED
 import android.net.NetworkCapabilities.TRANSPORT_WIFI
 import android.net.NetworkRequest
 import android.net.NetworkRequest.Type
@@ -66,7 +67,9 @@ class SatisfiedByLocalNetworkMetricsTest {
 
         // Simulate caps which can potentially be satisfied by non-thread
         // local networks.
+        // Note that requests built by NetworkRequest normally have deduced NOT_VCN_MANAGED.
         private val WIFI_CAPS = NetworkCapabilities.Builder()
+                .addCapability(NET_CAPABILITY_NOT_VCN_MANAGED)
                 .addCapability(NET_CAPABILITY_NOT_METERED)
                 .addTransportType(TRANSPORT_WIFI)
                 .build()
