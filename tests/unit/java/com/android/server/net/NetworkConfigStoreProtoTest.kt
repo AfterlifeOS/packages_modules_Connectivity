@@ -17,8 +17,14 @@
 package com.android.server.net
 
 import androidx.test.filters.SmallTest
-import com.android.server.network.configstore.proto.NetworkConfigStoreProto
-import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverride
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.EthernetConfigHolderProto
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.EthernetConfigurationProto
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.EthernetPortSelectorProto
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.IpConfigurationProto
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.LinkAddressProto
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.ManualProxyConfigProto
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverrideProto
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.StaticIpv4ConfigurationProto
 import org.junit.Assert.assertEquals
 import org.junit.Before
 import org.junit.Test
@@ -49,12 +55,12 @@ class NetworkConfigStoreProtoTest {
 
     @Test
     fun testBuilder() {
-        val selector = NetworkConfigStoreProto.EthernetPortSelector.newBuilder().apply {
+        val selector = EthernetPortSelectorProto.newBuilder().apply {
             ifaceName = IFACE_NAME
         }.build()
         assertEquals(IFACE_NAME, selector.ifaceName)
 
-        val linkAddr = NetworkConfigStoreProto.LinkAddress.newBuilder().apply {
+        val linkAddr = LinkAddressProto.newBuilder().apply {
             address = ADDR
             prefixLength = PREFIX_LEN
         }.build()
@@ -62,18 +68,18 @@ class NetworkConfigStoreProtoTest {
         assertEquals(PREFIX_LEN, linkAddr.prefixLength)
 
         val staticIpv4Configuration =
-                NetworkConfigStoreProto.StaticIpv4Configuration.newBuilder().apply {
-            address = linkAddr
-            gateway = GATEWAY
-            addDnsServers(DNS1)
-            addDnsServers(DNS2)
-        }.build()
+            StaticIpv4ConfigurationProto.newBuilder().apply {
+                setAddress(linkAddr)
+                gateway = GATEWAY
+                addDnsServers(DNS1)
+                addDnsServers(DNS2)
+            }.build()
         assertEquals(linkAddr, staticIpv4Configuration.address)
         assertEquals(GATEWAY, staticIpv4Configuration.gateway)
         assertEquals(DNS1, staticIpv4Configuration.getDnsServers(0))
         assertEquals(DNS2, staticIpv4Configuration.getDnsServers(1))
 
-        val manualProxy = NetworkConfigStoreProto.ManualProxyConfig.newBuilder().apply {
+        val manualProxy = ManualProxyConfigProto.newBuilder().apply {
             host = PROXY_HOST
             port = PROXY_PORT
             addExclusionHosts(EXCLUSION_LIST1)
@@ -84,24 +90,24 @@ class NetworkConfigStoreProtoTest {
         assertEquals(EXCLUSION_LIST1, manualProxy.getExclusionHosts(0))
         assertEquals(EXCLUSION_LIST2, manualProxy.getExclusionHosts(1))
 
-        val ipConfig = NetworkConfigStoreProto.IpConfiguration.newBuilder().apply {
+        val ipConfig = IpConfigurationProto.newBuilder().apply {
             staticIpv4Config = staticIpv4Configuration
             manualProxyConfig = manualProxy
         }.build()
         assertEquals(staticIpv4Configuration, ipConfig.staticIpv4Config)
         assertEquals(manualProxy, ipConfig.manualProxyConfig)
 
-        val ethConfig = NetworkConfigStoreProto.EthernetConfiguration.newBuilder().apply {
+        val ethConfig = EthernetConfigurationProto.newBuilder().apply {
             setSelector(selector)
             setIpConfig(ipConfig)
-            meteredOverride = MeteredOverride.METERED_OVERRIDE_FORCE_METERED
+            meteredOverride = MeteredOverrideProto.METERED_OVERRIDE_FORCE_METERED
         }.build()
         assertEquals(selector, ethConfig.selector)
         assertEquals(ipConfig, ethConfig.ipConfig)
-        assertEquals(MeteredOverride.METERED_OVERRIDE_FORCE_METERED, ethConfig.meteredOverride)
+        assertEquals(MeteredOverrideProto.METERED_OVERRIDE_FORCE_METERED, ethConfig.meteredOverride)
         assertEquals(staticIpv4Configuration, ethConfig.ipConfig.staticIpv4Config)
 
-        val ethState = NetworkConfigStoreProto.EthernetConfigHolderProto.newBuilder().apply {
+        val ethState = EthernetConfigHolderProto.newBuilder().apply {
             addConfigs(ethConfig)
         }.build()
         assertEquals(ethConfig, ethState.getConfigs(0))
