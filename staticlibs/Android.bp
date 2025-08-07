@@ -619,7 +619,7 @@ aidl_interface {
         "//system/tools/aidl/build",
     ],
     imports: [
-        "netd_aidl_interface-V17", // For RouteInfoParcel.
+        "netd_aidl_interface-V18", // For RouteInfoParcel.
     ],
 }
 
