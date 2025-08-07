@@ -167,8 +167,8 @@ import com.android.net.module.util.LocationPermissionChecker;
 import com.android.net.module.util.SkDestroyListener;
 import com.android.net.module.util.Struct;
 import com.android.net.module.util.Struct.S32;
+import com.android.net.module.util.Struct.S64;
 import com.android.net.module.util.Struct.U8;
-import com.android.net.module.util.bpf.CookieTagMapKey;
 import com.android.net.module.util.bpf.CookieTagMapValue;
 import com.android.net.module.util.netlink.InetDiagMessage;
 import com.android.server.connectivity.ConnectivityResources;
@@ -291,8 +291,8 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
     @Mock
     private SkDestroyListener mSkDestroyListener;
 
-    private TestBpfMap<CookieTagMapKey, CookieTagMapValue> mCookieTagMap = new TestBpfMap<>(
-            CookieTagMapKey.class, CookieTagMapValue.class);
+    private TestBpfMap<S64, CookieTagMapValue> mCookieTagMap = new TestBpfMap<>(
+            S64.class, CookieTagMapValue.class);
     private TestBpfMap<StatsMapKey, StatsMapValue> mStatsMapA = new TestBpfMap<>(StatsMapKey.class,
             StatsMapValue.class);
     private TestBpfMap<StatsMapKey, StatsMapValue> mStatsMapB = new TestBpfMap<>(StatsMapKey.class,
@@ -579,7 +579,7 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
         }
 
         @Override
-        public IBpfMap<CookieTagMapKey, CookieTagMapValue> getCookieTagMap() {
+        public IBpfMap<S64, CookieTagMapValue> getCookieTagMap() {
             return mCookieTagMap;
         }
 
@@ -3017,8 +3017,8 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
 
     private void initBpfMapsWithTagData(int uid) throws ErrnoException {
         // key needs to be unique, use some offset from uid.
-        mCookieTagMap.insertEntry(new CookieTagMapKey(1000 + uid), new CookieTagMapValue(uid, 1));
-        mCookieTagMap.insertEntry(new CookieTagMapKey(2000 + uid), new CookieTagMapValue(uid, 2));
+        mCookieTagMap.insertEntry(new S64(1000 + uid), new CookieTagMapValue(uid, 1));
+        mCookieTagMap.insertEntry(new S64(2000 + uid), new CookieTagMapValue(uid, 2));
 
         mStatsMapA.insertEntry(new StatsMapKey(uid, 1, 0, 10), new StatsMapValue(5, 5000, 3, 3000));
         mStatsMapA.insertEntry(new StatsMapKey(uid, 2, 0, 10), new StatsMapValue(5, 5000, 3, 3000));
@@ -3101,14 +3101,14 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
         initBpfMapsWithTagData(UID_BLUE);
 
         final String dump = getDump(new String[]{DUMPSYS_BPF_RAW_MAP, DUMPSYS_COOKIE_TAG_MAP});
-        Map<CookieTagMapKey, CookieTagMapValue> cookieTagMap = parseBpfRawMap(
-                CookieTagMapKey.class, CookieTagMapValue.class, dump);
+        Map<S64, CookieTagMapValue> cookieTagMap = parseBpfRawMap(
+                S64.class, CookieTagMapValue.class, dump);
 
-        final CookieTagMapValue val1 = cookieTagMap.get(new CookieTagMapKey(2002));
+        final CookieTagMapValue val1 = cookieTagMap.get(new S64(2002));
         assertEquals(1, val1.tag);
         assertEquals(1002, val1.uid);
 
-        final CookieTagMapValue val2 = cookieTagMap.get(new CookieTagMapKey(3002));
+        final CookieTagMapValue val2 = cookieTagMap.get(new S64(3002));
         assertEquals(2, val2.tag);
         assertEquals(1002, val2.uid);
     }

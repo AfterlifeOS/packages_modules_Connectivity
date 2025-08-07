@@ -186,8 +186,8 @@ import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.SkDestroyListener;
 import com.android.net.module.util.Struct;
 import com.android.net.module.util.Struct.S32;
+import com.android.net.module.util.Struct.S64;
 import com.android.net.module.util.Struct.U8;
-import com.android.net.module.util.bpf.CookieTagMapKey;
 import com.android.net.module.util.bpf.CookieTagMapValue;
 import com.android.net.module.util.netlink.InetDiagMessage;
 import com.android.net.module.util.netlink.StructInetDiagSockId;
@@ -455,7 +455,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
      */
     private SparseIntArray mActiveUidCounterSet = new SparseIntArray();
     private final IBpfMap<S32, U8> mUidCounterSetMap;
-    private final IBpfMap<CookieTagMapKey, CookieTagMapValue> mCookieTagMap;
+    private final IBpfMap<S64, CookieTagMapValue> mCookieTagMap;
     private final IBpfMap<StatsMapKey, StatsMapValue> mStatsMapA;
     private final IBpfMap<StatsMapKey, StatsMapValue> mStatsMapB;
     private final IBpfMap<S32, StatsMapValue> mAppUidStatsMap;
@@ -736,7 +736,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         mSkDestroyListener = mDeps.makeSkDestroyListener((message) -> {
             final StructInetDiagSockId sockId = message.inetDiagMsg.id;
             try {
-                mCookieTagMap.deleteEntry(new CookieTagMapKey(sockId.cookie));
+                mCookieTagMap.deleteEntry(new S64(sockId.cookie));
             } catch (ErrnoException e) {
                 Log.e(TAG, "Failed to delete CookieTagMap entry for " + sockId.cookie  + ": " + e);
             }
@@ -906,10 +906,10 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
 
         /** Gets the cookie tag map */
-        public IBpfMap<CookieTagMapKey, CookieTagMapValue> getCookieTagMap() {
+        public IBpfMap<S64, CookieTagMapValue> getCookieTagMap() {
             try {
                 return new BpfMap<>(COOKIE_TAG_MAP_PATH,
-                        CookieTagMapKey.class, CookieTagMapValue.class);
+                        S64.class, CookieTagMapValue.class);
             } catch (ErrnoException e) {
                 Log.wtf(TAG, "Cannot open cookie tag map: " + e);
                 return null;
@@ -3327,7 +3327,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
             return;
         }
         BpfDump.dumpMap(mCookieTagMap, pw, "mCookieTagMap",
-                (key, value) -> "cookie=" + key.socketCookie
+                (key, value) -> "cookie=" + key.val
                         + " tag=0x" + Long.toHexString(value.tag)
                         + " uid=" + value.uid);
     }
