@@ -16,17 +16,14 @@
 
 package com.android.net.module.util;
 
-import static com.android.net.module.util.NetdUtils.toRouteInfoParcel;
-
 import android.annotation.NonNull;
 import android.content.Context;
 import android.net.INetd;
-
 import android.net.LinkAddress;
 import android.net.LinkProperties;
 import android.net.Network;
 import android.net.NetworkCapabilities;
-import android.net.RouteInfo;
+import android.net.RouteInfoParcel;
 import android.os.RemoteException;
 import android.os.ServiceSpecificException;
 import android.util.ArraySet;
@@ -84,9 +81,9 @@ public class RoutingCoordinatorService extends IRoutingCoordinator.Stub {
      *         cause of the failure.
      */
     @Override
-    public void addRoute(final int netId, final RouteInfo route)
+    public void addRouteParcel(int netId, RouteInfoParcel route)
             throws ServiceSpecificException, RemoteException {
-        mNetd.networkAddRouteParcel(netId, toRouteInfoParcel(route));
+        mNetd.networkAddRouteParcel(netId, route);
     }
 
     /**
@@ -98,9 +95,9 @@ public class RoutingCoordinatorService extends IRoutingCoordinator.Stub {
      *         cause of the failure.
      */
     @Override
-    public void removeRoute(final int netId, final RouteInfo route)
+    public void removeRouteParcel(int netId, RouteInfoParcel route)
             throws ServiceSpecificException, RemoteException {
-        mNetd.networkRemoveRouteParcel(netId, toRouteInfoParcel(route));
+        mNetd.networkRemoveRouteParcel(netId, route);
     }
 
     /**
@@ -112,9 +109,9 @@ public class RoutingCoordinatorService extends IRoutingCoordinator.Stub {
      *         cause of the failure.
      */
     @Override
-    public void updateRoute(final int netId, final RouteInfo route)
+    public void updateRouteParcel(int netId, RouteInfoParcel route)
             throws ServiceSpecificException, RemoteException {
-        mNetd.networkUpdateRouteParcel(netId, toRouteInfoParcel(route));
+        mNetd.networkUpdateRouteParcel(netId, route);
     }
 
     /**

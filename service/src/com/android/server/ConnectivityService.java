@@ -112,6 +112,7 @@ import static android.net.NetworkCapabilities.REDACT_FOR_NETWORK_SETTINGS;
 import static android.net.NetworkCapabilities.RES_ID_MATCH_ALL_RESERVATIONS;
 import static android.net.NetworkCapabilities.RES_ID_UNSET;
 import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
+import static android.net.NetworkCapabilities.TRANSPORT_SATELLITE;
 import static android.net.NetworkCapabilities.TRANSPORT_TEST;
 import static android.net.NetworkCapabilities.TRANSPORT_THREAD;
 import static android.net.NetworkCapabilities.TRANSPORT_VPN;
@@ -169,6 +170,7 @@ import static com.android.server.connectivity.ConnectivityFlags.QUEUE_CALLBACKS_
 import static com.android.server.connectivity.ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER;
 import static com.android.server.connectivity.ConnectivityFlags.REQUEST_RESTRICTED_WIFI;
 import static com.android.server.connectivity.ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS;
+import static com.android.server.connectivity.ConnectivityFlags.USE_SATELLITE_REPORTED_SUSPENDED_AND_ROAMING;
 import static com.android.server.connectivity.ConnectivityFlags.WIFI_DATA_INACTIVITY_TIMEOUT;
 
 import android.Manifest;
@@ -360,6 +362,7 @@ import com.android.net.module.util.LinkPropertiesUtils;
 import com.android.net.module.util.LinkPropertiesUtils.CompareOrUpdateResult;
 import com.android.net.module.util.LinkPropertiesUtils.CompareResult;
 import com.android.net.module.util.LocationPermissionChecker;
+import com.android.net.module.util.NetdUtils;
 import com.android.net.module.util.PerUidCounter;
 import com.android.net.module.util.PermissionUtils;
 import com.android.net.module.util.RoutingCoordinatorService;
@@ -572,6 +575,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
     // Flag for early link properties update
     private final boolean mSupportEarlyLinkPropertiesUpdateForVPN;
     private final boolean mConstrainedDataSatelliteMetrics;
+    private final boolean mUseSatelliteReportedSuspendedAndRoaming;
 
     /**
      * Uids ConnectivityService tracks blocked status of to send blocked status callbacks.
@@ -1588,6 +1592,15 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
 
         /**
+         * Register a content observer. This method exists because ContentResolver#registerObserver
+         * is final and cannot be overridden by tests.
+         */
+        public void registerContentObserver(ContentResolver cr, Uri uri,
+                boolean notifyForDescendants, ContentObserver observer) {
+            cr.registerContentObserver(uri, notifyForDescendants, observer);
+        }
+
+        /**
          * Get a reference to the ModuleNetworkStackClient.
          */
         public NetworkStackClientBase getNetworkStack() {
@@ -2249,7 +2262,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
             loge("Error registering event listener :" + e);
         }
 
-        mSettingsObserver = new SettingsObserver(mContext, mHandler);
+        mSettingsObserver = new SettingsObserver(mContext, mHandler, mDeps);
         registerSettingsCallbacks();
 
         mKeepaliveTracker = mDeps.makeAutomaticOnOffKeepaliveTracker(mContext, mHandler);
@@ -2358,6 +2371,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         } else {
             mQuicConnectionCloser = null;
         }
+
+        mUseSatelliteReportedSuspendedAndRoaming = mDeps.isFeatureNotChickenedOut(
+                context, USE_SATELLITE_REPORTED_SUSPENDED_AND_ROAMING);
     }
 
     /**
@@ -2424,33 +2440,6 @@ public class ConnectivityService extends IConnectivityManager.Stub
         netCap.addCapability(capability);
         netCap.setRequestorUidAndPackageName(Process.myUid(), mContext.getPackageName());
         return new NetworkRequest(netCap, TYPE_NONE, nextNetworkRequestId(), type);
-    }
-
-    // Used only for testing.
-    // TODO: Delete this and either:
-    // 1. Give FakeSettingsProvider the ability to send settings change notifications (requires
-    //    changing ContentResolver to make registerContentObserver non-final).
-    // 2. Give FakeSettingsProvider an alternative notification mechanism and have the test use it
-    //    by subclassing SettingsObserver.
-    @VisibleForTesting
-    void updateAlwaysOnNetworks() {
-        mHandler.sendEmptyMessage(EVENT_CONFIGURE_ALWAYS_ON_NETWORKS);
-    }
-
-    // See FakeSettingsProvider comment above.
-    @VisibleForTesting
-    void updatePrivateDnsSettings() {
-        mHandler.sendEmptyMessage(EVENT_PRIVATE_DNS_SETTINGS_CHANGED);
-    }
-
-    @VisibleForTesting
-    public void updateMobileDataPreferredUids() {
-        mHandler.sendEmptyMessage(EVENT_MOBILE_DATA_PREFERRED_UIDS_CHANGED);
-    }
-
-    @VisibleForTesting
-    void updateIngressRateLimit() {
-        mHandler.sendEmptyMessage(EVENT_INGRESS_RATE_LIMIT_CHANGED);
     }
 
     @VisibleForTesting
@@ -4402,7 +4391,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         // rules are applied before system ready. Normally, the empty uid list means to clear
         // the uids rules on netd.
         if (!ConnectivitySettingsManager.getMobileDataPreferredUids(mContext).isEmpty()) {
-            updateMobileDataPreferredUids();
+            mHandler.sendEmptyMessage(EVENT_MOBILE_DATA_PREFERRED_UIDS_CHANGED);
         }
 
         if (mSatelliteAccessController != null) {
@@ -7685,21 +7674,22 @@ public class ConnectivityService extends IConnectivityManager.Stub
     }
 
     private static class SettingsObserver extends ContentObserver {
-        final private HashMap<Uri, Integer> mUriEventMap;
-        final private Context mContext;
-        final private Handler mHandler;
+        private final HashMap<Uri, Integer> mUriEventMap;
+        private final Context mContext;
+        private final Handler mHandler;
+        private final Dependencies mDeps;
 
-        SettingsObserver(Context context, Handler handler) {
+        SettingsObserver(Context context, Handler handler, Dependencies deps) {
             super(null);
             mUriEventMap = new HashMap<>();
             mContext = context;
             mHandler = handler;
+            mDeps = deps;
         }
 
         void observe(Uri uri, int what) {
             mUriEventMap.put(uri, what);
-            final ContentResolver resolver = mContext.getContentResolver();
-            resolver.registerContentObserver(uri, false, this);
+            mDeps.registerContentObserver(mContext.getContentResolver(), uri, false, this);
         }
 
         @Override
@@ -10594,7 +10584,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
             if (route.hasGateway()) continue;
             if (VDBG || DDBG) log("Adding Route [" + route + "] to network " + netId);
             try {
-                mRoutingCoordinatorService.addRoute(netId, route);
+                mRoutingCoordinatorService.addRouteParcel(netId,
+                        NetdUtils.toRouteInfoParcel(route));
             } catch (Exception e) {
                 if ((route.getDestination().getAddress() instanceof Inet4Address) || VDBG) {
                     loge("Exception in addRoute for non-gateway: " + e);
@@ -10605,7 +10596,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
             if (!route.hasGateway()) continue;
             if (VDBG || DDBG) log("Adding Route [" + route + "] to network " + netId);
             try {
-                mRoutingCoordinatorService.addRoute(netId, route);
+                mRoutingCoordinatorService.addRouteParcel(netId,
+                        NetdUtils.toRouteInfoParcel(route));
             } catch (Exception e) {
                 if ((route.getGateway() instanceof Inet4Address) || VDBG) {
                     loge("Exception in addRoute for gateway: " + e);
@@ -10616,7 +10608,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
         for (RouteInfo route : routeDiff.removed) {
             if (VDBG || DDBG) log("Removing Route [" + route + "] from network " + netId);
             try {
-                mRoutingCoordinatorService.removeRoute(netId, route);
+                mRoutingCoordinatorService.removeRouteParcel(netId,
+                        NetdUtils.toRouteInfoParcel(route));
             } catch (Exception e) {
                 loge("Exception in removeRoute: " + e);
             }
@@ -10625,7 +10618,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
         for (RouteInfo route : routeDiff.updated) {
             if (VDBG || DDBG) log("Updating Route [" + route + "] from network " + netId);
             try {
-                mRoutingCoordinatorService.updateRoute(netId, route);
+                mRoutingCoordinatorService.updateRouteParcel(netId,
+                        NetdUtils.toRouteInfoParcel(route));
             } catch (Exception e) {
                 loge("Exception in updateRoute: " + e);
             }
@@ -10926,7 +10920,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         newNc.setPrivateDnsBroken(nai.networkCapabilities.isPrivateDnsBroken());
 
         // TODO : remove this once all factories are updated to send NOT_SUSPENDED and NOT_ROAMING
-        if (!newNc.hasTransport(TRANSPORT_CELLULAR)) {
+        if (!newNc.hasTransport(TRANSPORT_CELLULAR)
+                && !(mUseSatelliteReportedSuspendedAndRoaming
+                     && newNc.hasTransport(TRANSPORT_SATELLITE))) {
             newNc.addCapability(NET_CAPABILITY_NOT_SUSPENDED);
             newNc.addCapability(NET_CAPABILITY_NOT_ROAMING);
         }

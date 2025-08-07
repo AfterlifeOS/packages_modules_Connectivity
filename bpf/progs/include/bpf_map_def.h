@@ -186,10 +186,20 @@ struct bpf_prog_def {
 
     char create_location[BPF_DEF_CHAR_ARRAY_SIZE];
     char pin_location[BPF_DEF_CHAR_ARRAY_SIZE];
+    unsigned int name_idx;
+
+#ifdef __cplusplus
+    const char * name() const { return this->pin_location + this->name_idx; }
+#endif
 };
+
+#ifdef __cplusplus
+static_assert(std::is_pod_v<struct bpf_prog_def>);
+static_assert(std::is_standard_layout_v<struct bpf_prog_def>);
+#endif
 
 // This needs to be updated whenever the above structure definition is expanded.
 // These asserts are here to make sure we have cross-6-arch consistency.
-_Static_assert(sizeof(struct bpf_prog_def) == 36 + 2 * BPF_DEF_CHAR_ARRAY_SIZE, "wrong sizeof struct bpf_prog_def");
+_Static_assert(sizeof(struct bpf_prog_def) == 40 + 2 * BPF_DEF_CHAR_ARRAY_SIZE, "wrong sizeof struct bpf_prog_def");
 _Static_assert(__alignof__(struct bpf_prog_def) == 4, "__alignof__ struct bpf_prog_def != 4");
 _Static_assert(_Alignof(struct bpf_prog_def) == 4, "_Alignof struct bpf_prog_def != 4");

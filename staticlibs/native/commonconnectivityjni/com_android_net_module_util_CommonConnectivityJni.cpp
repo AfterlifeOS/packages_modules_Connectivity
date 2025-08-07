@@ -13,12 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+#define LOG_TAG "CommonConnectivityJni"
+
+#include <dlfcn.h>
 #include <sys/timerfd.h>
 
+#include <android/binder_ibinder_jni.h>
+#include <android/log.h>
 #include <nativehelper/JNIHelp.h>
+#include <nativehelper/ScopedUtfChars.h>
 
 #define MSEC_PER_SEC 1000
 #define NSEC_PER_MSEC 1000000
+#define LIBBINDER_NDK_PATH "libbinder_ndk.so"
 
 namespace android {
 
@@ -51,6 +58,26 @@ static void setTimerFdTime(JNIEnv *env, jclass clazz, jint tfd,
     }
 }
 
+using waitForServiceFunc = AIBinder *(*)(const char *instance);
+
+static jobject ServiceManagerWrapper_waitForService(JNIEnv *env, jobject clazz,
+                                                    jstring serviceName) {
+    // AServiceManager_waitForService system APIs currently only callable via
+    // dlsym(): b/376759605. When built with sdk_version current, the NDK stubs
+    // for "sdk" variants only include NDK APIs, excluding #systemapi APIs.
+    // TODO: AServiceManager_waitForService requires SDK version 31.
+    // Remove this after dropping mainline support for R.
+    auto waitForService = (waitForServiceFunc)dlsym(RTLD_DEFAULT, "AServiceManager_waitForService");
+    if (waitForService == nullptr) {
+        __android_log_print(ANDROID_LOG_ERROR, LOG_TAG,
+                            "Failed to look up AServiceManager_waitForService");
+        return nullptr;
+    }
+
+    ScopedUtfChars name(env, serviceName);
+    return AIBinder_toJavaBinder(env, waitForService(name.c_str()));
+}
+
 //------------------------------------------------------------------------------
 
 /*
@@ -60,6 +87,8 @@ static const JNINativeMethod gMethods[] = {
     /* name, signature, funcPtr */
     {"createTimerFd", "()I", (void *)createTimerFd},
     {"setTimerFdTime", "(IJ)V", (void *)setTimerFdTime},
+    {"waitForService", "(Ljava/lang/String;)Landroid/os/IBinder;",
+     (void *)ServiceManagerWrapper_waitForService},
 };
 
 int register_CommonConnectivityJni(JNIEnv *env, char const *class_name) {

@@ -21,6 +21,7 @@ import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_CONGESTED;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_METERED;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_ROAMING;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_SUSPENDED;
+import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VCN_MANAGED;
 
 import static com.android.net.module.util.FrameworkConnectivityStatsLog.SATISFIED_BY_LOCAL_NETWORK_REQUESTS;
 import static com.android.net.module.util.FrameworkConnectivityStatsLog.SATISFIED_BY_LOCAL_NETWORK_REQUESTS__TYPE__NETWORK_REQUEST_TYPE_BACKGROUND_REQUEST;
@@ -107,6 +108,7 @@ public class SatisfiedByLocalNetworkMetrics implements StatsManager.StatsPullAto
                     .addCapability(NET_CAPABILITY_NOT_ROAMING)
                     .addCapability(NET_CAPABILITY_NOT_CONGESTED)
                     .addCapability(NET_CAPABILITY_NOT_SUSPENDED)
+                    .addCapability(NET_CAPABILITY_NOT_VCN_MANAGED)
                     .addTransportType(NetworkCapabilities.TRANSPORT_WIFI)
                     .addTransportType(NetworkCapabilities.TRANSPORT_USB)
                     .addTransportType(NetworkCapabilities.TRANSPORT_ETHERNET)
@@ -218,4 +220,3 @@ public class SatisfiedByLocalNetworkMetrics implements StatsManager.StatsPullAto
         pw.println("SatisfiedByLocalNetworkMetrics: " + mSatisfiedRequestsPerTypeAndUid);
     }
 }
-

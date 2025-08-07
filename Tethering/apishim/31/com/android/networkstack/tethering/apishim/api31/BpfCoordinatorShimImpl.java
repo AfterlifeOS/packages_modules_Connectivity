@@ -33,6 +33,7 @@ import androidx.annotation.Nullable;
 import com.android.net.module.util.IBpfMap;
 import com.android.net.module.util.IBpfMap.ThrowingBiConsumer;
 import com.android.net.module.util.SharedLog;
+import com.android.net.module.util.Struct.S32;
 import com.android.net.module.util.bpf.Tether4Key;
 import com.android.net.module.util.bpf.Tether4Value;
 import com.android.net.module.util.bpf.TetherStatsKey;
@@ -42,10 +43,7 @@ import com.android.networkstack.tethering.BpfCoordinator.Ipv6DownstreamRule;
 import com.android.networkstack.tethering.BpfCoordinator.Ipv6UpstreamRule;
 import com.android.networkstack.tethering.BpfUtils;
 import com.android.networkstack.tethering.Tether6Value;
-import com.android.networkstack.tethering.TetherDevKey;
-import com.android.networkstack.tethering.TetherDevValue;
 import com.android.networkstack.tethering.TetherDownstream6Key;
-import com.android.networkstack.tethering.TetherLimitKey;
 import com.android.networkstack.tethering.TetherLimitValue;
 import com.android.networkstack.tethering.TetherUpstream6Key;
 
@@ -89,11 +87,11 @@ public class BpfCoordinatorShimImpl
 
     // BPF map of per-interface quota for tethering offload.
     @Nullable
-    private final IBpfMap<TetherLimitKey, TetherLimitValue> mBpfLimitMap;
+    private final IBpfMap<S32, TetherLimitValue> mBpfLimitMap;
 
     // BPF map of interface index mapping for XDP.
     @Nullable
-    private final IBpfMap<TetherDevKey, TetherDevValue> mBpfDevMap;
+    private final IBpfMap<S32, S32> mBpfDevMap;
 
     // Tracking IPv4 rule count while any rule is using the given upstream interfaces. Used for
     // reducing the BPF map iteration query. The count is increased or decreased when the rule is
@@ -305,7 +303,7 @@ public class BpfCoordinatorShimImpl
         if (newLimit < rxBytes + txBytes) newLimit = QUOTA_UNLIMITED;
 
         try {
-            mBpfLimitMap.updateEntry(new TetherLimitKey(ifIndex), new TetherLimitValue(newLimit));
+            mBpfLimitMap.updateEntry(new S32(ifIndex), new TetherLimitValue(newLimit));
         } catch (ErrnoException e) {
             mLog.e("Fail to set quota " + quotaBytes + " for interface index " + ifIndex + ": ", e);
             return false;
@@ -350,7 +348,7 @@ public class BpfCoordinatorShimImpl
         }
 
         try {
-            mBpfLimitMap.deleteEntry(new TetherLimitKey(ifIndex));
+            mBpfLimitMap.deleteEntry(new S32(ifIndex));
         } catch (ErrnoException e) {
             mLog.e("Could not delete limit for interface index " + ifIndex + ": ", e);
             return null;
@@ -470,7 +468,7 @@ public class BpfCoordinatorShimImpl
     @Override
     public boolean addDevMap(int ifIndex) {
         try {
-            mBpfDevMap.updateEntry(new TetherDevKey(ifIndex), new TetherDevValue(ifIndex));
+            mBpfDevMap.updateEntry(new S32(ifIndex), new S32(ifIndex));
         } catch (ErrnoException e) {
             mLog.e("Could not add interface " + ifIndex + ": " + e);
             return false;
@@ -481,7 +479,7 @@ public class BpfCoordinatorShimImpl
     @Override
     public boolean removeDevMap(int ifIndex) {
         try {
-            mBpfDevMap.deleteEntry(new TetherDevKey(ifIndex));
+            mBpfDevMap.deleteEntry(new S32(ifIndex));
         } catch (ErrnoException e) {
             mLog.e("Could not delete interface " + ifIndex + ": " + e);
             return false;

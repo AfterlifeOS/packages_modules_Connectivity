@@ -107,6 +107,7 @@ cc_library_shared {
     ],
     min_sdk_version: "30",
     shared_libs: [
+        "libbinder_ndk",
         "liblog",
         "libnativehelper",
     ],
@@ -136,7 +137,6 @@ cc_library_shared {
     srcs: [
         ":services.connectivity-netstats-jni-sources",
         "jni/com_android_server_connectivity_ClatCoordinator.cpp",
-        "jni/com_android_server_ServiceManagerWrapper.cpp",
         "jni/onload.cpp",
     ],
     header_libs: [
@@ -154,7 +154,6 @@ cc_library_shared {
     ],
     shared_libs: [
         "libbase",
-        "libbinder_ndk",
         "libcutils",
         "libnetdutils",
         "liblog",
