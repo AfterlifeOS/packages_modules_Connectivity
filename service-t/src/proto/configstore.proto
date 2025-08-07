@@ -27,7 +27,7 @@ option java_package = "com.android.server.network.configstore.proto";
 option java_outer_classname = "NetworkConfigStoreProto";
 
 // Represents an IPv4 address along with its prefix length.
-message LinkAddress {
+message LinkAddressProto {
     // The string of the IPv4 address in the format of IPv4 address in dotted decimal notation, for
     // example "192.168.1.50".
     required string address = 1;
@@ -36,9 +36,9 @@ message LinkAddress {
 }
 
 // Configuration for a static IPv4 assignment.
-message StaticIpv4Configuration {
+message StaticIpv4ConfigurationProto {
     // The IPv4 address and prefix length for the static IPv4 configuration.
-    required LinkAddress address = 1;
+    required LinkAddressProto address = 1;
     // The gateway IPv4 address as string in the format of IPv4 address in dotted decimal notation,
     // for example "192.168.1.100".
     optional string gateway = 2;
@@ -50,7 +50,7 @@ message StaticIpv4Configuration {
 }
 
 // Manual configuration of the proxy server.
-message ManualProxyConfig {
+message ManualProxyConfigProto {
     // A list of hosts for which the proxy should not be used.
     repeated string exclusion_hosts = 1;
     // The hostname or IP address of the proxy server.
@@ -60,32 +60,32 @@ message ManualProxyConfig {
 }
 
 // Configuration using a PAC (Proxy Auto-Configuration) script downloaded from a URL.
-message PacUrlConfig {
+message PacUrlConfigProto {
     // The URL of the Proxy Auto-Configuration (PAC) file.
     required string pac_url = 1;
 }
 
 // IP configuration for the interface.
-message IpConfiguration {
+message IpConfigurationProto {
     // IPv4 configuration of this interface. Making this an oneoff field because of the possibility
     // of adding DHCP IPv4 configuration in the future.
     oneof ipv4_configuration {
         // Static IPv4 configuration of this interface. DHCP is not used when a static configuration
         // exists.
-        StaticIpv4Configuration static_ipv4_config = 1;
+        StaticIpv4ConfigurationProto static_ipv4_config = 1;
     }
     // Proxy configuration to use for network connections on this interface, when not set, means
     // no proxy configuration is used.
     oneof proxy_config {
         // Manual proxy configuration.
-        ManualProxyConfig manual_proxy_config = 2;
+        ManualProxyConfigProto manual_proxy_config = 2;
         // PAC (Proxy Auto-Configuration) configuration.
-        PacUrlConfig pac_url_config = 3;
+        PacUrlConfigProto pac_url_config = 3;
     }
 }
 
 // Defines a selector to identify the ethernet port.
-message EthernetPortSelector {
+message EthernetPortSelectorProto {
     oneof identifier {
         // MAC address of this ethernet port.
         string mac_addr = 1;
@@ -95,7 +95,7 @@ message EthernetPortSelector {
 }
 
 // Enum for metered override configuration.
-enum MeteredOverride {
+enum MeteredOverrideProto {
     // There is no metered override configuration.
     METERED_OVERRIDE_NONE = 0;
     // Forces the connection to be treated as metered.
@@ -105,13 +105,18 @@ enum MeteredOverride {
 }
 
 // Defines the configuration of an ethernet interface.
-message EthernetConfiguration {
+message EthernetConfigurationProto {
     // Selector for applying this configuration to an Ethernet port, containing identifiable
     // information of related ethernet port.
-    required EthernetPortSelector selector = 1;
+    required EthernetPortSelectorProto selector = 1;
     // IP configuration of this ethernet interface.
-    required IpConfiguration ip_config = 2;
+    required IpConfigurationProto ip_config = 2;
     // Static metered override configuration, note that this is not the actual meteredness but
     // static configuration.
-    required MeteredOverride metered_override = 3;
+    required MeteredOverrideProto metered_override = 3;
+}
+
+// Defines the collective configuration states for all ethernet interfaces.
+message EthernetConfigHolderProto {
+  repeated EthernetConfigurationProto configs = 1;
 }
