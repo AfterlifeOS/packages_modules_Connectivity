@@ -179,14 +179,14 @@ TEST_F(BpfNetworkStatsHelperTest, TestBpfIterateMap) {
     }
     int totalCount = 0;
     int totalSum = 0;
-    const auto iterateWithoutDeletion =
-            [&totalCount, &totalSum](const uint64_t& key, const BpfMap<uint64_t, UidTagValue>&) {
-                EXPECT_GE((uint64_t)5, key);
-                totalCount++;
-                totalSum += key;
-                return Result<void>();
-            };
-    EXPECT_RESULT_OK(mFakeCookieTagMap.iterate(iterateWithoutDeletion));
+    EXPECT_RESULT_OK(mFakeCookieTagMap.iterate(
+        [&totalCount, &totalSum](const uint64_t& key) -> Result<void> {
+            EXPECT_GE((uint64_t)5, key);
+            totalCount++;
+            totalSum += key;
+            return Result<void>();
+        }
+    ));
     EXPECT_EQ(5, totalCount);
     EXPECT_EQ(1 + 2 + 3 + 4 + 5, totalSum);
 }

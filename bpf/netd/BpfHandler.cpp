@@ -403,12 +403,9 @@ int BpfHandler::tagSocket(int sockFd, uint32_t tag, uid_t chargeUid, uid_t realU
     // the request to prevent the map from overflow. Note though that it isn't really
     // safe here to iterate over the map since it might be modified by the system server,
     // which might toggle the live stats map and clean it.
-    const auto countUidStatsEntries = [chargeUid, &totalEntryCount, &perUidEntryCount](
-                                              const StatsKey& key,
-                                              const BpfMapRO<StatsKey, StatsValue>&) {
-        if (key.uid == chargeUid) {
-            perUidEntryCount++;
-        }
+    const auto countUidStatsEntries =
+    [chargeUid, &totalEntryCount, &perUidEntryCount](const StatsKey& key) {
+        if (key.uid == chargeUid) perUidEntryCount++;
         totalEntryCount++;
         return base::Result<void>();
     };
