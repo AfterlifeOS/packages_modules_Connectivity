@@ -236,11 +236,11 @@ static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 
 #define ABSOLUTE(x) ((x) < 0 ? -(x) : (x))
 
-#define DEFAULT_BPF_MAP_FLAGS(type, num_entries, mapflags)         \
-    ( (mapflags) |                                                 \
-      ((num_entries) < 0 ? BPF_F_NO_PREALLOC : 0) |                \
-      ( (type == BPF_MAP_TYPE_LPM_TRIE ||                          \
-         type == BPF_MAP_TYPE_SK_STORAGE) ? BPF_F_NO_PREALLOC : 0) \
+#define DEFAULT_BPF_MAP_FLAGS(TYPE, num_entries, mapflags)                        \
+    ( (mapflags) |                                                                \
+      ((num_entries) < 0 ? BPF_F_NO_PREALLOC : 0) |                               \
+      ( (BPF_MAP_TYPE_##TYPE == BPF_MAP_TYPE_LPM_TRIE ||                          \
+         BPF_MAP_TYPE_##TYPE == BPF_MAP_TYPE_SK_STORAGE) ? BPF_F_NO_PREALLOC : 0) \
     )
 
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, usr, grp, md,       \
@@ -252,7 +252,7 @@ static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
         .key_size = (keysize),                                                                  \
         .value_size = (valuesize),                                                              \
         .max_entries = ABSOLUTE(num_entries),                                                   \
-        .map_flags = DEFAULT_BPF_MAP_FLAGS(BPF_MAP_TYPE_##TYPE, num_entries, mapflags),         \
+        .map_flags = DEFAULT_BPF_MAP_FLAGS(TYPE, num_entries, mapflags),                        \
         .uid = (usr),                                                                           \
         .gid = (grp),                                                                           \
         .mode = (md),                                                                           \
@@ -268,12 +268,13 @@ static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 #define __uint(name, val) int (*name)[val]
 #define __type(name, val) typeof(val) *name
 
-#define DEFINE_LIBBPF_MAP(the_map, TYPE, KeyType, ValueType, num_entries)  \
-    struct {                                                               \
-        __uint(type, BPF_MAP_TYPE_##TYPE);                                 \
-        __type(key, KeyType);                                              \
-        __type(value, ValueType);                                          \
-        __uint(max_entries, ABSOLUTE(num_entries));                        \
+#define DEFINE_LIBBPF_MAP(the_map, TYPE, KeyType, ValueType, num_entries, mapflags) \
+    struct {                                                                        \
+        __uint(type, BPF_MAP_TYPE_##TYPE);                                          \
+        __uint(map_flags, DEFAULT_BPF_MAP_FLAGS(TYPE, num_entries, mapflags));      \
+        __type(key, KeyType);                                                       \
+        __type(value, ValueType);                                                   \
+        __uint(max_entries, ABSOLUTE(num_entries));                                 \
     } the_map SECTION(".maps");
 
 #define DEFINE_LIBBPF_RINGBUF(the_map, num_entries)  \
@@ -329,7 +330,7 @@ static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
     DEFINE_BPF_MAP_BASE(the_map, SK_STORAGE, sizeof(uint32_t), sizeof(ValueType),       \
                         0, usr, grp, md, selinux, pindir,                               \
                         KVER_5_10, KVER_INF, min_loader, max_loader, mapFlags);         \
-    DEFINE_LIBBPF_MAP(the_map, SK_STORAGE, uint32_t, ValueType, 0);                     \
+    DEFINE_LIBBPF_MAP(the_map, SK_STORAGE, uint32_t, ValueType, 0, mapFlags);           \
     BPF_ANNOTATE_KV_PAIR(the_map, uint32_t, ValueType);                                 \
                                                                                         \
     static inline __always_inline __unused ValueType* bpf_##the_map##_get(              \
@@ -371,7 +372,7 @@ static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
   DEFINE_BPF_MAP_BASE(the_map, TYPE, sizeof(KeyType), sizeof(ValueType),                         \
                       num_entries, usr, grp, md, selinux, pindir,                                \
                       KVER_4_9, KVER_INF, min_loader, max_loader, mapFlags);                     \
-    DEFINE_LIBBPF_MAP(the_map, TYPE, KeyType, ValueType, num_entries);                           \
+    DEFINE_LIBBPF_MAP(the_map, TYPE, KeyType, ValueType, num_entries, mapFlags);                 \
     BPF_MAP_ASSERT_OK(BPF_MAP_TYPE_##TYPE, (num_entries), (md));                                 \
     _Static_assert(sizeof(KeyType) < 1024, "aosp/2370288 requires < 1024 byte keys");            \
     _Static_assert(sizeof(ValueType) < 65536, "aosp/2370288 requires < 65536 byte values");      \
