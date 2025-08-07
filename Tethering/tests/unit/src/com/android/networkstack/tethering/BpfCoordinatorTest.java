@@ -124,7 +124,6 @@ import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.Struct.S32;
 import com.android.net.module.util.bpf.Tether4Key;
 import com.android.net.module.util.bpf.Tether4Value;
-import com.android.net.module.util.bpf.TetherStatsKey;
 import com.android.net.module.util.bpf.TetherStatsValue;
 import com.android.net.module.util.ip.ConntrackMonitor;
 import com.android.net.module.util.ip.ConntrackMonitor.ConntrackEventConsumer;
@@ -480,8 +479,8 @@ public class BpfCoordinatorTest {
             spy(new TestBpfMap<>(TetherDownstream6Key.class, Tether6Value.class));
     private final IBpfMap<TetherUpstream6Key, Tether6Value> mBpfUpstream6Map =
             spy(new TestBpfMap<>(TetherUpstream6Key.class, Tether6Value.class));
-    private final IBpfMap<TetherStatsKey, TetherStatsValue> mBpfStatsMap =
-            spy(new TestBpfMap<>(TetherStatsKey.class, TetherStatsValue.class));
+    private final IBpfMap<S32, TetherStatsValue> mBpfStatsMap =
+            spy(new TestBpfMap<>(S32.class, TetherStatsValue.class));
     private final IBpfMap<S32, TetherLimitValue> mBpfLimitMap =
             spy(new TestBpfMap<>(S32.class, TetherLimitValue.class));
     private final IBpfMap<S32, S32> mBpfDevMap =
@@ -554,7 +553,7 @@ public class BpfCoordinatorTest {
                     }
 
                     @Nullable
-                    public IBpfMap<TetherStatsKey, TetherStatsValue> getBpfStatsMap() {
+                    public IBpfMap<S32, TetherStatsValue> getBpfStatsMap() {
                         return mBpfStatsMap;
                     }
 
@@ -677,7 +676,7 @@ public class BpfCoordinatorTest {
 
     // Update a stats entry or create if not exists.
     private void updateStatsEntryToStatsMap(@NonNull TetherStatsParcel stats) throws Exception {
-        final TetherStatsKey key = new TetherStatsKey(stats.ifIndex);
+        final S32 key = new S32(stats.ifIndex);
         final TetherStatsValue value = new TetherStatsValue(stats.rxPackets, stats.rxBytes,
                 0L /* rxErrors */, stats.txPackets, stats.txBytes, 0L /* txErrors */);
         mBpfStatsMap.updateEntry(key, value);
@@ -925,7 +924,7 @@ public class BpfCoordinatorTest {
     private void verifyTetherOffloadSetInterfaceQuota(@Nullable InOrder inOrder, int ifIndex,
             long quotaBytes, boolean isInit) throws Exception {
         if (mDeps.isAtLeastS()) {
-            final TetherStatsKey key = new TetherStatsKey(ifIndex);
+            final S32 key = new S32(ifIndex);
             verifyWithOrder(inOrder, mBpfStatsMap).getValue(key);
             if (isInit) {
                 verifyWithOrder(inOrder, mBpfStatsMap).insertEntry(key, new TetherStatsValue(
@@ -953,8 +952,8 @@ public class BpfCoordinatorTest {
     private void verifyTetherOffloadGetAndClearStats(@NonNull InOrder inOrder, int ifIndex)
             throws Exception {
         if (mDeps.isAtLeastS()) {
-            inOrder.verify(mBpfStatsMap).getValue(new TetherStatsKey(ifIndex));
-            inOrder.verify(mBpfStatsMap).deleteEntry(new TetherStatsKey(ifIndex));
+            inOrder.verify(mBpfStatsMap).getValue(new S32(ifIndex));
+            inOrder.verify(mBpfStatsMap).deleteEntry(new S32(ifIndex));
             inOrder.verify(mBpfLimitMap).deleteEntry(new S32(ifIndex));
         } else {
             inOrder.verify(mNetd).tetherOffloadGetAndClearStats(ifIndex);
@@ -2729,7 +2728,7 @@ public class BpfCoordinatorTest {
 
         // dumpStats
         mBpfStatsMap.insertEntry(
-                new TetherStatsKey(UPSTREAM_IFINDEX),
+                new S32(UPSTREAM_IFINDEX),
                 new TetherStatsValue(
                         0L /* rxPackets */, 0L /* rxBytes */, 0L /* rxErrors */,
                         0L /* txPackets */, 0L /* txBytes */, 0L /* txErrors */));
@@ -3010,8 +3009,8 @@ public class BpfCoordinatorTest {
         // When the last rule is removed, tetherOffloadGetAndClearStats will log a WTF (and
         // potentially crash the test) if the stats map is empty.
         final TetherStatsValue allZeros = new TetherStatsValue(0, 0, 0, 0, 0, 0);
-        when(mBpfStatsMap.getValue(new TetherStatsKey(UPSTREAM_IFINDEX))).thenReturn(allZeros);
-        when(mBpfStatsMap.getValue(new TetherStatsKey(UPSTREAM_IFINDEX2))).thenReturn(allZeros);
+        when(mBpfStatsMap.getValue(new S32(UPSTREAM_IFINDEX))).thenReturn(allZeros);
+        when(mBpfStatsMap.getValue(new S32(UPSTREAM_IFINDEX2))).thenReturn(allZeros);
     }
 
     @Test

@@ -76,7 +76,6 @@ import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.Struct.S32;
 import com.android.net.module.util.bpf.Tether4Key;
 import com.android.net.module.util.bpf.Tether4Value;
-import com.android.net.module.util.bpf.TetherStatsKey;
 import com.android.net.module.util.bpf.TetherStatsValue;
 import com.android.net.module.util.ip.ConntrackMonitor;
 import com.android.net.module.util.ip.ConntrackMonitor.ConntrackEventConsumer;
@@ -448,11 +447,11 @@ public class BpfCoordinator {
         }
 
         /** Get stats BPF map. */
-        @Nullable public IBpfMap<TetherStatsKey, TetherStatsValue> getBpfStatsMap() {
+        @Nullable public IBpfMap<S32, TetherStatsValue> getBpfStatsMap() {
             if (!isAtLeastS()) return null;
             try {
                 return new BpfMap<>(TETHER_STATS_MAP_PATH,
-                    TetherStatsKey.class, TetherStatsValue.class);
+                    S32.class, TetherStatsValue.class);
             } catch (ErrnoException e) {
                 Log.e(TAG, "Cannot create stats map: " + e);
                 return null;
@@ -1370,7 +1369,7 @@ public class BpfCoordinator {
         }
     }
     private void dumpBpfStats(@NonNull IndentingPrintWriter pw) {
-        try (IBpfMap<TetherStatsKey, TetherStatsValue> map = mDeps.getBpfStatsMap()) {
+        try (IBpfMap<S32, TetherStatsValue> map = mDeps.getBpfStatsMap()) {
             if (map == null) {
                 pw.println("No BPF stats map");
                 return;
@@ -1522,7 +1521,7 @@ public class BpfCoordinator {
         // expected argument order.
         // TODO: dump downstream4 map.
         if (CollectionUtils.contains(args, DUMPSYS_RAWMAP_ARG_STATS)) {
-            try (IBpfMap<TetherStatsKey, TetherStatsValue> statsMap = mDeps.getBpfStatsMap()) {
+            try (IBpfMap<S32, TetherStatsValue> statsMap = mDeps.getBpfStatsMap()) {
                 BpfDump.dumpRawMap(statsMap, pw);
             } catch (IOException e) {
                 pw.println("Error dumping stats map: " + e);

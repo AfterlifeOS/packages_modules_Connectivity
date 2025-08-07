@@ -75,13 +75,13 @@ import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.BpfDump;
 import com.android.net.module.util.Ipv6Utils;
 import com.android.net.module.util.Struct;
+import com.android.net.module.util.Struct.S32;
 import com.android.net.module.util.bpf.ClatEgress4Key;
 import com.android.net.module.util.bpf.ClatEgress4Value;
 import com.android.net.module.util.bpf.ClatIngress6Key;
 import com.android.net.module.util.bpf.ClatIngress6Value;
 import com.android.net.module.util.bpf.Tether4Key;
 import com.android.net.module.util.bpf.Tether4Value;
-import com.android.net.module.util.bpf.TetherStatsKey;
 import com.android.net.module.util.bpf.TetherStatsValue;
 import com.android.net.module.util.structs.Ipv4Header;
 import com.android.net.module.util.structs.UdpHeader;
@@ -1055,15 +1055,15 @@ public class EthernetTetheringTest extends EthernetTetheringTestBase {
         // Dump stats map to verify.
         final String[] statsArgs = new String[] {DUMPSYS_TETHERING_RAWMAP_ARG,
                 DUMPSYS_RAWMAP_ARG_STATS};
-        final HashMap<TetherStatsKey, TetherStatsValue> statsMap = pollRawMapFromDump(
-                TetherStatsKey.class, TetherStatsValue.class, Context.TETHERING_SERVICE, statsArgs);
+        final HashMap<S32, TetherStatsValue> statsMap = pollRawMapFromDump(
+                S32.class, TetherStatsValue.class, Context.TETHERING_SERVICE, statsArgs);
         assertNotNull(statsMap);
         assertEquals(1, statsMap.size());
 
-        final Map.Entry<TetherStatsKey, TetherStatsValue> stats =
+        final Map.Entry<S32, TetherStatsValue> stats =
                 statsMap.entrySet().iterator().next();
 
-        // TODO: verify the upstream index in TetherStatsKey.
+        // TODO: verify the upstream index in S32.
 
         final TetherStatsValue statsValue = stats.getValue();
         assertEquals(RX_UDP_PACKET_COUNT, statsValue.rxPackets);
