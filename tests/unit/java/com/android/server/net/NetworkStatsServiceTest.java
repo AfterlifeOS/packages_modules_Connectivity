@@ -297,8 +297,8 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
             StatsMapValue.class);
     private TestBpfMap<StatsMapKey, StatsMapValue> mStatsMapB = new TestBpfMap<>(StatsMapKey.class,
             StatsMapValue.class);
-    private TestBpfMap<UidStatsMapKey, StatsMapValue> mAppUidStatsMap = new TestBpfMap<>(
-            UidStatsMapKey.class, StatsMapValue.class);
+    private TestBpfMap<S32, StatsMapValue> mAppUidStatsMap = new TestBpfMap<>(
+            S32.class, StatsMapValue.class);
     private TestBpfMap<S32, StatsMapValue> mIfaceStatsMap = new TestBpfMap<>(
             S32.class, StatsMapValue.class);
     private NetworkStatsService mService;
@@ -594,7 +594,7 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
         }
 
         @Override
-        public IBpfMap<UidStatsMapKey, StatsMapValue> getAppUidStatsMap() {
+        public IBpfMap<S32, StatsMapValue> getAppUidStatsMap() {
             return mAppUidStatsMap;
         }
 
@@ -3025,14 +3025,14 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
 
         mStatsMapB.insertEntry(new StatsMapKey(uid, 1, 0, 10), new StatsMapValue(0, 0, 0, 0));
 
-        mAppUidStatsMap.insertEntry(new UidStatsMapKey(uid), new StatsMapValue(10, 10000, 6, 6000));
+        mAppUidStatsMap.insertEntry(new S32(uid), new StatsMapValue(10, 10000, 6, 6000));
 
         mUidCounterSetMap.insertEntry(new S32(uid), new U8((short) 1));
 
         assertTrue(cookieTagMapContainsUid(uid));
         assertTrue(statsMapContainsUid(mStatsMapA, uid));
         assertTrue(statsMapContainsUid(mStatsMapB, uid));
-        assertTrue(mAppUidStatsMap.containsKey(new UidStatsMapKey(uid)));
+        assertTrue(mAppUidStatsMap.containsKey(new S32(uid)));
         assertTrue(mUidCounterSetMap.containsKey(new S32(uid)));
     }
 
@@ -3049,14 +3049,14 @@ public class NetworkStatsServiceTest extends NetworkStatsBaseTest {
         assertFalse(cookieTagMapContainsUid(UID_BLUE));
         assertFalse(statsMapContainsUid(mStatsMapA, UID_BLUE));
         assertFalse(statsMapContainsUid(mStatsMapB, UID_BLUE));
-        assertFalse(mAppUidStatsMap.containsKey(new UidStatsMapKey(UID_BLUE)));
+        assertFalse(mAppUidStatsMap.containsKey(new S32(UID_BLUE)));
         assertFalse(mUidCounterSetMap.containsKey(new S32(UID_BLUE)));
 
         // assert that UID_RED related tag data is still in the maps.
         assertTrue(cookieTagMapContainsUid(UID_RED));
         assertTrue(statsMapContainsUid(mStatsMapA, UID_RED));
         assertTrue(statsMapContainsUid(mStatsMapB, UID_RED));
-        assertTrue(mAppUidStatsMap.containsKey(new UidStatsMapKey(UID_RED)));
+        assertTrue(mAppUidStatsMap.containsKey(new S32(UID_RED)));
         assertTrue(mUidCounterSetMap.containsKey(new S32(UID_RED)));
     }
 

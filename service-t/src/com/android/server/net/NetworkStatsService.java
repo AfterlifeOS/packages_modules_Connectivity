@@ -458,7 +458,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
     private final IBpfMap<CookieTagMapKey, CookieTagMapValue> mCookieTagMap;
     private final IBpfMap<StatsMapKey, StatsMapValue> mStatsMapA;
     private final IBpfMap<StatsMapKey, StatsMapValue> mStatsMapB;
-    private final IBpfMap<UidStatsMapKey, StatsMapValue> mAppUidStatsMap;
+    private final IBpfMap<S32, StatsMapValue> mAppUidStatsMap;
     private final IBpfMap<S32, StatsMapValue> mIfaceStatsMap;
 
     /** Data layer operation counters for splicing into other structures. */
@@ -937,10 +937,10 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
 
         /** Gets the uid stats map */
-        public IBpfMap<UidStatsMapKey, StatsMapValue> getAppUidStatsMap() {
+        public IBpfMap<S32, StatsMapValue> getAppUidStatsMap() {
             try {
                 return new BpfMap<>(APP_UID_STATS_MAP_PATH,
-                        UidStatsMapKey.class, StatsMapValue.class);
+                        S32.class, StatsMapValue.class);
             } catch (ErrnoException e) {
                 Log.wtf(TAG, "Cannot open app uid stats map: " + e);
                 return null;
@@ -2913,7 +2913,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
 
         try {
-            mAppUidStatsMap.deleteEntry(new UidStatsMapKey(uid));
+            mAppUidStatsMap.deleteEntry(new S32(uid));
         } catch (ErrnoException e) {
             logErrorIfNotErrNoent(e, "Failed to delete tag data from app uid stats map");
         }
@@ -3348,7 +3348,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
         BpfDump.dumpMap(mAppUidStatsMap, pw, "mAppUidStatsMap",
                 "uid rxBytes rxPackets txBytes txPackets",
-                (key, value) -> key.uid + " "
+                (key, value) -> key.val + " "
                         + value.rxBytes + " "
                         + value.rxPackets + " "
                         + value.txBytes + " "
