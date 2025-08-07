@@ -36,7 +36,6 @@ import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.Struct.S32;
 import com.android.net.module.util.bpf.Tether4Key;
 import com.android.net.module.util.bpf.Tether4Value;
-import com.android.net.module.util.bpf.TetherStatsKey;
 import com.android.net.module.util.bpf.TetherStatsValue;
 import com.android.networkstack.tethering.BpfCoordinator.Dependencies;
 import com.android.networkstack.tethering.BpfCoordinator.Ipv6DownstreamRule;
@@ -83,7 +82,7 @@ public class BpfCoordinatorShimImpl
 
     // BPF map of tethering statistics of the upstream interface since tethering startup.
     @Nullable
-    private final IBpfMap<TetherStatsKey, TetherStatsValue> mBpfStatsMap;
+    private final IBpfMap<S32, TetherStatsValue> mBpfStatsMap;
 
     // BPF map of per-interface quota for tethering offload.
     @Nullable
@@ -250,7 +249,7 @@ public class BpfCoordinatorShimImpl
         try {
             // The reported tether stats are total data usage for all currently-active upstream
             // interfaces since tethering start.
-            mBpfStatsMap.forEach((key, value) -> tetherStatsList.put((int) key.ifindex, value));
+            mBpfStatsMap.forEach((key, value) -> tetherStatsList.put((int) key.val, value));
         } catch (ErrnoException e) {
             mLog.e("Fail to fetch tethering stats from BPF map: ", e);
             return null;
@@ -267,7 +266,7 @@ public class BpfCoordinatorShimImpl
         TetherStatsValue statsValue = null;
 
         try {
-            statsValue = mBpfStatsMap.getValue(new TetherStatsKey(ifIndex));
+            statsValue = mBpfStatsMap.getValue(new S32(ifIndex));
         } catch (ErrnoException e) {
             // The BpfMap#getValue doesn't throw an errno ENOENT exception. Catch other error
             // while trying to get stats entry.
@@ -285,7 +284,7 @@ public class BpfCoordinatorShimImpl
                 // This function is the *only* thing that can create entries.
                 // BpfMap#insertEntry use BPF_NOEXIST to create the entry. The entry is created
                 // if and only if it doesn't exist.
-                mBpfStatsMap.insertEntry(new TetherStatsKey(ifIndex), new TetherStatsValue(
+                mBpfStatsMap.insertEntry(new S32(ifIndex), new TetherStatsValue(
                         0 /* rxPackets */, 0 /* rxBytes */, 0 /* rxErrors */, 0 /* txPackets */,
                         0 /* txBytes */, 0 /* txErrors */));
             } catch (ErrnoException | IllegalArgumentException e) {
@@ -329,7 +328,7 @@ public class BpfCoordinatorShimImpl
 
         TetherStatsValue statsValue = null;
         try {
-            statsValue = mBpfStatsMap.getValue(new TetherStatsKey(ifIndex));
+            statsValue = mBpfStatsMap.getValue(new S32(ifIndex));
         } catch (ErrnoException e) {
             mLog.e("Could not get stats entry for interface index " + ifIndex + ": ", e);
             return null;
@@ -341,7 +340,7 @@ public class BpfCoordinatorShimImpl
         }
 
         try {
-            mBpfStatsMap.deleteEntry(new TetherStatsKey(ifIndex));
+            mBpfStatsMap.deleteEntry(new S32(ifIndex));
         } catch (ErrnoException e) {
             mLog.e("Could not delete stats entry for interface index " + ifIndex + ": ", e);
             return null;
