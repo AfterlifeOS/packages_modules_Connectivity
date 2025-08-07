@@ -74,6 +74,7 @@ import com.android.net.module.util.InterfaceParams;
 import com.android.net.module.util.NetworkStackConstants;
 import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.Struct.S32;
+import com.android.net.module.util.Struct.S64;
 import com.android.net.module.util.bpf.Tether4Key;
 import com.android.net.module.util.bpf.Tether4Value;
 import com.android.net.module.util.bpf.TetherStatsValue;
@@ -459,11 +460,11 @@ public class BpfCoordinator {
         }
 
         /** Get limit BPF map. */
-        @Nullable public IBpfMap<S32, TetherLimitValue> getBpfLimitMap() {
+        @Nullable public IBpfMap<S32, S64> getBpfLimitMap() {
             if (!isAtLeastS()) return null;
             try {
                 return new BpfMap<>(TETHER_LIMIT_MAP_PATH,
-                    S32.class, TetherLimitValue.class);
+                    S32.class, S64.class);
             } catch (ErrnoException e) {
                 Log.e(TAG, "Cannot create limit map: " + e);
                 return null;

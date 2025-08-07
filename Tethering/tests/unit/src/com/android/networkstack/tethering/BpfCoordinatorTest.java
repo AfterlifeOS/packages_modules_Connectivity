@@ -122,6 +122,7 @@ import com.android.net.module.util.InterfaceParams;
 import com.android.net.module.util.NetworkStackConstants;
 import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.Struct.S32;
+import com.android.net.module.util.Struct.S64;
 import com.android.net.module.util.bpf.Tether4Key;
 import com.android.net.module.util.bpf.Tether4Value;
 import com.android.net.module.util.bpf.TetherStatsValue;
@@ -481,8 +482,8 @@ public class BpfCoordinatorTest {
             spy(new TestBpfMap<>(TetherUpstream6Key.class, Tether6Value.class));
     private final IBpfMap<S32, TetherStatsValue> mBpfStatsMap =
             spy(new TestBpfMap<>(S32.class, TetherStatsValue.class));
-    private final IBpfMap<S32, TetherLimitValue> mBpfLimitMap =
-            spy(new TestBpfMap<>(S32.class, TetherLimitValue.class));
+    private final IBpfMap<S32, S64> mBpfLimitMap =
+            spy(new TestBpfMap<>(S32.class, S64.class));
     private final IBpfMap<S32, S32> mBpfDevMap =
             spy(new TestBpfMap<>(S32.class, S32.class));
     private final IBpfMap<S32, S32> mBpfErrorMap =
@@ -558,7 +559,7 @@ public class BpfCoordinatorTest {
                     }
 
                     @Nullable
-                    public IBpfMap<S32, TetherLimitValue> getBpfLimitMap() {
+                    public IBpfMap<S32, S64> getBpfLimitMap() {
                         return mBpfLimitMap;
                     }
 
@@ -932,7 +933,7 @@ public class BpfCoordinatorTest {
                         0L /* txPackets */, 0L /* txBytes */, 0L /* txErrors */));
             }
             verifyWithOrder(inOrder, mBpfLimitMap).updateEntry(new S32(ifIndex),
-                    new TetherLimitValue(quotaBytes));
+                    new S64(quotaBytes));
         } else {
             verifyWithOrder(inOrder, mNetd).tetherOffloadSetInterfaceQuota(ifIndex, quotaBytes);
         }

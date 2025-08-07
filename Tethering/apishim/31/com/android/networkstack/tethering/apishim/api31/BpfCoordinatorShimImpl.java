@@ -34,6 +34,7 @@ import com.android.net.module.util.IBpfMap;
 import com.android.net.module.util.IBpfMap.ThrowingBiConsumer;
 import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.Struct.S32;
+import com.android.net.module.util.Struct.S64;
 import com.android.net.module.util.bpf.Tether4Key;
 import com.android.net.module.util.bpf.Tether4Value;
 import com.android.net.module.util.bpf.TetherStatsValue;
@@ -43,7 +44,6 @@ import com.android.networkstack.tethering.BpfCoordinator.Ipv6UpstreamRule;
 import com.android.networkstack.tethering.BpfUtils;
 import com.android.networkstack.tethering.Tether6Value;
 import com.android.networkstack.tethering.TetherDownstream6Key;
-import com.android.networkstack.tethering.TetherLimitValue;
 import com.android.networkstack.tethering.TetherUpstream6Key;
 
 import java.io.FileDescriptor;
@@ -86,7 +86,7 @@ public class BpfCoordinatorShimImpl
 
     // BPF map of per-interface quota for tethering offload.
     @Nullable
-    private final IBpfMap<S32, TetherLimitValue> mBpfLimitMap;
+    private final IBpfMap<S32, S64> mBpfLimitMap;
 
     // BPF map of interface index mapping for XDP.
     @Nullable
@@ -302,7 +302,7 @@ public class BpfCoordinatorShimImpl
         if (newLimit < rxBytes + txBytes) newLimit = QUOTA_UNLIMITED;
 
         try {
-            mBpfLimitMap.updateEntry(new S32(ifIndex), new TetherLimitValue(newLimit));
+            mBpfLimitMap.updateEntry(new S32(ifIndex), new S64(newLimit));
         } catch (ErrnoException e) {
             mLog.e("Fail to set quota " + quotaBytes + " for interface index " + ifIndex + ": ", e);
             return false;
