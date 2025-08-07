@@ -236,12 +236,16 @@ static long (*bpf_sk_storage_delete_unsafe) (const void* sk_storage,
 
 #define ABSOLUTE(x) ((x) < 0 ? -(x) : (x))
 
-#define DEFAULT_BPF_MAP_FLAGS(TYPE, num_entries, mapflags)                        \
-    ( (mapflags) |                                                                \
-      ((num_entries) < 0 ? BPF_F_NO_PREALLOC : 0) |                               \
-      ( (BPF_MAP_TYPE_##TYPE == BPF_MAP_TYPE_LPM_TRIE ||                          \
-         BPF_MAP_TYPE_##TYPE == BPF_MAP_TYPE_SK_STORAGE) ? BPF_F_NO_PREALLOC : 0) \
-    )
+#define DEFAULT_FLAGS_FOR_BPF_MAP_TYPE_ARRAY		0
+#define DEFAULT_FLAGS_FOR_BPF_MAP_TYPE_DEVMAP_HASH	0
+#define DEFAULT_FLAGS_FOR_BPF_MAP_TYPE_HASH		0
+#define DEFAULT_FLAGS_FOR_BPF_MAP_TYPE_LPM_TRIE		BPF_F_NO_PREALLOC
+#define DEFAULT_FLAGS_FOR_BPF_MAP_TYPE_PERCPU_ARRAY	0
+#define DEFAULT_FLAGS_FOR_BPF_MAP_TYPE_RINGBUF		0
+#define DEFAULT_FLAGS_FOR_BPF_MAP_TYPE_SK_STORAGE	BPF_F_NO_PREALLOC
+
+#define DEFAULT_BPF_MAP_FLAGS(TYPE, num_entries, mapflags) \
+    (DEFAULT_FLAGS_FOR_BPF_MAP_TYPE_##TYPE | ((num_entries) < 0 ? BPF_F_NO_PREALLOC : 0) | (mapflags))
 
 #define DEFINE_BPF_MAP_BASE(the_map, TYPE, keysize, valuesize, num_entries, usr, grp, md,       \
                             selinux, pindir, minkver, maxkver, minloader, maxloader, mapflags)  \
