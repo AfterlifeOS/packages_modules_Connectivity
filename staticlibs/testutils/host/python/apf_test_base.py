@@ -12,6 +12,7 @@
 #  See the License for the specific language governing permissions and
 #  limitations under the License.
 
+import time
 from mobly import asserts
 from net_tests_utils.host.python import adb_utils, apf_utils, assert_utils, multi_devices_test_base, tether_utils
 from net_tests_utils.host.python.tether_utils import UpstreamType
@@ -146,6 +147,8 @@ class ApfTestBase(multi_devices_test_base.MultiDevicesTestBase):
 
       # send 3 packets to prevent flaky test result
       for _ in range(3):
+        # Sleep for 3 seconds to give the firmware a time buffer to turn on the APF.
+        time.sleep(3)
         apf_utils.send_raw_packet_downstream(
             self.serverDevice, self.server_iface_name, send_packet
         )
