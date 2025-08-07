@@ -65,7 +65,7 @@ DEFINE_BPF_MAP_RO_NETD(configuration_map, ARRAY, uint32_t, uint32_t, CONFIGURATI
 // TODO: consider whether we can merge some of these maps
 // for example it might be possible to merge 2 or 3 of:
 //   uid_counterset_map + uid_owner_map + uid_permission_map
-DEFINE_BPF_MAP_NO_NETD(blocked_ports_map, ARRAY, int, uint64_t,
+DEFINE_BPF_MAP_NO_NETD(blocked_ports_map, MMAPABLE_ARRAY, int, uint64_t,
                        1024 /* 64K ports -> 1024 u64s */)
 DEFINE_BPF_MAP_RW_NETD(cookie_tag_map, HASH, uint64_t, UidTagValue, 10000)
 DEFINE_BPF_MAP_NO_NETD(uid_counterset_map, HASH, uint32_t, uint8_t, 4000)
