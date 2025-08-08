@@ -40,8 +40,8 @@ namespace bpf {
 
 using base::Result;
 
-BpfMap<uint32_t, IfaceValue>& getIfaceIndexNameMap() {
-    static BpfMap<uint32_t, IfaceValue> ifaceIndexNameMap(IFACE_INDEX_NAME_MAP_PATH);
+BpfMapRW<uint32_t, IfaceValue>& getIfaceIndexNameMap() {
+    static BpfMapRW<uint32_t, IfaceValue> ifaceIndexNameMap(IFACE_INDEX_NAME_MAP_PATH);
     return ifaceIndexNameMap;
 }
 

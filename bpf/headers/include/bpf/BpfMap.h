@@ -257,19 +257,15 @@ class BpfMapRO {
 };
 
 template <class Key, class Value>
-class BpfMap : public BpfMapRO<Key, Value> {
+class BpfMapRW : public BpfMapRO<Key, Value> {
   protected:
     using BpfMapRO<Key, Value>::mMapFd;
     using BpfMapRO<Key, Value>::abortOnMismatch;
 
   public:
-    using BpfMapRO<Key, Value>::getFirstKey;
-    using BpfMapRO<Key, Value>::getNextKey;
-    using BpfMapRO<Key, Value>::readValue;
+    using BpfMapRO<Key, Value>::BpfMapRO;
 
-    BpfMap<Key, Value>() {};
-
-    explicit BpfMap<Key, Value>(const char* pathname) {
+    explicit BpfMapRW<Key, Value>(const char* pathname) {
         mMapFd.reset(mapRetrieveRW(pathname));
         abortOnMismatch(/* writable */ true);
     }
@@ -285,6 +281,30 @@ class BpfMap : public BpfMapRO<Key, Value> {
         }
         return {};
     }
+
+#ifdef BPF_MAP_MAKE_VISIBLE_FOR_TESTING
+    [[clang::reinitializes]] Result<void> resetMap(bpf_map_type map_type,
+                                                   uint32_t max_entries,
+                                                   uint32_t map_flags = 0) {
+        if (map_flags & BPF_F_WRONLY) Abort(0, "map_flags is write-only");
+        if (map_flags & BPF_F_RDONLY) Abort(0, "map_flags is read-only");
+        mMapFd.reset(createMap(map_type, sizeof(Key), sizeof(Value), max_entries,
+                               map_flags));
+        if (!mMapFd.ok()) return ErrnoErrorf("BpfMap::resetMap() failed");
+        abortOnMismatch(/* writable */ true);
+        return {};
+    }
+#endif
+};
+
+template <class Key, class Value>
+class BpfMap : public BpfMapRW<Key, Value> {
+  protected:
+    using BpfMapRW<Key, Value>::mMapFd;
+
+  public:
+    using BpfMapRW<Key, Value>::BpfMapRW;
+    using BpfMapRW<Key, Value>::getFirstKey;
 
     Result<void> deleteValue(const Key& key) {
         if (deleteMapEntry(mMapFd, &key)) {
@@ -309,20 +329,6 @@ class BpfMap : public BpfMapRO<Key, Value> {
             }
         }
     }
-
-#ifdef BPF_MAP_MAKE_VISIBLE_FOR_TESTING
-    [[clang::reinitializes]] Result<void> resetMap(bpf_map_type map_type,
-                                                   uint32_t max_entries,
-                                                   uint32_t map_flags = 0) {
-        if (map_flags & BPF_F_WRONLY) Abort(0, "map_flags is write-only");
-        if (map_flags & BPF_F_RDONLY) Abort(0, "map_flags is read-only");
-        mMapFd.reset(createMap(map_type, sizeof(Key), sizeof(Value), max_entries,
-                               map_flags));
-        if (!mMapFd.ok()) return ErrnoErrorf("BpfMap::resetMap() failed");
-        abortOnMismatch(/* writable */ true);
-        return {};
-    }
-#endif
 };
 
 }  // namespace bpf
