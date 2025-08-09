@@ -13,6 +13,7 @@
 #  limitations under the License.
 
 import time
+from android.platform.test.annotations import VsrTest
 from mobly import asserts
 from net_tests_utils.host.python import adb_utils, apf_test_base, apf_utils, assert_utils
 from scapy.contrib.igmpv3 import IGMPv3, IGMPv3gr, IGMPv3mq, IGMPv3mr
@@ -37,6 +38,18 @@ APFV6_VERSION = 6000
 ARP_OFFLOAD_REPLY_LEN = 60
 
 
+@VsrTest(
+    requirements=[
+        'VSR-5.3.12-002',
+        'VSR-5.3.12-005',
+        'VSR-5.3.12-012',
+        'VSR-5.3.12-013',
+        'VSR-5.3.12-014',
+        'VSR-5.3.12-015',
+        'VSR-5.3.12-016',
+        'VSR-5.3.12-017',
+    ]
+)
 class ApfV6Test(apf_test_base.ApfTestBase):
 
   def setup_class(self):

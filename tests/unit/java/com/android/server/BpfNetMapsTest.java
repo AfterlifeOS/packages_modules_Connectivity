@@ -102,9 +102,9 @@ import com.android.modules.utils.build.SdkLevel;
 import com.android.net.module.util.IBpfMap;
 import com.android.net.module.util.Struct.Bool;
 import com.android.net.module.util.Struct.S32;
+import com.android.net.module.util.Struct.S64;
 import com.android.net.module.util.Struct.U32;
 import com.android.net.module.util.Struct.U8;
-import com.android.net.module.util.bpf.CookieTagMapKey;
 import com.android.net.module.util.bpf.CookieTagMapValue;
 import com.android.net.module.util.bpf.IngressDiscardKey;
 import com.android.net.module.util.bpf.IngressDiscardValue;
@@ -181,8 +181,8 @@ public final class BpfNetMapsTest {
             new TestBpfMap<>(U32.class, Bool.class);
     private final IBpfMap<LocalNetAccessKey, Bool> mLocalNetAccessMap =
             new TestBpfMap<>(LocalNetAccessKey.class, Bool.class);
-    private final IBpfMap<CookieTagMapKey, CookieTagMapValue> mCookieTagMap =
-            spy(new TestBpfMap<>(CookieTagMapKey.class, CookieTagMapValue.class));
+    private final IBpfMap<S64, CookieTagMapValue> mCookieTagMap =
+            spy(new TestBpfMap<>(S64.class, CookieTagMapValue.class));
     private final IBpfMap<S32, U8> mDataSaverEnabledMap = new TestBpfMap<>(S32.class, U8.class);
     private final IBpfMap<IngressDiscardKey, IngressDiscardValue> mIngressDiscardMap =
             new TestBpfMap<>(IngressDiscardKey.class, IngressDiscardValue.class);
@@ -1132,7 +1132,7 @@ public final class BpfNetMapsTest {
     @IgnoreUpTo(Build.VERSION_CODES.S_V2)
     public void testPullBpfMapInfo() throws Exception {
         // mCookieTagMap has 1 entry
-        mCookieTagMap.updateEntry(new CookieTagMapKey(0), new CookieTagMapValue(0, 0));
+        mCookieTagMap.updateEntry(new S64(0), new CookieTagMapValue(0, 0));
 
         // mUidOwnerMap has 2 entries
         mUidOwnerMap.updateEntry(new S32(0), new UidOwnerValue(0, 0));
@@ -1299,7 +1299,7 @@ public final class BpfNetMapsTest {
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.S_V2)
     public void testDumpCookieTagMap() throws Exception {
-        mCookieTagMap.updateEntry(new CookieTagMapKey(123), new CookieTagMapValue(456, 0x789));
+        mCookieTagMap.updateEntry(new S64(123), new CookieTagMapValue(456, 0x789));
         assertDumpContains(getDump(), "cookie=123 tag=0x789 uid=456");
     }
 

@@ -419,6 +419,11 @@ int readCodeSections(ElfObject& elfObj, vector<codeSection>& cs) {
     return 0;
 }
 
+static unsigned int sanitizeMapFlags(unsigned int map_flags) {
+    if (!isAtLeastKernelVersion(5, 10, 0)) map_flags &= ~BPF_F_MMAPABLE;
+    return map_flags;
+}
+
 static bool mapMatchesExpectations(const unique_fd& fd,
                                    const struct bpf_map_def& mapDef, const enum bpf_map_type type) {
     // bpfGetFd... family of functions require at minimum a 4.14 kernel,
@@ -441,7 +446,7 @@ static bool mapMatchesExpectations(const unique_fd& fd,
 
     // DEVMAPs are readonly from the bpf program side's point of view, as such
     // the kernel in kernel/bpf/devmap.c dev_map_init_map() will set the flag
-    int desired_map_flags = (int)mapDef.map_flags;
+    unsigned int desired_map_flags = sanitizeMapFlags(mapDef.map_flags);
     if (type == BPF_MAP_TYPE_DEVMAP || type == BPF_MAP_TYPE_DEVMAP_HASH)
         desired_map_flags |= BPF_F_RDONLY_PROG;
 
@@ -464,7 +469,7 @@ static bool mapMatchesExpectations(const unique_fd& fd,
         (fd_key_size == (int)mapDef.key_size) &&
         (fd_value_size == (int)mapDef.value_size) &&
         (fd_max_entries == (int)desired_max_entries) &&
-        (fd_map_flags == desired_map_flags)) {
+        (fd_map_flags == (int)desired_map_flags)) {
         return true;
     }
 
@@ -869,7 +874,7 @@ static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<
               .key_size = md[i].key_size,
               .value_size = md[i].value_size,
               .max_entries = max_entries,
-              .map_flags = md[i].map_flags,
+              .map_flags = sanitizeMapFlags(md[i].map_flags),
             };
             if (isAtLeastKernelVersion(4, 15, 0))
                 strlcpy(req.map_name, md[i].name(), sizeof(req.map_name));
@@ -1169,7 +1174,7 @@ static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf
         }
 
         bpf_map__set_type(m, sanitizeMapType(md[i].type));
-        bpf_map__set_map_flags(m, md[i].map_flags);
+        bpf_map__set_map_flags(m, sanitizeMapFlags(md[i].map_flags));
     }
     return 0;
 }

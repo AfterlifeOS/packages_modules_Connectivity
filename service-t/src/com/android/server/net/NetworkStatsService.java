@@ -186,8 +186,8 @@ import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.SkDestroyListener;
 import com.android.net.module.util.Struct;
 import com.android.net.module.util.Struct.S32;
+import com.android.net.module.util.Struct.S64;
 import com.android.net.module.util.Struct.U8;
-import com.android.net.module.util.bpf.CookieTagMapKey;
 import com.android.net.module.util.bpf.CookieTagMapValue;
 import com.android.net.module.util.netlink.InetDiagMessage;
 import com.android.net.module.util.netlink.StructInetDiagSockId;
@@ -455,10 +455,10 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
      */
     private SparseIntArray mActiveUidCounterSet = new SparseIntArray();
     private final IBpfMap<S32, U8> mUidCounterSetMap;
-    private final IBpfMap<CookieTagMapKey, CookieTagMapValue> mCookieTagMap;
+    private final IBpfMap<S64, CookieTagMapValue> mCookieTagMap;
     private final IBpfMap<StatsMapKey, StatsMapValue> mStatsMapA;
     private final IBpfMap<StatsMapKey, StatsMapValue> mStatsMapB;
-    private final IBpfMap<UidStatsMapKey, StatsMapValue> mAppUidStatsMap;
+    private final IBpfMap<S32, StatsMapValue> mAppUidStatsMap;
     private final IBpfMap<S32, StatsMapValue> mIfaceStatsMap;
 
     /** Data layer operation counters for splicing into other structures. */
@@ -736,7 +736,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         mSkDestroyListener = mDeps.makeSkDestroyListener((message) -> {
             final StructInetDiagSockId sockId = message.inetDiagMsg.id;
             try {
-                mCookieTagMap.deleteEntry(new CookieTagMapKey(sockId.cookie));
+                mCookieTagMap.deleteEntry(new S64(sockId.cookie));
             } catch (ErrnoException e) {
                 Log.e(TAG, "Failed to delete CookieTagMap entry for " + sockId.cookie  + ": " + e);
             }
@@ -906,10 +906,10 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
 
         /** Gets the cookie tag map */
-        public IBpfMap<CookieTagMapKey, CookieTagMapValue> getCookieTagMap() {
+        public IBpfMap<S64, CookieTagMapValue> getCookieTagMap() {
             try {
                 return new BpfMap<>(COOKIE_TAG_MAP_PATH,
-                        CookieTagMapKey.class, CookieTagMapValue.class);
+                        S64.class, CookieTagMapValue.class);
             } catch (ErrnoException e) {
                 Log.wtf(TAG, "Cannot open cookie tag map: " + e);
                 return null;
@@ -937,10 +937,10 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
 
         /** Gets the uid stats map */
-        public IBpfMap<UidStatsMapKey, StatsMapValue> getAppUidStatsMap() {
+        public IBpfMap<S32, StatsMapValue> getAppUidStatsMap() {
             try {
                 return new BpfMap<>(APP_UID_STATS_MAP_PATH,
-                        UidStatsMapKey.class, StatsMapValue.class);
+                        S32.class, StatsMapValue.class);
             } catch (ErrnoException e) {
                 Log.wtf(TAG, "Cannot open app uid stats map: " + e);
                 return null;
@@ -2913,7 +2913,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
 
         try {
-            mAppUidStatsMap.deleteEntry(new UidStatsMapKey(uid));
+            mAppUidStatsMap.deleteEntry(new S32(uid));
         } catch (ErrnoException e) {
             logErrorIfNotErrNoent(e, "Failed to delete tag data from app uid stats map");
         }
@@ -3327,7 +3327,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
             return;
         }
         BpfDump.dumpMap(mCookieTagMap, pw, "mCookieTagMap",
-                (key, value) -> "cookie=" + key.socketCookie
+                (key, value) -> "cookie=" + key.val
                         + " tag=0x" + Long.toHexString(value.tag)
                         + " uid=" + value.uid);
     }
@@ -3348,7 +3348,7 @@ public class NetworkStatsService extends INetworkStatsService.Stub {
         }
         BpfDump.dumpMap(mAppUidStatsMap, pw, "mAppUidStatsMap",
                 "uid rxBytes rxPackets txBytes txPackets",
-                (key, value) -> key.uid + " "
+                (key, value) -> key.val + " "
                         + value.rxBytes + " "
                         + value.rxPackets + " "
                         + value.txBytes + " "
