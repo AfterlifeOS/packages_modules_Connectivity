@@ -166,7 +166,7 @@ class BpfMapRO {
         return curKey.error();
     }
 
-    // Does not allow early termination - may be implemented with bulk api
+    // Does not allow early termination (via f erroring out) - may be implemented with bulk api
     Result<void> forAll(const function<void(const Key &)> &f) const {
         return iterate(
             [&f](const Key &key) -> Result<void> {
@@ -191,7 +191,7 @@ class BpfMapRO {
         return curKey.error();
     }
 
-    // Does not allow early termination - maybe implemented with bulk api
+    // Does not allow early termination (via f erroring out) - maybe implemented with bulk api
     Result<void> forAll(const function<void(const Key &, const Value &)> &f) const {
         return iterate(
             [&f](const Key &key, const Value &value) -> Result<void> {
@@ -328,6 +328,16 @@ class BpfMap : public BpfMapRW<Key, Value> {
                 return res.error();
             }
         }
+    }
+
+    // Does not allow early termination (via f erroring out) - maybe implemented with bulk api
+    Result<void> consume(const std::function<void(const Key&, const Value&)>& f) {
+        return this->iterate(
+            [this, &f](const Key &key, const Value &value) -> Result<void> {
+                f(key, value);
+                return this->deleteValue(key);
+            }
+        );
     }
 };
 
