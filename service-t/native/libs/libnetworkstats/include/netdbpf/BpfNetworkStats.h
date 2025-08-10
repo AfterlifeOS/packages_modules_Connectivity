@@ -57,7 +57,7 @@ bool operator<(const stats_line& lhs, const stats_line& rhs);
 
 // This mirrors BpfMap.h's:
 //   Result<Value> readValue(const Key key) const
-// for a BpfMap<uint32_t, IfaceValue>
+// for a BpfMapRW<uint32_t, IfaceValue>
 using IfIndexToNameFunc = std::function<Result<IfaceValue>(const uint32_t)>;
 
 // For test only

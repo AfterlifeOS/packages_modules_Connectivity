@@ -72,10 +72,10 @@ class BpfNetworkStatsHelperTest : public testing::Test {
   protected:
     BpfNetworkStatsHelperTest() {}
     BpfMap<uint64_t, UidTagValue> mFakeCookieTagMap;
-    BpfMap<uint32_t, StatsValue> mFakeAppUidStatsMap;
-    BpfMap<StatsKey, StatsValue> mFakeStatsMap;
-    BpfMap<uint32_t, IfaceValue> mFakeIfaceIndexNameMap;
-    BpfMap<uint32_t, StatsValue> mFakeIfaceStatsMap;
+    BpfMapRW<uint32_t, StatsValue> mFakeAppUidStatsMap;
+    BpfMapRW<StatsKey, StatsValue> mFakeStatsMap;
+    BpfMapRW<uint32_t, IfaceValue> mFakeIfaceIndexNameMap;
+    BpfMapRW<uint32_t, StatsValue> mFakeIfaceStatsMap;
 
     IfIndexToNameFunc mIfIndex2Name = [this](const uint32_t ifindex){
         return mFakeIfaceIndexNameMap.readValue(ifindex);
@@ -108,7 +108,7 @@ class BpfNetworkStatsHelperTest : public testing::Test {
     }
 
     void populateFakeStats(uid_t uid, uint32_t tag, uint32_t ifaceIndex, uint32_t counterSet,
-                           StatsValue value, BpfMap<StatsKey, StatsValue>& map) {
+                           StatsValue value, BpfMapRW<StatsKey, StatsValue>& map) {
         StatsKey key = {
             .uid = (uint32_t)uid, .tag = tag, .counterSet = counterSet, .ifaceIndex = ifaceIndex};
         EXPECT_RESULT_OK(map.writeValue(key, value, BPF_ANY));
@@ -179,14 +179,14 @@ TEST_F(BpfNetworkStatsHelperTest, TestBpfIterateMap) {
     }
     int totalCount = 0;
     int totalSum = 0;
-    const auto iterateWithoutDeletion =
-            [&totalCount, &totalSum](const uint64_t& key, const BpfMap<uint64_t, UidTagValue>&) {
-                EXPECT_GE((uint64_t)5, key);
-                totalCount++;
-                totalSum += key;
-                return Result<void>();
-            };
-    EXPECT_RESULT_OK(mFakeCookieTagMap.iterate(iterateWithoutDeletion));
+    EXPECT_RESULT_OK(mFakeCookieTagMap.iterate(
+        [&totalCount, &totalSum](const uint64_t& key) -> Result<void> {
+            EXPECT_GE((uint64_t)5, key);
+            totalCount++;
+            totalSum += key;
+            return Result<void>();
+        }
+    ));
     EXPECT_EQ(5, totalCount);
     EXPECT_EQ(1 + 2 + 3 + 4 + 5, totalSum);
 }

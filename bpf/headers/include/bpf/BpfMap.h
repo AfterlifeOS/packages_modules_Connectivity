@@ -153,17 +153,53 @@ class BpfMapRO {
         return init(path, mapRetrieveRO(path), /* writable */ false);
     }
 
-    // Iterate through the map and handle each key retrieved based on the filter
-    // without modification of map content.
-    Result<void> iterate(
-            const function<Result<void>(const Key& key,
-                                        const BpfMapRO<Key, Value>& map)>& filter) const;
+    // For all keys in the map call filter() - unless it errors out.
+    Result<void> iterate(const function<Result<void>(const Key &)> &filter) const {
+        Result<Key> curKey = getFirstKey();
+        while (curKey.ok()) {
+            const Result<Key> &nextKey = getNextKey(curKey.value());
+            Result<void> status = filter(curKey.value());
+            if (!status.ok()) return status;
+            curKey = nextKey;
+        }
+        if (curKey.error().code() == ENOENT) return {};
+        return curKey.error();
+    }
 
-    // Iterate through the map and get each <key, value> pair, handle each <key,
-    // value> pair based on the filter without modification of map content.
-    Result<void> iterateWithValue(
-            const function<Result<void>(const Key& key, const Value& value,
-                                        const BpfMapRO<Key, Value>& map)>& filter) const;
+    // Does not allow early termination - may be implemented with bulk api
+    Result<void> forAll(const function<void(const Key &)> &f) const {
+        return iterate(
+            [&f](const Key &key) -> Result<void> {
+                f(key);
+                return {};
+            }
+        );
+    }
+
+    // For all (key, value) pairs in the map call filter() - unless it errors out.
+    Result<void> iterate(const function<Result<void>(const Key &, const Value &)> &filter) const {
+        Result<Key> curKey = getFirstKey();
+        while (curKey.ok()) {
+            const Result<Key> &nextKey = getNextKey(curKey.value());
+            Result<Value> curValue = readValue(curKey.value());
+            if (!curValue.ok()) return curValue.error();
+            Result<void> status = filter(curKey.value(), curValue.value());
+            if (!status.ok()) return status;
+            curKey = nextKey;
+        }
+        if (curKey.error().code() == ENOENT) return {};
+        return curKey.error();
+    }
+
+    // Does not allow early termination - maybe implemented with bulk api
+    Result<void> forAll(const function<void(const Key &, const Value &)> &f) const {
+        return iterate(
+            [&f](const Key &key, const Value &value) -> Result<void> {
+                f(key, value);
+                return {};
+            }
+        );
+    }
 
 #ifdef BPF_MAP_MAKE_VISIBLE_FOR_TESTING
     const unique_fd& getMap() const { return mMapFd; };
@@ -221,51 +257,15 @@ class BpfMapRO {
 };
 
 template <class Key, class Value>
-Result<void> BpfMapRO<Key, Value>::iterate(
-        const function<Result<void>(const Key& key,
-                                    const BpfMapRO<Key, Value>& map)>& filter) const {
-    Result<Key> curKey = getFirstKey();
-    while (curKey.ok()) {
-        const Result<Key>& nextKey = getNextKey(curKey.value());
-        Result<void> status = filter(curKey.value(), *this);
-        if (!status.ok()) return status;
-        curKey = nextKey;
-    }
-    if (curKey.error().code() == ENOENT) return {};
-    return curKey.error();
-}
-
-template <class Key, class Value>
-Result<void> BpfMapRO<Key, Value>::iterateWithValue(
-        const function<Result<void>(const Key& key, const Value& value,
-                                    const BpfMapRO<Key, Value>& map)>& filter) const {
-    Result<Key> curKey = getFirstKey();
-    while (curKey.ok()) {
-        const Result<Key>& nextKey = getNextKey(curKey.value());
-        Result<Value> curValue = readValue(curKey.value());
-        if (!curValue.ok()) return curValue.error();
-        Result<void> status = filter(curKey.value(), curValue.value(), *this);
-        if (!status.ok()) return status;
-        curKey = nextKey;
-    }
-    if (curKey.error().code() == ENOENT) return {};
-    return curKey.error();
-}
-
-template <class Key, class Value>
-class BpfMap : public BpfMapRO<Key, Value> {
+class BpfMapRW : public BpfMapRO<Key, Value> {
   protected:
     using BpfMapRO<Key, Value>::mMapFd;
     using BpfMapRO<Key, Value>::abortOnMismatch;
 
   public:
-    using BpfMapRO<Key, Value>::getFirstKey;
-    using BpfMapRO<Key, Value>::getNextKey;
-    using BpfMapRO<Key, Value>::readValue;
+    using BpfMapRO<Key, Value>::BpfMapRO;
 
-    BpfMap<Key, Value>() {};
-
-    explicit BpfMap<Key, Value>(const char* pathname) {
+    explicit BpfMapRW<Key, Value>(const char* pathname) {
         mMapFd.reset(mapRetrieveRW(pathname));
         abortOnMismatch(/* writable */ true);
     }
@@ -281,6 +281,30 @@ class BpfMap : public BpfMapRO<Key, Value> {
         }
         return {};
     }
+
+#ifdef BPF_MAP_MAKE_VISIBLE_FOR_TESTING
+    [[clang::reinitializes]] Result<void> resetMap(bpf_map_type map_type,
+                                                   uint32_t max_entries,
+                                                   uint32_t map_flags = 0) {
+        if (map_flags & BPF_F_WRONLY) Abort(0, "map_flags is write-only");
+        if (map_flags & BPF_F_RDONLY) Abort(0, "map_flags is read-only");
+        mMapFd.reset(createMap(map_type, sizeof(Key), sizeof(Value), max_entries,
+                               map_flags));
+        if (!mMapFd.ok()) return ErrnoErrorf("BpfMap::resetMap() failed");
+        abortOnMismatch(/* writable */ true);
+        return {};
+    }
+#endif
+};
+
+template <class Key, class Value>
+class BpfMap : public BpfMapRW<Key, Value> {
+  protected:
+    using BpfMapRW<Key, Value>::mMapFd;
+
+  public:
+    using BpfMapRW<Key, Value>::BpfMapRW;
+    using BpfMapRW<Key, Value>::getFirstKey;
 
     Result<void> deleteValue(const Key& key) {
         if (deleteMapEntry(mMapFd, &key)) {
@@ -305,109 +329,7 @@ class BpfMap : public BpfMapRO<Key, Value> {
             }
         }
     }
-
-#ifdef BPF_MAP_MAKE_VISIBLE_FOR_TESTING
-    [[clang::reinitializes]] Result<void> resetMap(bpf_map_type map_type,
-                                                   uint32_t max_entries,
-                                                   uint32_t map_flags = 0) {
-        if (map_flags & BPF_F_WRONLY) Abort(0, "map_flags is write-only");
-        if (map_flags & BPF_F_RDONLY) Abort(0, "map_flags is read-only");
-        mMapFd.reset(createMap(map_type, sizeof(Key), sizeof(Value), max_entries,
-                               map_flags));
-        if (!mMapFd.ok()) return ErrnoErrorf("BpfMap::resetMap() failed");
-        abortOnMismatch(/* writable */ true);
-        return {};
-    }
-#endif
-
-    // Iterate through the map and handle each key retrieved based on the filter
-    // without modification of map content.
-    Result<void> iterate(
-            const function<Result<void>(const Key& key,
-                                        const BpfMap<Key, Value>& map)>& filter) const;
-
-    // Iterate through the map and get each <key, value> pair, handle each <key,
-    // value> pair based on the filter without modification of map content.
-    Result<void> iterateWithValue(
-            const function<Result<void>(const Key& key, const Value& value,
-                                        const BpfMap<Key, Value>& map)>& filter) const;
-
-    // Iterate through the map and handle each key retrieved based on the filter
-    Result<void> iterate(
-            const function<Result<void>(const Key& key,
-                                        BpfMap<Key, Value>& map)>& filter);
-
-    // Iterate through the map and get each <key, value> pair, handle each <key,
-    // value> pair based on the filter.
-    Result<void> iterateWithValue(
-            const function<Result<void>(const Key& key, const Value& value,
-                                        BpfMap<Key, Value>& map)>& filter);
-
 };
-
-template <class Key, class Value>
-Result<void> BpfMap<Key, Value>::iterate(
-        const function<Result<void>(const Key& key,
-                                    const BpfMap<Key, Value>& map)>& filter) const {
-    Result<Key> curKey = getFirstKey();
-    while (curKey.ok()) {
-        const Result<Key>& nextKey = getNextKey(curKey.value());
-        Result<void> status = filter(curKey.value(), *this);
-        if (!status.ok()) return status;
-        curKey = nextKey;
-    }
-    if (curKey.error().code() == ENOENT) return {};
-    return curKey.error();
-}
-
-template <class Key, class Value>
-Result<void> BpfMap<Key, Value>::iterateWithValue(
-        const function<Result<void>(const Key& key, const Value& value,
-                                    const BpfMap<Key, Value>& map)>& filter) const {
-    Result<Key> curKey = getFirstKey();
-    while (curKey.ok()) {
-        const Result<Key>& nextKey = getNextKey(curKey.value());
-        Result<Value> curValue = readValue(curKey.value());
-        if (!curValue.ok()) return curValue.error();
-        Result<void> status = filter(curKey.value(), curValue.value(), *this);
-        if (!status.ok()) return status;
-        curKey = nextKey;
-    }
-    if (curKey.error().code() == ENOENT) return {};
-    return curKey.error();
-}
-
-template <class Key, class Value>
-Result<void> BpfMap<Key, Value>::iterate(
-        const function<Result<void>(const Key& key,
-                                    BpfMap<Key, Value>& map)>& filter) {
-    Result<Key> curKey = getFirstKey();
-    while (curKey.ok()) {
-        const Result<Key>& nextKey = getNextKey(curKey.value());
-        Result<void> status = filter(curKey.value(), *this);
-        if (!status.ok()) return status;
-        curKey = nextKey;
-    }
-    if (curKey.error().code() == ENOENT) return {};
-    return curKey.error();
-}
-
-template <class Key, class Value>
-Result<void> BpfMap<Key, Value>::iterateWithValue(
-        const function<Result<void>(const Key& key, const Value& value,
-                                    BpfMap<Key, Value>& map)>& filter) {
-    Result<Key> curKey = getFirstKey();
-    while (curKey.ok()) {
-        const Result<Key>& nextKey = getNextKey(curKey.value());
-        Result<Value> curValue = readValue(curKey.value());
-        if (!curValue.ok()) return curValue.error();
-        Result<void> status = filter(curKey.value(), curValue.value(), *this);
-        if (!status.ok()) return status;
-        curKey = nextKey;
-    }
-    if (curKey.error().code() == ENOENT) return {};
-    return curKey.error();
-}
 
 }  // namespace bpf
 }  // namespace android
