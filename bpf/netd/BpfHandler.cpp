@@ -394,21 +394,6 @@ int BpfHandler::tagSocket(int sockFd, uint32_t tag, uid_t chargeUid, uid_t realU
     uint64_t sock_cookie = getSocketCookie(sockFd);
     if (!sock_cookie) return -errno;
 
-    UidTagValue newKey = {.uid = (uint32_t)chargeUid, .tag = tag};
-
-    uint32_t totalEntryCount = 0;
-    uint32_t perUidEntryCount = 0;
-    // Now we go through the stats map and count how many entries are associated
-    // with chargeUid. If the uid entry hit the limit for each chargeUid, we block
-    // the request to prevent the map from overflow. Note though that it isn't really
-    // safe here to iterate over the map since it might be modified by the system server,
-    // which might toggle the live stats map and clean it.
-    const auto countUidStatsEntries =
-    [chargeUid, &totalEntryCount, &perUidEntryCount](const StatsKey& key) {
-        if (key.uid == chargeUid) perUidEntryCount++;
-        totalEntryCount++;
-        return base::Result<void>();
-    };
     auto configuration = mConfigurationMap.readValue(CURRENT_STATS_MAP_CONFIGURATION_KEY);
     if (!configuration.ok()) {
         ALOGE("Failed to get current configuration: %s",
@@ -422,7 +407,20 @@ int BpfHandler::tagSocket(int sockFd, uint32_t tag, uid_t chargeUid, uid_t realU
 
     BpfMapRO<StatsKey, StatsValue>& currentMap =
             (configuration.value() == SELECT_MAP_A) ? mStatsMapA : mStatsMapB;
-    base::Result<void> res = currentMap.iterate(countUidStatsEntries);
+
+    uint32_t totalEntryCount = 0;
+    uint32_t perUidEntryCount = 0;
+    // Now we go through the stats map and count how many entries are associated
+    // with chargeUid. If the uid entry hit the limit for each chargeUid, we block
+    // the request to prevent the map from overflow. Note though that it isn't really
+    // safe here to iterate over the map since it might be modified by the system server,
+    // which might toggle the live stats map and clean it.
+    base::Result<void> res = currentMap.forAll(
+        [chargeUid, &totalEntryCount, &perUidEntryCount](const StatsKey& key) {
+            if (key.uid == chargeUid) perUidEntryCount++;
+            totalEntryCount++;
+        }
+    );
     if (!res.ok()) {
         ALOGE("Failed to count the stats entry in map: %s",
               strerror(res.error().code()));
@@ -441,6 +439,7 @@ int BpfHandler::tagSocket(int sockFd, uint32_t tag, uid_t chargeUid, uid_t realU
     // yet and update the tag if there is already a tag stored. Since the eBPF
     // program in kernel only read this map, and is protected by rcu read lock. It
     // should be fine to concurrently update the map while eBPF program is running.
+    UidTagValue newKey = {.uid = (uint32_t)chargeUid, .tag = tag};
     res = mCookieTagMap.writeValue(sock_cookie, newKey, BPF_ANY);
     if (!res.ok()) {
         ALOGE("Failed to tag the socket: %s", strerror(res.error().code()));
