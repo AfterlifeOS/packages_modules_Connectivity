@@ -153,14 +153,17 @@ stats_line populateStatsEntry(const StatsKey& statsKey, const StatsValue& statsE
     return newLine;
 }
 
+// Note: return code is *informational* only, lines always contains whatever we managed to retrieve
+// and the contents of the statsMap is consumed (ie. cleared).
 int parseBpfNetworkStatsDetailInternal(std::vector<stats_line>& lines,
-                                       const BpfMapRO<StatsKey, StatsValue>& statsMap,
+                                       BpfMap<StatsKey, StatsValue>& statsMap,
                                        const IfIndexToNameFunc ifindex2name) {
     int64_t unknownIfaceBytesTotal = 0;
-    Result<void> res = statsMap.forAll(
+    Result<void> res = statsMap.consume(
         [&lines, &unknownIfaceBytesTotal, &ifindex2name, &statsMap](const StatsKey &key, const StatsValue &value) {
             Result<IfaceValue> ifname = ifindex2name(key.ifaceIndex);
             if (!ifname.ok()) {
+                // these stats will be lost/deleted
                 maybeLogUnknownIface(key.ifaceIndex, statsMap, key, &unknownIfaceBytesTotal);
                 return;
             }
@@ -173,11 +176,6 @@ int parseBpfNetworkStatsDetailInternal(std::vector<stats_line>& lines,
             }
         }
     );
-    if (!res.ok()) {
-        ALOGE("failed to iterate per uid Stats map for detail traffic stats: %s",
-              strerror(res.error().code()));
-        return -res.error().code();
-    }
 
     // Since eBPF use hash map to record stats, network stats collected from
     // eBPF will be out of order. And the performance of findIndexHinted in
@@ -189,6 +187,19 @@ int parseBpfNetworkStatsDetailInternal(std::vector<stats_line>& lines,
     //
     // Thus, the stats needs to be properly sorted and grouped before reported.
     groupNetworkStats(lines);
+
+    // There isn't really an expected way for consume() to fail, either:
+    // - map iteration failed: getFirstKey() & getNextKey(K) with something besides ENOENT
+    // - readValue(K) / deleteValue(K) failed for a K that was just in the map...
+    // but the map is inactive and noone should be modifying it...
+    //
+    // Even if it does somehow fail, whatever we did retrieve is valid data,
+    // hence this return code is informational only (mostly for tests)
+    if (!res.ok()) {
+        ALOGE("failed to consume per uid Stats map for detail traffic stats: %s",
+              strerror(res.error().code()));
+        return -res.error().code();
+    }
     return 0;
 }
 
@@ -222,18 +233,8 @@ int parseBpfNetworkStatsDetail(std::vector<stats_line>* lines) {
     // TODO: the above comment feels like it may be obsolete / out of date,
     // since we no longer swap the map via netd binder rpc - though we do
     // still swap it.
-    int ret = parseBpfNetworkStatsDetailInternal(*lines, *inactiveStatsMap, ifindex2name);
-    if (ret) {
-        ALOGE("parse detail network stats failed: %s", strerror(errno));
-        return ret;
-    }
-
-    Result<void> res = inactiveStatsMap->clear();
-    if (!res.ok()) {
-        ALOGE("Clean up current stats map failed: %s", strerror(res.error().code()));
-        return -res.error().code();
-    }
-
+    // Ignore errors and return what we can.
+    (void)parseBpfNetworkStatsDetailInternal(*lines, *inactiveStatsMap, ifindex2name);
     return 0;
 }
 

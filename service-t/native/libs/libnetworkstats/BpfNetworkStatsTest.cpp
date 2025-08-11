@@ -50,6 +50,7 @@ constexpr int TEST_MAP_SIZE = 10;
 constexpr uid_t TEST_UID1 = 10086;
 constexpr uid_t TEST_UID2 = 12345;
 constexpr uint32_t TEST_TAG = 42;
+constexpr uint32_t TEST_TAG2 = 43;
 constexpr int TEST_COUNTERSET0 = 0;
 constexpr int TEST_COUNTERSET1 = 1;
 constexpr uint64_t TEST_BYTES0 = 1000;
@@ -73,7 +74,7 @@ class BpfNetworkStatsHelperTest : public testing::Test {
     BpfNetworkStatsHelperTest() {}
     BpfMap<uint64_t, UidTagValue> mFakeCookieTagMap;
     BpfMapRW<uint32_t, StatsValue> mFakeAppUidStatsMap;
-    BpfMapRW<StatsKey, StatsValue> mFakeStatsMap;
+    BpfMap<StatsKey, StatsValue> mFakeStatsMap;
     BpfMapRW<uint32_t, IfaceValue> mFakeIfaceIndexNameMap;
     BpfMapRW<uint32_t, StatsValue> mFakeIfaceStatsMap;
 
@@ -302,8 +303,7 @@ TEST_F(BpfNetworkStatsHelperTest, TestGetStatsDetail) {
     };
     populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeStatsMap);
     populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX2, TEST_COUNTERSET0, value1, mFakeStatsMap);
-    populateFakeStats(TEST_UID1, TEST_TAG + 1, IFACE_INDEX1, TEST_COUNTERSET0, value1,
-                      mFakeStatsMap);
+    populateFakeStats(TEST_UID1, TEST_TAG2, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeStatsMap);
     populateFakeStats(TEST_UID2, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeStatsMap);
     std::vector<stats_line> lines;
     ASSERT_EQ(0, parseBpfNetworkStatsDetailInternal(lines, mFakeStatsMap, mIfIndex2Name));
@@ -454,16 +454,23 @@ TEST_F(BpfNetworkStatsHelperTest, TestGetStatsSortedAndGrouped) {
     expectStatsLineEqual(value1, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, TEST_TAG, lines[1]);
     lines.clear();
 
+    // bpf map was consumed, repopulate it with same data as above:
+    populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeStatsMap);
     // These items should not be grouped.
     populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX2, TEST_COUNTERSET0, value2, mFakeStatsMap);
     populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX3, TEST_COUNTERSET1, value2, mFakeStatsMap);
-    populateFakeStats(TEST_UID1, TEST_TAG + 1, IFACE_INDEX1, TEST_COUNTERSET0, value2,
-                      mFakeStatsMap);
+    populateFakeStats(TEST_UID1, TEST_TAG2, IFACE_INDEX1, TEST_COUNTERSET0, value2, mFakeStatsMap);
     populateFakeStats(TEST_UID2, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeStatsMap);
     ASSERT_EQ(0, parseBpfNetworkStatsDetailInternal(lines, mFakeStatsMap, mIfIndex2Name));
     ASSERT_EQ((size_t) 9, lines.size());
     lines.clear();
 
+    // bpf map was consumed, repopulate it again with same data as above:
+    populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeStatsMap);
+    populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX2, TEST_COUNTERSET0, value2, mFakeStatsMap);
+    populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX3, TEST_COUNTERSET1, value2, mFakeStatsMap);
+    populateFakeStats(TEST_UID1, TEST_TAG2, IFACE_INDEX1, TEST_COUNTERSET0, value2, mFakeStatsMap);
+    populateFakeStats(TEST_UID2, TEST_TAG, IFACE_INDEX1, TEST_COUNTERSET0, value1, mFakeStatsMap);
     // These items should be grouped.
     populateFakeStats(TEST_UID1, TEST_TAG, IFACE_INDEX3, TEST_COUNTERSET0, value1, mFakeStatsMap);
     populateFakeStats(TEST_UID2, TEST_TAG, IFACE_INDEX3, TEST_COUNTERSET0, value1, mFakeStatsMap);
@@ -476,7 +483,7 @@ TEST_F(BpfNetworkStatsHelperTest, TestGetStatsSortedAndGrouped) {
     expectStatsLineEqual(value2, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET1, 0,            lines[1]);
     expectStatsLineEqual(value3, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, TEST_TAG,     lines[2]);
     expectStatsLineEqual(value2, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET1, TEST_TAG,     lines[3]);
-    expectStatsLineEqual(value2, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, TEST_TAG + 1, lines[4]);
+    expectStatsLineEqual(value2, IFACE_NAME1, TEST_UID1, TEST_COUNTERSET0, TEST_TAG2,    lines[4]);
     expectStatsLineEqual(value3, IFACE_NAME1, TEST_UID2, TEST_COUNTERSET0, 0,            lines[5]);
     expectStatsLineEqual(value3, IFACE_NAME1, TEST_UID2, TEST_COUNTERSET0, TEST_TAG,     lines[6]);
     expectStatsLineEqual(value2, IFACE_NAME2, TEST_UID1, TEST_COUNTERSET0, 0,            lines[7]);
