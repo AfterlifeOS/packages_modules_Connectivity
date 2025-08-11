@@ -89,6 +89,17 @@ int bpfGetIfaceStatsInternal(const char* iface, StatsValue* stats,
                              const BpfMapRO<uint32_t, StatsValue>& ifaceStatsMap,
                              const IfIndexToNameFunc ifindex2name) {
     *stats = {};
+
+    if (!iface) { // wildcard iface
+        auto res = ifaceStatsMap.forAll(
+            [stats](const uint32_t &, const StatsValue &value) {
+                *stats += value;
+            }
+        );
+        return res.ok() ? 0 : -res.error().code();
+    }
+
+    // specific iface
     int64_t unknownIfaceBytesTotal = 0;
     auto res = ifaceStatsMap.iterate(
         [iface, stats, ifindex2name, &unknownIfaceBytesTotal, &ifaceStatsMap](const uint32_t& key) -> Result<void> {
@@ -97,7 +108,8 @@ int bpfGetIfaceStatsInternal(const char* iface, StatsValue* stats,
                 maybeLogUnknownIface(key, ifaceStatsMap, key, &unknownIfaceBytesTotal);
                 return {};
             }
-            if (!iface || !strcmp(iface, ifname.value().name)) {
+            if (!strcmp(iface, ifname.value().name)) {
+                // TODO: bulk api makes this readValue() inefficient - use forAll(K, V)
                 Result<StatsValue> statsEntry = ifaceStatsMap.readValue(key);
                 if (!statsEntry.ok()) return statsEntry.error();
                 *stats += statsEntry.value();
