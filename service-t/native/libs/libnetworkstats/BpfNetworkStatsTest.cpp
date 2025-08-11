@@ -179,12 +179,11 @@ TEST_F(BpfNetworkStatsHelperTest, TestBpfIterateMap) {
     }
     int totalCount = 0;
     int totalSum = 0;
-    EXPECT_RESULT_OK(mFakeCookieTagMap.iterate(
-        [&totalCount, &totalSum](const uint64_t& key) -> Result<void> {
+    EXPECT_RESULT_OK(mFakeCookieTagMap.forAll(
+        [&totalCount, &totalSum](const uint64_t& key) {
             EXPECT_GE((uint64_t)5, key);
             totalCount++;
             totalSum += key;
-            return Result<void>();
         }
     ));
     EXPECT_EQ(5, totalCount);

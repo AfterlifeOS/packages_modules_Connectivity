@@ -219,6 +219,25 @@ TEST_F(BpfMapTest, iterateKeyValue) {
     expectMapEmpty(testMap);
 }
 
+TEST_F(BpfMapTest, consume) {
+    BpfMap<uint32_t, uint32_t> testMap;
+    ASSERT_RESULT_OK(testMap.resetMap(BPF_MAP_TYPE_HASH, TEST_MAP_SIZE, BPF_F_NO_PREALLOC));
+    populateMap(TEST_MAP_SIZE, testMap);
+    int totalCount = 0;
+    int totalSum = 0;
+    EXPECT_RESULT_OK(testMap.consume(
+        [&totalCount, &totalSum](const uint32_t& key, const uint32_t& value) {
+            EXPECT_GE((uint32_t)TEST_MAP_SIZE, key);
+            EXPECT_EQ(value, key * 10);
+            totalCount++;
+            totalSum += value;
+        }
+    ));
+    EXPECT_EQ((int)TEST_MAP_SIZE, totalCount);
+    EXPECT_EQ(((1 + TEST_MAP_SIZE - 1) * (TEST_MAP_SIZE - 1)) * 5, (uint32_t)totalSum);
+    expectMapEmpty(testMap);
+}
+
 TEST_F(BpfMapTest, mapIsEmpty) {
     BpfMap<uint32_t, uint32_t> testMap;
     ASSERT_RESULT_OK(testMap.resetMap(BPF_MAP_TYPE_HASH, TEST_MAP_SIZE, BPF_F_NO_PREALLOC));
@@ -234,17 +253,15 @@ TEST_F(BpfMapTest, mapIsEmpty) {
     ASSERT_EQ(ENOENT, errno);
     expectMapEmpty(testMap);
     int entriesSeen = 0;
-    EXPECT_RESULT_OK(testMap.iterate(
-        [&entriesSeen](const unsigned int&) -> Result<void> {
+    EXPECT_RESULT_OK(testMap.forAll(
+        [&entriesSeen](const unsigned int&) {
             entriesSeen++;
-            return {};
         }
     ));
     EXPECT_EQ(0, entriesSeen);
-    EXPECT_RESULT_OK(testMap.iterate(
-        [&entriesSeen](const unsigned int&, const unsigned int&) -> Result<void> {
+    EXPECT_RESULT_OK(testMap.forAll(
+        [&entriesSeen](const unsigned int&, const unsigned int&) {
             entriesSeen++;
-            return {};
         }
     ));
     EXPECT_EQ(0, entriesSeen);
