@@ -125,7 +125,7 @@ class BpfMapRO {
         return nextKey;
     }
 
-    Result<Value> readValue(const Key key) const {
+    Result<Value> readValue(const Key& key) const {
         Value value;
         if (findMapEntry(mMapFd, &key, &value)) {
             return ErrnoErrorf("BpfMap::readValue() failed");
