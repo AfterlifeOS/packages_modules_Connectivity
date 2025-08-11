@@ -13,7 +13,7 @@
 #  limitations under the License.
 
 import time
-from android.platform.test.annotations import VsrTest
+from android.platform.test.annotations import CddTest, VsrTest
 from mobly import asserts
 from net_tests_utils.host.python import adb_utils, apf_test_base, apf_utils, assert_utils
 from scapy.contrib.igmpv3 import IGMPv3, IGMPv3gr, IGMPv3mq, IGMPv3mr
@@ -50,6 +50,7 @@ ARP_OFFLOAD_REPLY_LEN = 60
         'VSR-5.3.12-017',
     ]
 )
+@CddTest(requirements=['7.4.5.2/C-0-5', '7.4.2/C-1-4'])
 class ApfV6Test(apf_test_base.ApfTestBase):
 
   def setup_class(self):
