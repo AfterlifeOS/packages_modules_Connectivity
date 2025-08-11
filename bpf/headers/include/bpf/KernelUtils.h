@@ -37,13 +37,14 @@ static inline unsigned uncachedKernelVersion() {
     return KVER(kver_major, kver_minor, kver_sub);
 }
 
-static inline unsigned kernelVersion() {
-    static unsigned kver = uncachedKernelVersion();
-    return kver;
+static unsigned kernelVer = uncachedKernelVersion();
+
+static inline unsigned __unused kernelVersion() {
+    return kernelVer;
 }
 
 static inline bool isAtLeastKernelVersion(unsigned major, unsigned minor, unsigned sub) {
-    return kernelVersion() >= KVER(major, minor, sub);
+    return kernelVer >= KVER(major, minor, sub);
 }
 
 static inline bool isKernelVersion(unsigned major, unsigned minor) {

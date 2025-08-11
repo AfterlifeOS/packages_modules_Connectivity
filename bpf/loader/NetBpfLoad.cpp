@@ -814,8 +814,6 @@ static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<
         if (ret) return ret;
     }
 
-    unsigned kvers = kernelVersion();
-
     for (unsigned i = 0; i < md.size(); i++) {
         if (bpfloader_ver < md[i].bpfloader_min_ver) {
             ALOGD("skipping map %s which requires bpfloader min ver 0x%05x", md[i].name(),
@@ -831,16 +829,16 @@ static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<
             continue;
         }
 
-        if (kvers < md[i].min_kver) {
+        if (kernelVer < md[i].min_kver) {
             ALOGD("skipping map %s which requires kernel version 0x%x >= 0x%x",
-                  md[i].name(), kvers, md[i].min_kver);
+                  md[i].name(), kernelVer, md[i].min_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
-        if (kvers >= md[i].max_kver) {
+        if (kernelVer >= md[i].max_kver) {
             ALOGD("skipping map %s which requires kernel version 0x%x < 0x%x",
-                  md[i].name(), kvers, md[i].max_kver);
+                  md[i].name(), kernelVer, md[i].max_kver);
             mapFds.push_back(unique_fd());
             continue;
         }
@@ -1042,13 +1040,6 @@ static int validateProg(const borrowed_fd& fd, const char* const progPinLoc,
 
 static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const string& license,
                             const unsigned int bpfloader_ver) {
-    unsigned kvers = kernelVersion();
-
-    if (!kvers) {
-        ALOGE("unable to get kernel version");
-        return -EINVAL;
-    }
-
     for (int i = 0; i < (int)cs.size(); i++) {
         unique_fd& fd = cs[i].prog_fd;
         int ret;
@@ -1060,10 +1051,10 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
 
         unsigned min_kver = cs[i].prog_def->min_kver;
         unsigned max_kver = cs[i].prog_def->max_kver;
-        ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kvers:%x)",
-             i, cs[i].prog_def->name(), min_kver, max_kver, kvers);
-        if (kvers < min_kver) continue;
-        if (kvers >= max_kver) continue;
+        ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kernelVer:%x)",
+             i, cs[i].prog_def->name(), min_kver, max_kver, kernelVer);
+        if (kernelVer < min_kver) continue;
+        if (kernelVer >= max_kver) continue;
 
         unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
         unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
@@ -1143,8 +1134,6 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
 
 static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md,
                            const unsigned int bpfloader_ver) {
-    unsigned kvers = kernelVersion();
-
     for (unsigned i = 0; i < md.size(); i++) {
         struct bpf_map* m = bpf_object__find_map_by_name(obj, md[i].name());
         if (!m) {
@@ -1160,9 +1149,9 @@ static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf
             continue;
         }
 
-        if (kvers < md[i].min_kver || kvers >= md[i].max_kver) {
+        if (kernelVer < md[i].min_kver || kernelVer >= md[i].max_kver) {
             ALOGD("skipping map %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
-                  md[i].name(), kvers, md[i].min_kver, md[i].max_kver);
+                  md[i].name(), kernelVer, md[i].min_kver, md[i].max_kver);
             bpf_map__set_autocreate(m, false);
             continue;
         }
@@ -1181,8 +1170,6 @@ static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf
 
 static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs,
                             const unsigned int bpfloader_ver) {
-    unsigned kvers = kernelVersion();
-
     for (int i = 0; i < (int)cs.size(); i++) {
         if (!cs[i].prog_def.has_value()) {
             ALOGE("[%d] missing program definition! bad bpf.o build?", i);
@@ -1197,9 +1184,9 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
 
         unsigned min_kver = cs[i].prog_def->min_kver;
         unsigned max_kver = cs[i].prog_def->max_kver;
-        if (kvers < min_kver || kvers >= max_kver) {
+        if (kernelVer < min_kver || kernelVer >= max_kver) {
             ALOGD("skipping prog %s: kernel version 0x%x is outside required range [0x%x, 0x%x)",
-                  cs[i].prog_def->name(), kvers, min_kver, max_kver);
+                  cs[i].prog_def->name(), kernelVer, min_kver, max_kver);
             bpf_program__set_autoload(prog, false);
             continue;
         }
@@ -1596,7 +1583,7 @@ static int doLoad(char** argv, char * const envp[]) {
     ALOGI("NetBpfLoad v0.%u (%s) api:%d/%d kver:%07x (%s) libbpf: v%u.%u "
           "uid:%d rc:%d%d",
           bpfloader_ver, argv[0], android_get_device_api_level(), api_level,
-          kernelVersion(), describeArch(), libbpf_major_version(),
+          kernelVer, describeArch(), libbpf_major_version(),
           libbpf_minor_version(), getuid(), has_platform_bpfloader_rc,
           has_platform_netbpfload_rc);
 
@@ -1613,6 +1600,7 @@ static int doLoad(char** argv, char * const envp[]) {
     logTetheringApexVersion();
 
     // both S and T require kernel 4.9 (and eBpf support)
+    // (this also guarantees 'kernelVer' isn't an invalid uninitialized 0)
     if (!isAtLeastKernelVersion(4, 9, 0)) {
         ALOGE("Android S & T require kernel 4.9.");
         return 3;
@@ -1694,7 +1682,7 @@ static int doLoad(char** argv, char * const envp[]) {
 #undef REQUIRE
 
         if (bad) {
-            ALOGE("Unsupported kernel version (%07x).", kernelVersion());
+            ALOGE("Unsupported kernel version (%07x).", kernelVer);
         }
     }
 
