@@ -28,6 +28,9 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
+import dalvik.annotation.optimization.CriticalNative;
+import dalvik.annotation.optimization.FastNative;
+
 import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
@@ -262,9 +265,14 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
 
     /** Synchronize Kernel RCU */
     public static void synchronizeKernelRCU() throws ErrnoException {
-        nativeSynchronizeKernelRCU();
+        final int err = nativeSynchronizeKernelRCU();
+        if (err != 0) {
+            final int errno = -err;
+            throw new ErrnoException("nativeSynchronizeKernelRCU", errno);
+        }
     }
 
+    @FastNative
     private static native int nativeBpfFdGet(String path, int mode, int keySize, int valueSize)
             throws ErrnoException, NullPointerException;
 
@@ -273,19 +281,24 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
     // the object from being garbage collected (and thus potentially maps closed) prior
     // to the native code actually running (with a possibly already closed fd).
 
+    @FastNative
     private native void nativeWriteToMapEntry(int fd, byte[] key, byte[] value, int flags)
             throws ErrnoException;
 
+    @FastNative
     private native boolean nativeDeleteMapEntry(int fd, byte[] key) throws ErrnoException;
 
     // If key is found, the operation returns true and the nextKey would reference to the next
     // element.  If key is not found, the operation returns true and the nextKey would reference to
     // the first element.  If key is the last element, false is returned.
+    @FastNative
     private native boolean nativeGetNextMapKey(int fd, byte[] key, byte[] nextKey)
             throws ErrnoException;
 
+    @FastNative
     private native boolean nativeFindMapEntry(int fd, byte[] key, byte[] value)
             throws ErrnoException;
 
-    private static native void nativeSynchronizeKernelRCU() throws ErrnoException;
+    @CriticalNative
+    private static native int nativeSynchronizeKernelRCU();
 }

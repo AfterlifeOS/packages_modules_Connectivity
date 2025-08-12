@@ -135,20 +135,12 @@ static jboolean com_android_net_module_util_BpfMap_nativeFindMapEntry(JNIEnv *en
     return throwIfNotEnoent(env, "nativeFindMapEntry", ret, errno);
 }
 
-static void com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU(JNIEnv *env,
-                                                                          jclass clazz) {
+static jint com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU() {
     const int pfSocket = socket(AF_KEY, SOCK_RAW | SOCK_CLOEXEC, PF_KEY_V2);
-
-    if (pfSocket < 0) {
-        jniThrowErrnoException(env, "nativeSynchronizeKernelRCU:socket", errno);
-        return;
-    }
-
-    if (close(pfSocket)) {
-        jniThrowErrnoException(env, "nativeSynchronizeKernelRCU:close", errno);
-        return;
-    }
-    return;
+    if (pfSocket < 0) return -errno;
+    // On Linux close() will always close the fd, any error it returns is a previous pending error.
+    if (close(pfSocket)) return -errno;  // in practice cannot fail
+    return 0;
 }
 
 /*
@@ -166,7 +158,8 @@ static const JNINativeMethod gMethods[] = {
         (void*) com_android_net_module_util_BpfMap_nativeGetNextMapKey },
     { "nativeFindMapEntry", "(I[B[B)Z",
         (void*) com_android_net_module_util_BpfMap_nativeFindMapEntry },
-    { "nativeSynchronizeKernelRCU", "()V",
+    // CriticalNative
+    { "nativeSynchronizeKernelRCU", "()I",
         (void*) com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU },
 
 };
