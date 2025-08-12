@@ -37,7 +37,7 @@ static inline unsigned uncachedKernelVersion() {
     return KVER(kver_major, kver_minor, kver_sub);
 }
 
-static unsigned kernelVer = uncachedKernelVersion();
+static const unsigned kernelVer = uncachedKernelVersion();
 
 static inline unsigned __unused kernelVersion() {
     return kernelVer;
