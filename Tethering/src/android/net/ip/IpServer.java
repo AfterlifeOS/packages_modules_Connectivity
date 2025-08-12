@@ -42,8 +42,6 @@ import static android.system.OsConstants.RT_SCOPE_UNIVERSE;
 import static com.android.net.module.util.Inet4AddressUtils.intToInet4AddressHTH;
 import static com.android.net.module.util.NetworkStackConstants.RFC7421_PREFIX_LENGTH;
 import static com.android.networkstack.tethering.TetheringConfiguration.USE_SYNC_SM;
-import static com.android.networkstack.tethering.TetheringFeatureFlags.TETHERING_LOCAL_NETWORK_AGENT;
-import static com.android.networkstack.tethering.TetheringFeatureFlags.WIFIP2PGO_LOCAL_NETWORK_AGENT;
 import static com.android.networkstack.tethering.util.PrefixUtils.asIpPrefix;
 import static com.android.networkstack.tethering.util.TetheringMessageBase.BASE_IPSERVER;
 import static com.android.networkstack.tethering.util.TetheringUtils.getTransportTypeForTetherableType;
@@ -86,7 +84,6 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.MessageUtils;
 import com.android.internal.util.State;
 import com.android.modules.utils.build.SdkLevel;
-import com.android.net.module.util.DeviceConfigUtils;
 import com.android.net.module.util.IIpv4PrefixRequest;
 import com.android.net.module.util.InterfaceParams;
 import com.android.net.module.util.NetdUtils;
@@ -100,6 +97,7 @@ import com.android.networkstack.tethering.metrics.TetheringMetrics;
 import com.android.networkstack.tethering.util.InterfaceSet;
 import com.android.networkstack.tethering.util.PrefixUtils;
 import com.android.networkstack.tethering.util.StateMachineShim;
+import com.android.tethering.mainline.beta.Flags;
 
 import java.net.Inet4Address;
 import java.net.Inet6Address;
@@ -217,11 +215,9 @@ public class IpServer extends StateMachineShim {
         public abstract void makeDhcpServer(String ifName, DhcpServingParamsParcel params,
                 DhcpServerCallbacks cb);
 
-        /**
-         * @see DeviceConfigUtils#isTetheringFeatureEnabled
-         */
-        public boolean isFeatureEnabled(Context context, String name) {
-            return DeviceConfigUtils.isTetheringFeatureEnabled(context, name);
+        /** Get whether TETHERING_AND_P2P_GO_LOCAL_AGENT feature is enabled. */
+        public boolean isTetheringAndP2pGoLocalAgentEnabled() {
+            return Flags.tetheringAndP2pGoLocalAgent();
         }
 
         /** Create a NetworkAgent instance to be used by IpServer. */
@@ -335,8 +331,8 @@ public class IpServer extends StateMachineShim {
     private final Handler mHandler;
     private final Context mContext;
 
-    private final boolean mSupportTetheringLocalAgent;
-    private final boolean mSupportWifiP2pGroupOwnerLocalAgent;
+    // Whether to enable tethering and Wi-Fi P2p Group Owner mode local network agent.
+    private final boolean mSupportTetheringAndP2pGoLocalAgent;
 
     // This will be null if the TetheredState is not entered or feature not supported.
     // This will be only accessed from the IpServer handler thread.
@@ -381,11 +377,9 @@ public class IpServer extends StateMachineShim {
         mLastError = TETHER_ERROR_NO_ERROR;
         mServingMode = STATE_AVAILABLE;
 
-        // Tethering network agent is supported on V+, and will be rolled out gradually.
-        mSupportTetheringLocalAgent = SdkLevel.isAtLeastV()
-                && mDeps.isFeatureEnabled(mContext, TETHERING_LOCAL_NETWORK_AGENT);
-        mSupportWifiP2pGroupOwnerLocalAgent = mSupportTetheringLocalAgent
-                && mDeps.isFeatureEnabled(mContext, WIFIP2PGO_LOCAL_NETWORK_AGENT);
+        // Tethering network agent is supported on V+, and will be adopting mainline beta program.
+        mSupportTetheringAndP2pGoLocalAgent = SdkLevel.isAtLeastV()
+                && mDeps.isTetheringAndP2pGoLocalAgentEnabled();
 
         mInitialState = new InitialState();
         mLocalHotspotState = new LocalHotspotState();
@@ -1176,8 +1170,7 @@ public class IpServer extends StateMachineShim {
 
         @SuppressLint("NewApi")
         private void startServingInterface() {
-            if (mSupportTetheringLocalAgent && (mSupportWifiP2pGroupOwnerLocalAgent
-                    || getScope() != CONNECTIVITY_SCOPE_LOCAL)) {
+            if (mSupportTetheringAndP2pGoLocalAgent) {
                 try {
                     mTetheringAgent = mDeps.makeNetworkAgent(mContext, Looper.myLooper(), TAG,
                             mInterfaceType, mLinkProperties);

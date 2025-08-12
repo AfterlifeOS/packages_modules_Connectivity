@@ -40,8 +40,6 @@ import static android.net.ip.IpServer.getTetherableIpv6Prefixes;
 import static com.android.modules.utils.build.SdkLevel.isAtLeastT;
 import static com.android.modules.utils.build.SdkLevel.isAtLeastV;
 import static com.android.net.module.util.Inet4AddressUtils.intToInet4AddressHTH;
-import static com.android.networkstack.tethering.TetheringFeatureFlags.TETHERING_LOCAL_NETWORK_AGENT;
-import static com.android.networkstack.tethering.TetheringFeatureFlags.WIFIP2PGO_LOCAL_NETWORK_AGENT;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -110,6 +108,8 @@ import com.android.testutils.DevSdkIgnoreRule;
 import com.android.testutils.DevSdkIgnoreRule.IgnoreAfter;
 import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo;
 import com.android.testutils.com.android.testutils.SetFeatureFlagsRule;
+import com.android.testutils.com.android.testutils.SetFeatureFlagsRule.FeatureFlag;
+import com.android.tethering.mainline.beta.Flags;
 
 import org.junit.Before;
 import org.junit.Rule;
@@ -227,9 +227,8 @@ public class IpServerTest {
         when(mDependencies.getInterfaceParams(UPSTREAM_IFACE)).thenReturn(UPSTREAM_IFACE_PARAMS);
         when(mDependencies.getInterfaceParams(UPSTREAM_IFACE2)).thenReturn(UPSTREAM_IFACE_PARAMS2);
         when(mDependencies.getInterfaceParams(IPSEC_IFACE)).thenReturn(IPSEC_IFACE_PARAMS);
-        doAnswer(
-                invocation -> mFeatureFlags.getOrDefault((String) invocation.getArgument(1), false)
-        ).when(mDependencies).isFeatureEnabled(any(), anyString());
+        doReturn(mFeatureFlags.getOrDefault(Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, false))
+                .when(mDependencies).isTetheringAndP2pGoLocalAgentEnabled();
         if (isAtLeastV()) {
             when(mDependencies.makeNetworkAgent(any(), any(), anyString(), anyInt(), any()))
                     .thenReturn(mNetworkAgent);
@@ -376,7 +375,8 @@ public class IpServerTest {
     }
 
     private boolean isTetheringNetworkAgentFeatureEnabled() {
-        return isAtLeastV() && mFeatureFlags.getOrDefault(TETHERING_LOCAL_NETWORK_AGENT, false);
+        return isAtLeastV() && mFeatureFlags.getOrDefault(
+                Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, false);
     }
 
     @Test
@@ -1115,40 +1115,20 @@ public class IpServerTest {
         return true;
     }
 
+    @FeatureFlag(name = Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT)
     @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @SetFeatureFlagsRule.FeatureFlag(name = TETHERING_LOCAL_NETWORK_AGENT)
     @Test
     public void testTetheringNetworkAgent_tetheringAgentEnabled() throws Exception {
         doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_GLOBAL, true);
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, true);
     }
 
+    @FeatureFlag(name = Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, enabled = false)
     @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @SetFeatureFlagsRule.FeatureFlag(name = TETHERING_LOCAL_NETWORK_AGENT, enabled = false)
-    @SetFeatureFlagsRule.FeatureFlag(name = WIFIP2PGO_LOCAL_NETWORK_AGENT)
     @Test
     public void testTetheringNetworkAgent_tetheringAgentDisabled() throws Exception {
         doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_GLOBAL, false);
-        // Even if the flag is enabled, no wifip2p network agent if the tethering network
-        // agent feature is not supported.
         doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, false);
-    }
-
-    // Verify Tethering Network Agent feature doesn't affect Wi-fi P2P Group Owner although
-    // the code is mostly shared.
-    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @SetFeatureFlagsRule.FeatureFlag(name = TETHERING_LOCAL_NETWORK_AGENT)
-    @SetFeatureFlagsRule.FeatureFlag(name = WIFIP2PGO_LOCAL_NETWORK_AGENT, enabled = false)
-    @Test
-    public void testTetheringNetworkAgent_p2pGroupOwnerAgentDisabled() throws Exception {
-        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, false);
-    }
-
-    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @SetFeatureFlagsRule.FeatureFlag(name = TETHERING_LOCAL_NETWORK_AGENT)
-    @SetFeatureFlagsRule.FeatureFlag(name = WIFIP2PGO_LOCAL_NETWORK_AGENT)
-    @Test
-    public void testTetheringNetworkAgent_p2pGroupOwnerAgentEnabled() throws Exception {
-        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, true);
     }
 
     private void doTestTetheringNetworkAgent(int scope, boolean expectAgentEnabled)
@@ -1184,8 +1164,8 @@ public class IpServerTest {
     }
 
     // Verify if the registration failed, tethering can be gracefully shutdown.
+    @FeatureFlag(name = Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT)
     @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @SetFeatureFlagsRule.FeatureFlag(name = TETHERING_LOCAL_NETWORK_AGENT)
     @Test
     public void testTetheringNetworkAgent_registerThrows() throws Exception {
         initStateMachine(TETHERING_USB);
@@ -1207,8 +1187,8 @@ public class IpServerTest {
     }
 
     // Verify if the network creation failed, tethering can be gracefully shutdown.
+    @FeatureFlag(name = Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT)
     @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @SetFeatureFlagsRule.FeatureFlag(name = TETHERING_LOCAL_NETWORK_AGENT)
     @Test
     public void testTetheringNetworkAgent_netdThrows() throws Exception {
         initStateMachine(TETHERING_USB);
@@ -1229,8 +1209,8 @@ public class IpServerTest {
     }
 
     // Verify when IPv6 address update, set routes accordingly.
+    @FeatureFlag(name = Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT)
     @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @SetFeatureFlagsRule.FeatureFlag(name = TETHERING_LOCAL_NETWORK_AGENT)
     @Test
     public void testTetheringNetworkAgent_ipv6AddressUpdate() throws Exception {
         initStateMachine(TETHERING_USB);
