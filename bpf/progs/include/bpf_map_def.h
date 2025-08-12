@@ -141,7 +141,7 @@ struct bpf_map_def {
     unsigned int bpfloader_min_ver;
     unsigned int bpfloader_max_ver;
 
-    // kernelVersion() must be >= min_kver and < max_kver
+    // kernelVer must be >= min_kver and < max_kver
     unsigned int min_kver;
     unsigned int max_kver;
 
@@ -173,7 +173,7 @@ struct bpf_prog_def {
     unsigned int uid;
     unsigned int gid;
 
-    // kernelVersion() must be >= min_kver and < max_kver
+    // kernelVer must be >= min_kver and < max_kver
     unsigned int min_kver;
     unsigned int max_kver;
 

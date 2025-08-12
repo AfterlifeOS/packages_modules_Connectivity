@@ -125,7 +125,7 @@ class BpfMapRO {
         return nextKey;
     }
 
-    Result<Value> readValue(const Key key) const {
+    Result<Value> readValue(const Key& key) const {
         Value value;
         if (findMapEntry(mMapFd, &key, &value)) {
             return ErrnoErrorf("BpfMap::readValue() failed");
@@ -305,12 +305,36 @@ class BpfMap : public BpfMapRW<Key, Value> {
   public:
     using BpfMapRW<Key, Value>::BpfMapRW;
     using BpfMapRW<Key, Value>::getFirstKey;
+    using BpfMapRW<Key, Value>::getNextKey;
+    using BpfMapRW<Key, Value>::readValue;
 
     Result<void> deleteValue(const Key& key) {
         if (deleteMapEntry(mMapFd, &key)) {
             return ErrnoErrorf("BpfMap::deleteValue() failed");
         }
         return {};
+    }
+
+    Result<Value> readAndDeleteValue(const Key& key) {
+        if (isAtLeastKernelVersion(5, 4, 0)) {
+            Value value;
+            if (!findAndDeleteMapEntry(mMapFd, &key, &value)) return value;
+            if (errno == ENOENT) return ErrnoErrorf("BpfMap::readAndDeleteValue() failed");
+        };
+
+        // fallback path in case of weird error and for pre-5.4 kernels
+
+        Result<Value> v = readValue(key);
+        if (!v.ok()) return v;  // most likely ENOENT
+        Result<void> res = deleteValue(key);
+        if (res.ok()) return v;
+        // We already have the data, not clear what to do on delete failure...
+        // Let's just log something...
+        // (but ignore ENOENT in case we're racing against someone else)
+        if (res.error().code() != ENOENT)
+            ALOGE("BpfMap::readAndDeleteValue(): read but failed to delete data %s",
+                  strerror(res.error().code()));
+        return v;
     }
 
     Result<void> clear() {
@@ -332,12 +356,16 @@ class BpfMap : public BpfMapRW<Key, Value> {
 
     // Does not allow early termination (via f erroring out) - maybe implemented with bulk api
     Result<void> consume(const std::function<void(const Key&, const Value&)>& f) {
-        return this->iterate(
-            [this, &f](const Key &key, const Value &value) -> Result<void> {
-                f(key, value);
-                return this->deleteValue(key);
-            }
-        );
+        Result<Key> curKey = getFirstKey();
+        while (curKey.ok()) {
+            const Result<Key> &nextKey = getNextKey(curKey.value());
+            Result<Value> curValue = readAndDeleteValue(curKey.value());
+            // on readAndDelete error (most likely ENOENT due to a delete race) move to next key...
+            if (curValue.ok()) f(curKey.value(), curValue.value());
+            curKey = nextKey;
+        }
+        if (curKey.error().code() == ENOENT) return {};
+        return curKey.error();
     }
 };
 

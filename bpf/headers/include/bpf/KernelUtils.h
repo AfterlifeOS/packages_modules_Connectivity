@@ -17,6 +17,7 @@
 #pragma once
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <sys/personality.h>
 #include <sys/utsname.h>
@@ -28,22 +29,23 @@ namespace bpf {
 
 static inline unsigned uncachedKernelVersion() {
     struct utsname buf;
-    if (uname(&buf)) return 0;
+    if (uname(&buf)) abort();
 
     unsigned kver_major = 0;
     unsigned kver_minor = 0;
     unsigned kver_sub = 0;
-    (void)sscanf(buf.release, "%u.%u.%u", &kver_major, &kver_minor, &kver_sub);
+    if (sscanf(buf.release, "%u.%u.%u", &kver_major, &kver_minor, &kver_sub) < 2) abort();
     return KVER(kver_major, kver_minor, kver_sub);
 }
 
-static inline unsigned kernelVersion() {
-    static unsigned kver = uncachedKernelVersion();
-    return kver;
+static const unsigned kernelVer = uncachedKernelVersion();
+
+static inline unsigned __unused kernelVersion() {
+    return kernelVer;
 }
 
 static inline bool isAtLeastKernelVersion(unsigned major, unsigned minor, unsigned sub) {
-    return kernelVersion() >= KVER(major, minor, sub);
+    return kernelVer >= KVER(major, minor, sub);
 }
 
 static inline bool isKernelVersion(unsigned major, unsigned minor) {

@@ -105,6 +105,15 @@ inline int findMapEntry(const borrowed_fd& map_fd, const void* key, void* value)
                                     });
 }
 
+// requires 5.4+
+inline int findAndDeleteMapEntry(const borrowed_fd& map_fd, const void* key, void* value) {
+    return bpf(BPF_MAP_LOOKUP_AND_DELETE_ELEM, {
+                                                       .map_fd = static_cast<__u32>(map_fd.get()),
+                                                       .key = ptr_to_u64(key),
+                                                       .value = ptr_to_u64(value),
+                                               });
+}
+
 inline int deleteMapEntry(const borrowed_fd& map_fd, const void* key) {
     return bpf(BPF_MAP_DELETE_ELEM, {
                                             .map_fd = static_cast<__u32>(map_fd.get()),

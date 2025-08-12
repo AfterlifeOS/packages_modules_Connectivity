@@ -72,7 +72,7 @@ int bpfGetIfIndexStatsInternal(uint32_t ifindex, StatsValue* stats,
                                const BpfMapRO<uint32_t, StatsValue>& ifaceStatsMap);
 // For test only
 int parseBpfNetworkStatsDetailInternal(std::vector<stats_line>& lines,
-                                       const BpfMapRO<StatsKey, StatsValue>& statsMap,
+                                       BpfMap<StatsKey, StatsValue>& statsMap,
                                        const IfIndexToNameFunc ifindex2name);
 // For test only
 int cleanStatsMapInternal(const base::unique_fd& cookieTagMap, const base::unique_fd& tagStatsMap);
