@@ -604,7 +604,7 @@ public class BpfCoordinatorTest {
     private void dispatchIpv6UpstreamChanged(BpfCoordinator bpfCoordinator, IpServer ipServer,
             int upstreamIfindex, String upstreamIface, Set<IpPrefix> upstreamPrefixes) {
         bpfCoordinator.maybeAddUpstreamToLookupTable(upstreamIfindex, upstreamIface);
-        bpfCoordinator.updateIpv6UpstreamInterface(ipServer, upstreamIfindex, upstreamPrefixes);
+        bpfCoordinator.updateIpv6UpstreamInterface(ipServer, upstreamIfindex, upstreamPrefixes, 1400);
         when(ipServer.getIpv6UpstreamIfindex()).thenReturn(upstreamIfindex);
         when(ipServer.getIpv6UpstreamPrefixes()).thenReturn(upstreamPrefixes);
     }
@@ -1535,7 +1535,7 @@ public class BpfCoordinatorTest {
 
         // The rule can't be updated.
         coordinator.updateIpv6UpstreamInterface(mIpServer, rule.upstreamIfindex + 1 /* new */,
-                UPSTREAM_PREFIXES);
+                UPSTREAM_PREFIXES, 1400);
         verifyNeverRemoveDownstreamRule();
         verifyNeverAddDownstreamRule();
         rules = coordinator.getIpv6DownstreamRulesForTesting().get(mIpServer);
