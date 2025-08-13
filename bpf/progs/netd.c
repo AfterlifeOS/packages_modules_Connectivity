@@ -82,7 +82,7 @@ DEFINE_BPF_MAP_RW_NETD(lock_hash_test_map, HASH, uint32_t, bool, 1)
 
 DEFINE_BPF_SK_STORAGE(sk_storage, SkStorageValue)
 
-/* never actually used from ebpf */
+// never used from eBpf, see cacheSize in service-t/native/libs/libnetworkstats/BpfNetworkStats.cpp
 DEFINE_BPF_MAP_NO_NETD(iface_index_name_map, HASH, uint32_t, IfaceValue, 1000)
 
 // A single-element configuration array, packet tracing is enabled when 'true'.
