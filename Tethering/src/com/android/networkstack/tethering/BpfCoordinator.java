@@ -790,7 +790,7 @@ public class BpfCoordinator {
      */
     private void updateAllIpv6Rules(@NonNull final IpServer ipServer,
             final InterfaceParams interfaceParams, int newUpstreamIfindex,
-            @NonNull final Set<IpPrefix> newUpstreamPrefixes) {
+            @NonNull final Set<IpPrefix> newUpstreamPrefixes, int pmtu) {
         if (!isUsingBpf()) return;
 
         // Remove IPv6 downstream rules. Remove the old ones before adding the new rules, otherwise
@@ -816,7 +816,7 @@ public class BpfCoordinator {
             for (final IpPrefix ipPrefix : newUpstreamPrefixes) {
                 addIpv6UpstreamRule(ipServer, new Ipv6UpstreamRule(
                         newUpstreamIfindex, interfaceParams.index, ipPrefix,
-                        interfaceParams.macAddr, NULL_MAC_ADDRESS, NULL_MAC_ADDRESS));
+                        interfaceParams.macAddr, NULL_MAC_ADDRESS, NULL_MAC_ADDRESS, pmtu));
             }
         }
 
@@ -971,7 +971,7 @@ public class BpfCoordinator {
             final boolean upstreamSupportsBpf = checkUpstreamSupportsBpf(upstreamIfindex);
             updateAllIpv6Rules(ipServer, interfaceParams,
                     getInterfaceIndexForRule(upstreamIfindex, upstreamSupportsBpf),
-                    upstreamPrefixes);
+                    upstreamPrefixes, 1400);
         }
     }
 
@@ -1692,7 +1692,7 @@ public class BpfCoordinator {
         // |field |oif   |ethDst|ethSrc|ethPro|pmtu  |
         // |      |      |mac   |mac   |to    |      |
         // +------+------+------+------+------+------+
-        // |value |upstre|--    |--    |ETH_P_|1500  |
+        // |value |upstre|--    |--    |ETH_P_|pmtu  |
         // |      |am    |      |      |IP    |      |
         // +------+------+------+------+------+------+
         //
@@ -1706,16 +1706,19 @@ public class BpfCoordinator {
         public final MacAddress outSrcMac;
         @NonNull
         public final MacAddress outDstMac;
+        public final int pmtu;
 
         public Ipv6UpstreamRule(int upstreamIfindex, int downstreamIfindex,
                 @NonNull IpPrefix sourcePrefix, @NonNull MacAddress inDstMac,
-                @NonNull MacAddress outSrcMac, @NonNull MacAddress outDstMac) {
+                @NonNull MacAddress outSrcMac, @NonNull MacAddress outDstMac,
+                int pmtu) {
             this.upstreamIfindex = upstreamIfindex;
             this.downstreamIfindex = downstreamIfindex;
             this.sourcePrefix = sourcePrefix;
             this.inDstMac = inDstMac;
             this.outSrcMac = outSrcMac;
             this.outDstMac = outDstMac;
+            this.pmtu = pmtu;
         }
 
         /**
@@ -1732,7 +1735,7 @@ public class BpfCoordinator {
          */
         @NonNull
         public Tether6Value makeTether6Value() {
-            return new Tether6Value(upstreamIfindex, outDstMac, outSrcMac, ETH_P_IPV6, 1400);
+            return new Tether6Value(upstreamIfindex, outDstMac, outSrcMac, ETH_P_IPV6, pmtu);
         }
 
         @Override

@@ -1229,7 +1229,7 @@ public class BpfCoordinatorTest {
     private static Ipv6UpstreamRule buildTestUpstreamRule(int upstreamIfindex,
             int downstreamIfindex, @NonNull IpPrefix sourcePrefix, @NonNull MacAddress inDstMac) {
         return new Ipv6UpstreamRule(upstreamIfindex, downstreamIfindex, sourcePrefix, inDstMac,
-                MacAddress.ALL_ZEROS_ADDRESS, MacAddress.ALL_ZEROS_ADDRESS);
+                MacAddress.ALL_ZEROS_ADDRESS, MacAddress.ALL_ZEROS_ADDRESS, 1400);
     }
 
     @NonNull
