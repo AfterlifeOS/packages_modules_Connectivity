@@ -856,8 +856,12 @@ public class IpServer extends StateMachineShim {
                 upstreamIfIndex = upstreamIfaceParams.index;
             }
             params = new RaParams();
+            int mtu = v6only.getMtu();
+            for (RouteInfo route : v6only.getRoutes()) {
+                if (route.getMtu() != 0) mtu = Math.min(mtu, route.getMtu());
+            }
             // Clamp v6 MTU to 1280-1400 range.
-            params.mtu = Math.max(1280, Math.min(1400, v6only.getMtu()));
+            params.mtu = Math.max(1280, Math.min(1400, mtu));
             params.hasDefaultRoute = v6only.hasIpv6DefaultRoute();
 
             if (params.hasDefaultRoute) params.hopLimit = getHopLimit(upstreamIface, ttlAdjustment);
@@ -875,6 +879,8 @@ public class IpServer extends StateMachineShim {
         // CMD_TETHER_CONNECTION_CHANGED. Adding the mapping update here to the avoid potential
         // timing issue. It prevents that the IPv6 capability is updated later than
         // CMD_TETHER_CONNECTION_CHANGED.
+        //
+        // TODO: I believe we need to push v6mtu into this call.
         mBpfCoordinator.maybeAddUpstreamToLookupTable(upstreamIfIndex, upstreamIface);
 
         // If v6only is null, we pass in null to setRaParams(), which handles
@@ -887,7 +893,7 @@ public class IpServer extends StateMachineShim {
         // mLastIPv6UpstreamIfindex and mLastIPv6UpstreamPrefixes because BpfCoordinator will call
         // IpServer#getIpv6UpstreamIfindex and IpServer#getIpv6UpstreamPrefixes to retrieve current
         // upstream interface index and prefixes when handling upstream changes.
-        mBpfCoordinator.updateIpv6UpstreamInterface(this, upstreamIfIndex, upstreamPrefixes);
+        mBpfCoordinator.updateIpv6UpstreamInterface(this, upstreamIfIndex, upstreamPrefixes, 1400);
         mLastIPv6LinkProperties = v6only;
         mLastIPv6UpstreamIfindex = upstreamIfIndex;
         mLastIPv6UpstreamPrefixes = upstreamPrefixes;
@@ -1441,7 +1447,7 @@ public class IpServer extends StateMachineShim {
             for (String ifname : mUpstreamIfaceSet.ifnames) cleanupUpstreamInterface(ifname);
             mUpstreamIfaceSet = null;
             mBpfCoordinator.updateIpv6UpstreamInterface(IpServer.this, NO_UPSTREAM,
-                    Collections.emptySet());
+                    Collections.emptySet(), 1400);
         }
 
         private void cleanupUpstreamInterface(String upstreamIface) {
