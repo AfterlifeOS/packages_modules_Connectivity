@@ -50,13 +50,23 @@ const BpfMapRO<uint32_t, StatsValue>& getIfaceStatsMap() {
     return ifaceStatsMap;
 }
 
+static constexpr unsigned cacheSize = 1024;  // see 'iface_index_name_map' bpf map size
+static IfaceValue cache[cacheSize];
+
+static inline const IfaceValue& updateCache(unsigned i, const IfaceValue &v) {
+    if (i < cacheSize) cache[i] = v;
+    return v;
+}
+
 Result<IfaceValue> ifindex2name(const uint32_t ifindex) {
+    if (ifindex < cacheSize && cache[ifindex].name[0]) return cache[ifindex];
+
     Result<IfaceValue> v = getIfaceIndexNameMap().readValue(ifindex);
-    if (v.ok()) return v;
+    if (v.ok()) return updateCache(ifindex, v.value());
     IfaceValue iv = {};
-    if (!if_indextoname(ifindex, iv.name)) return v;
+    if (!if_indextoname(ifindex, iv.name)) return v;  // v is an error
     getIfaceIndexNameMap().writeValue(ifindex, iv, BPF_ANY);
-    return iv;
+    return updateCache(ifindex, iv);
 }
 
 void bpfRegisterIface(const char* iface) {
@@ -67,6 +77,7 @@ void bpfRegisterIface(const char* iface) {
     IfaceValue ifname = {};
     strlcpy(ifname.name, iface, sizeof(ifname.name));
     getIfaceIndexNameMap().writeValue(ifindex, ifname, BPF_ANY);
+    updateCache(ifindex, ifname);
 }
 
 int bpfGetUidStatsInternal(uid_t uid, StatsValue* stats,
