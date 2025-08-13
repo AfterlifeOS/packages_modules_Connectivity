@@ -1895,15 +1895,30 @@ static int doLoad(char** argv, char * const envp[]) {
             if (isAtLeastT) return 39;
         }
 
-        int ret = bpfFdPin(map, "/sys/fs/bpf/tethering/map_kernel_bugs");
+        const char* const kernel_bugs_map_path = "/sys/fs/bpf/tethering/map_kernel_bugs";
+        int ret = bpfFdPin(map, kernel_bugs_map_path);
         if (ret) {
             ALOGE("pin -> %d [%d:%s]", ret, errno, strerror(errno));
             return 40;
         }
+
+        ret = chmod(kernel_bugs_map_path, 0440);
+        if (ret) {
+            ALOGE("chmod %s 0440 -> %d [%d:%s]", kernel_bugs_map_path,
+                  ret, errno, strerror(errno));
+            return 41;
+        }
+
+        ret = chown(kernel_bugs_map_path, AID_ROOT, AID_NETWORK_STACK);
+        if (ret) {
+            ALOGE("chown %s %d %d -> %d [%d:%s]", kernel_bugs_map_path, AID_ROOT,
+                  AID_NETWORK_STACK, ret, errno, strerror(errno));
+            return 42;
+        }
     }
 
     // leave a flag that we're done
-    if (!createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 41;
+    if (!createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 43;
 
     // platform bpfloader will only succeed when run as root
     if (!runningAsRoot) {
@@ -1929,7 +1944,7 @@ static int doLoad(char** argv, char * const envp[]) {
     const char * args[] = { platformBpfLoader, NULL, };
     execve(args[0], (char**)args, envp);
     ALOGE("FATAL: execve('%s'): %d[%s]", platformBpfLoader, errno, strerror(errno));
-    return 42;
+    return 44;
 }
 
 }  // namespace bpf
