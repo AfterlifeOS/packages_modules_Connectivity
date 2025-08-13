@@ -790,7 +790,7 @@ public class BpfCoordinator {
      */
     private void updateAllIpv6Rules(@NonNull final IpServer ipServer,
             final InterfaceParams interfaceParams, int newUpstreamIfindex,
-            @NonNull final Set<IpPrefix> newUpstreamPrefixes) {
+            @NonNull final Set<IpPrefix> newUpstreamPrefixes, int pmtu) {
         if (!isUsingBpf()) return;
 
         // Remove IPv6 downstream rules. Remove the old ones before adding the new rules, otherwise
@@ -816,7 +816,7 @@ public class BpfCoordinator {
             for (final IpPrefix ipPrefix : newUpstreamPrefixes) {
                 addIpv6UpstreamRule(ipServer, new Ipv6UpstreamRule(
                         newUpstreamIfindex, interfaceParams.index, ipPrefix,
-                        interfaceParams.macAddr, NULL_MAC_ADDRESS, NULL_MAC_ADDRESS, 1400));
+                        interfaceParams.macAddr, NULL_MAC_ADDRESS, NULL_MAC_ADDRESS, pmtu));
             }
         }
 
@@ -971,7 +971,7 @@ public class BpfCoordinator {
             final boolean upstreamSupportsBpf = checkUpstreamSupportsBpf(upstreamIfindex);
             updateAllIpv6Rules(ipServer, interfaceParams,
                     getInterfaceIndexForRule(upstreamIfindex, upstreamSupportsBpf),
-                    upstreamPrefixes);
+                    upstreamPrefixes, 1400);
         }
     }
 
