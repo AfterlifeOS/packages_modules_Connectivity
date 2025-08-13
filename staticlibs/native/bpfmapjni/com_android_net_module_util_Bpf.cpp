@@ -16,6 +16,7 @@
 
 #include <errno.h>
 #include <linux/pfkeyv2.h>
+#include <stdint.h>
 #include <sys/socket.h>
 #include <jni.h>
 #include <nativehelper/JNIHelp.h>
@@ -143,10 +144,47 @@ static jint com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU() {
     return 0;
 }
 
+static jint com_android_net_module_util_BpfBitmap_nativeGet(jint fd, jint index) {
+    if (index < 0) return -EINVAL;
+
+    const uint32_t key = index >> 6;
+    const uint32_t subkey = index & 63;
+    uint64_t value = 0;
+
+    // findMapEntry returns 0 on success, -1 on error.
+    // If the entry does not exist, it's not an error, the value is just 0.
+    if (bpf::findMapEntry(fd, &key, &value) && errno != ENOENT) return -errno;
+
+    return (value >> subkey) & 1;
+}
+
+static jint com_android_net_module_util_BpfBitmap_nativeSet(jint fd, jint index, jboolean set) {
+    if (index < 0) return -EINVAL;
+
+    const uint32_t key = index >> 6;
+    const uint32_t subkey = index & 63;
+    uint64_t value = 0;
+
+    // Read the existing value. It's okay if it doesn't exist, value will be 0.
+    if (bpf::findMapEntry(fd, &key, &value) && errno != ENOENT) return -errno;
+
+    const uint64_t mask = 1uLL << subkey;
+    if (set) {
+        value |= mask;
+    } else {
+        value &= ~mask;
+    }
+
+    // Write the updated value back. BPF_ANY will create or update as needed.
+    if (bpf::writeToMapEntry(fd, &key, &value, BPF_ANY)) return -errno;
+
+    return 0;
+}
+
 /*
  * JNI registration.
  */
-static const JNINativeMethod gMethods[] = {
+static const JNINativeMethod gBpfMapMethods[] = {
     /* name, signature, funcPtr */
     { "nativeBpfFdGet", "(Ljava/lang/String;III)I",
         (void*) com_android_net_module_util_BpfMap_nativeBpfFdGet },
@@ -165,9 +203,19 @@ static const JNINativeMethod gMethods[] = {
 };
 
 int register_com_android_net_module_util_BpfMap(JNIEnv* env, char const* class_name) {
-    return jniRegisterNativeMethods(env,
-            class_name,
-            gMethods, NELEM(gMethods));
+    return jniRegisterNativeMethods(env, class_name, gBpfMapMethods, NELEM(gBpfMapMethods));
+}
+
+static const JNINativeMethod gBpfBitmapMethods[] = {
+    /* name, signature, funcPtr */
+    // CriticalNative
+    { "nativeGet", "(II)I", (void*)com_android_net_module_util_BpfBitmap_nativeGet },
+    // CriticalNative
+    { "nativeSet", "(IIZ)I", (void*)com_android_net_module_util_BpfBitmap_nativeSet },
+};
+
+int register_com_android_net_module_util_BpfBitmap(JNIEnv* env, char const* class_name) {
+    return jniRegisterNativeMethods(env, class_name, gBpfBitmapMethods, NELEM(gBpfBitmapMethods));
 }
 
 }; // namespace android

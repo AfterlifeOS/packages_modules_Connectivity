@@ -71,6 +71,11 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
     private final int mKeySize;
     private final int mValueSize;
 
+    // The following is (ab)used by BpfBitmap.java
+    /* package */ int getFd() {
+        return mMapFd.getFd();
+    }
+
     private static ConcurrentHashMap<Pair<String, Integer>, ParcelFileDescriptor> sFdCache =
             new ConcurrentHashMap<>();
 
