@@ -958,7 +958,7 @@ public class BpfCoordinator {
      * Note that this can be only called on handler thread.
      */
     public void updateIpv6UpstreamInterface(@NonNull final IpServer ipServer, int upstreamIfindex,
-            @NonNull Set<IpPrefix> upstreamPrefixes) {
+            @NonNull Set<IpPrefix> upstreamPrefixes, int pmtu) {
         if (!isUsingBpf()) return;
 
         // If the upstream interface has changed, remove all rules and re-add them with the new
@@ -971,7 +971,7 @@ public class BpfCoordinator {
             final boolean upstreamSupportsBpf = checkUpstreamSupportsBpf(upstreamIfindex);
             updateAllIpv6Rules(ipServer, interfaceParams,
                     getInterfaceIndexForRule(upstreamIfindex, upstreamSupportsBpf),
-                    upstreamPrefixes, 1400);
+                    upstreamPrefixes, pmtu);
         }
     }
 

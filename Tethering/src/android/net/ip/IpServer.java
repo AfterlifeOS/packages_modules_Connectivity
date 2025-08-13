@@ -893,7 +893,7 @@ public class IpServer extends StateMachineShim {
         // mLastIPv6UpstreamIfindex and mLastIPv6UpstreamPrefixes because BpfCoordinator will call
         // IpServer#getIpv6UpstreamIfindex and IpServer#getIpv6UpstreamPrefixes to retrieve current
         // upstream interface index and prefixes when handling upstream changes.
-        mBpfCoordinator.updateIpv6UpstreamInterface(this, upstreamIfIndex, upstreamPrefixes);
+        mBpfCoordinator.updateIpv6UpstreamInterface(this, upstreamIfIndex, upstreamPrefixes, 1400);
         mLastIPv6LinkProperties = v6only;
         mLastIPv6UpstreamIfindex = upstreamIfIndex;
         mLastIPv6UpstreamPrefixes = upstreamPrefixes;
@@ -1447,7 +1447,7 @@ public class IpServer extends StateMachineShim {
             for (String ifname : mUpstreamIfaceSet.ifnames) cleanupUpstreamInterface(ifname);
             mUpstreamIfaceSet = null;
             mBpfCoordinator.updateIpv6UpstreamInterface(IpServer.this, NO_UPSTREAM,
-                    Collections.emptySet());
+                    Collections.emptySet(), 1400);
         }
 
         private void cleanupUpstreamInterface(String upstreamIface) {
