@@ -129,19 +129,18 @@ int bpfGetIfaceStatsInternal(const char* iface, StatsValue* stats,
     }
 
     // Before 5.10 we try to avoid doing readValue unless needed
-    auto res = ifaceStatsMap.iterate(
-        [iface, stats, ifindex2name, &unknownIfaceBytesTotal, &ifaceStatsMap](const uint32_t& key) -> Result<void> {
+    auto res = ifaceStatsMap.forAll(
+        [iface, stats, ifindex2name, &unknownIfaceBytesTotal, &ifaceStatsMap](const uint32_t& key) {
             Result<IfaceValue> ifname = ifindex2name(key);
             if (!ifname.ok()) {
                 maybeLogUnknownIface(key, ifaceStatsMap, key, &unknownIfaceBytesTotal);
-                return {};
+                return;
             }
             if (!strcmp(iface, ifname.value().name)) {
                 Result<StatsValue> statsEntry = ifaceStatsMap.readValue(key);
-                if (!statsEntry.ok()) return statsEntry.error();
-                *stats += statsEntry.value();
+                // error shouldn't be possible, if it somehow does, just ignore it and keep going
+                if (statsEntry.ok()) *stats += statsEntry.value();
             }
-            return {};
         }
     );
     return res.ok() ? 0 : -res.error().code();
