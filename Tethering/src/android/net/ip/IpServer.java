@@ -862,8 +862,8 @@ public class IpServer extends StateMachineShim {
             for (RouteInfo route : v6only.getRoutes()) {
                 if (route.getMtu() >= 1280) pmtu6 = Math.min(pmtu6, route.getMtu());
             }
-            // Clamp v6 MTU to 1280-1400 range.
-            pmtu6 = Math.max(1280, Math.min(1400, pmtu6));
+            // Clamp v6 MTU to 1280-1500 range.
+            if (pmtu6 > 1500) pmtu6 = 1500;
             params.mtu = pmtu6;
             params.hasDefaultRoute = v6only.hasIpv6DefaultRoute();
 
