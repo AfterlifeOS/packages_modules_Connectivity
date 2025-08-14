@@ -40,6 +40,7 @@ import com.android.server.connectivity.ConnectivityFlags.QUEUE_NETWORK_AGENT_EVE
 import com.android.testutils.ConnectivityModuleTest
 import com.android.testutils.DevSdkIgnoreRule
 import com.android.testutils.DevSdkIgnoreRunner
+import com.android.tethering.mainline.beta.Flags.FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyInt
@@ -113,8 +114,7 @@ class CSNetworkAgentTest : CSTest() {
     // the CSTest.
     @ConnectivityModuleTest
     @FeatureFlags(flags = [Flag(QUEUE_NETWORK_AGENT_EVENTS_AFTER_B, false),
-        Flag(com.android.tethering.mainline.beta.Flags
-                .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER, false)])
+        Flag(FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER, false)])
     @Test
     fun testEarlyLinkPropertiesUpdateForVPN() =
             testEarlyLinkPropertiesUpdate(TRANSPORT_VPN, expectEarlyLinkPropertiesUpdate = true)
@@ -124,8 +124,7 @@ class CSNetworkAgentTest : CSTest() {
     // the CSTest.
     @ConnectivityModuleTest
     @FeatureFlags(flags = [Flag(QUEUE_NETWORK_AGENT_EVENTS_AFTER_B, false),
-        Flag(com.android.tethering.mainline.beta.Flags
-                .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER, false)])
+        Flag(FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER, false)])
     @Test
     fun testEarlyLinkPropertiesUpdateForNonVPN() =
             testEarlyLinkPropertiesUpdate(TRANSPORT_WIFI, expectEarlyLinkPropertiesUpdate = false)
@@ -137,8 +136,7 @@ class CSNetworkAgentTest : CSTest() {
     @FeatureFlags(
         flags = [Flag(QUEUE_NETWORK_AGENT_EVENTS_AFTER_B, false),
             Flag(EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN, false),
-            Flag(com.android.tethering.mainline.beta.Flags
-                    .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER, false)]
+            Flag(FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER, false)]
     )
     @Test
     fun testEarlyLinkPropertiesUpdateDisabledForVPN() =
