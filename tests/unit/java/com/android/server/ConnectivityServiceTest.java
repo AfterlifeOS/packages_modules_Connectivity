@@ -2244,7 +2244,7 @@ public class ConnectivityServiceTest {
                 case ConnectivityFlags.REQUEST_RESTRICTED_WIFI:
                 case ConnectivityFlags.USE_DECLARED_METHODS_FOR_CALLBACKS:
                 case ConnectivityFlags.QUEUE_CALLBACKS_FOR_FROZEN_APPS:
-                case ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER:
+                case ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_AFTER_B:
                 case ConnectivityFlags.CLOSE_QUIC_CONNECTION:
                 case ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN:
                 case ConnectivityFlags.CONSTRAINED_DATA_SATELLITE_METRICS:
@@ -2449,6 +2449,11 @@ public class ConnectivityServiceTest {
         @Override
         public boolean shouldBluetoothTetheringUseRandomAddress() {
             return false;
+        }
+
+        @Override
+        public boolean shouldQueueNetworkAgentEventsInSystemServer() {
+            return true;
         }
     }
 

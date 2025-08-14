@@ -193,7 +193,9 @@ open class CSTest {
         it[ConnectivityFlags.DELAY_DESTROY_SOCKETS] = true
         it[ConnectivityFlags.USE_DECLARED_METHODS_FOR_CALLBACKS] = true
         it[ConnectivityFlags.QUEUE_CALLBACKS_FOR_FROZEN_APPS] = true
-        it[ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER] = true
+        it[ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_AFTER_B] = true
+        it[com.android.tethering.mainline.beta.Flags
+                .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER] = true
         it[ConnectivityFlags.CLOSE_QUIC_CONNECTION] = true
         it[ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN] = true
         it[ConnectivityFlags.CONSTRAINED_DATA_SATELLITE_METRICS] = true
@@ -562,6 +564,12 @@ open class CSTest {
         }
 
         override fun shouldBluetoothTetheringUseRandomAddress() = false
+
+        override fun shouldQueueNetworkAgentEventsInSystemServer() =
+                enabledFeatures[com.android.tethering.mainline.beta.Flags
+                        .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER]
+                        ?: fail("Unmocked FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER," +
+                                " see CSTest.enabledFeatures")
     }
 
     inner class PermDeps : PermissionMonitor.Dependencies() {
