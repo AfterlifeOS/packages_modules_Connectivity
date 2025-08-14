@@ -70,6 +70,8 @@ public class MdnsServiceTypeClient {
     static final int EVENT_REMOVE_EXPIRED_SERVICES = 3;
     static final int INVALID_TRANSACTION_ID = -1;
     static final long REMOVE_SERVICE_AFTER_QUERY_SENT_TIME = 2000L;
+    static final String SERVICE_NAME_DISCOVERY = "";
+    static final String NO_HOSTNAME = "";
 
     private final String serviceType;
     private final String[] serviceTypeLabels;
@@ -97,6 +99,12 @@ public class MdnsServiceTypeClient {
     @NonNull private final MdnsFeatureFlags featureFlags;
     private final ArrayMap<MdnsServiceBrowserListener, ListenerInfo> listeners =
             new ArrayMap<>();
+    /**
+     * Information for filtering mDNS replies, for hardware offload.
+     *
+     * <p>This map is keyed by service name (or SERVICE_NAME_DISCOVERY for discovery).
+     */
+    private final ArrayMap<String, FilterRepliesInfo> offloadInfo = new ArrayMap<>();
     private final boolean removeServiceAfterTtlExpires =
             MdnsConfigs.removeServiceAfterTtlExpires();
     private final Clock clock;
@@ -133,13 +141,13 @@ public class MdnsServiceTypeClient {
          * The hostname of the service to filter for.
          * Can be empty if filtering is not based on hostname.
          */
-        public String hostname;
+        public final String hostname;
 
         public FilterRepliesInfo(@NonNull String serviceName, @NonNull String serviceType,
                 @NonNull List<String> subtypes, @NonNull String hostname) {
             this.serviceName = serviceName;
             this.serviceType = serviceType;
-            this.subtypes = new ArrayList<>(subtypes); // Defensive copy
+            this.subtypes = Collections.unmodifiableList(subtypes);
             this.hostname = hostname;
         }
 
@@ -193,7 +201,7 @@ public class MdnsServiceTypeClient {
         @NonNull
         final MdnsSearchOptions searchOptions;
         final Set<String> discoveredServiceNames;
-        final FilterRepliesInfo filterRepliesInfoInfo;
+        FilterRepliesInfo filterRepliesInfo;
 
         ListenerInfo(@NonNull MdnsSearchOptions searchOptions,
                 @Nullable ListenerInfo previousInfo, @NonNull String serviceType) {
@@ -201,9 +209,9 @@ public class MdnsServiceTypeClient {
             this.discoveredServiceNames = previousInfo == null
                     ? MdnsUtils.newSet() : previousInfo.discoveredServiceNames;
             final String resolveName = searchOptions.getResolveInstanceName();
-            this.filterRepliesInfoInfo = new FilterRepliesInfo(
-                    resolveName != null ? resolveName : "", serviceType,
-                    searchOptions.getSubtypes(), "" /* hostname */);
+            this.filterRepliesInfo = new FilterRepliesInfo(
+                    resolveName != null ? resolveName : SERVICE_NAME_DISCOVERY, serviceType,
+                    searchOptions.getSubtypes(), NO_HOSTNAME);
         }
 
         /**
@@ -237,8 +245,11 @@ public class MdnsServiceTypeClient {
             // Since discovery can find numerous services, replies for other services could be
             // blocked if a hostname is assigned to specific one. Consequently, for discovery
             // requests, the hostname should remain empty.
-            filterRepliesInfoInfo.hostname =
-                    searchOptions.getResolveInstanceName() != null ? hostname : "";
+            filterRepliesInfo = new FilterRepliesInfo(
+                    filterRepliesInfo.serviceName,
+                    filterRepliesInfo.serviceType,
+                    filterRepliesInfo.subtypes,
+                    searchOptions.getResolveInstanceName() != null ? hostname : NO_HOSTNAME);
         }
     }
 
@@ -492,6 +503,45 @@ public class MdnsServiceTypeClient {
                 timeToNextTaskMs);
     }
 
+    private FilterRepliesInfo getDiscoveryFilterRepliesInfo() {
+        final Set<String> combinedSubtypes = new ArraySet<>();
+        for (int i = 0; i < listeners.size(); i++) {
+            final FilterRepliesInfo info = listeners.valueAt(i).filterRepliesInfo;
+            if (!info.serviceName.equals(SERVICE_NAME_DISCOVERY)) continue;
+
+            // If there is a discovery listener without subtype, then the FilterRepliesInfo should
+            // let through any response for the service type.
+            if (info.subtypes.isEmpty()) {
+                return info;
+            }
+            combinedSubtypes.addAll(info.subtypes);
+        }
+
+        // Update the info with combined subtypes
+        if (!combinedSubtypes.isEmpty()) {
+            return new FilterRepliesInfo(SERVICE_NAME_DISCOVERY, serviceType,
+                    new ArrayList<>(combinedSubtypes), NO_HOSTNAME);
+        } else {
+            return null;
+        }
+    }
+
+    private void updateOffloadInfo(@NonNull String serviceName,
+            @Nullable FilterRepliesInfo newInfo) {
+        final FilterRepliesInfo combinedInfo;
+        if (!serviceName.equals(SERVICE_NAME_DISCOVERY)) { // Resolution
+            combinedInfo = newInfo;
+        } else { // Discovery
+            combinedInfo = getDiscoveryFilterRepliesInfo();
+        }
+
+        if (combinedInfo == null) {
+            offloadInfo.remove(serviceName);
+        } else {
+            offloadInfo.put(serviceName, combinedInfo);
+        }
+    }
+
     /**
      * Registers {@code listener} for receiving discovery event of mDNS service instances, and
      * starts
@@ -579,6 +629,9 @@ public class MdnsServiceTypeClient {
         }
 
         serviceCache.registerServiceExpiredCallback(cacheKey, serviceExpiredCallback);
+        updateOffloadInfo(
+                listenerInfo.filterRepliesInfo.serviceName,
+                listenerInfo.filterRepliesInfo);
     }
 
     private Set<String> getAllDiscoverySubtypes() {
@@ -625,9 +678,11 @@ public class MdnsServiceTypeClient {
      */
     public boolean stopSendAndReceive(@NonNull MdnsServiceBrowserListener listener) {
         ensureRunningOnHandlerThread(handler);
-        if (listeners.remove(listener) == null) {
+        final ListenerInfo listenerInfo = listeners.remove(listener);
+        if (listenerInfo == null) {
             return listeners.isEmpty();
         }
+        updateOffloadInfo(listenerInfo.filterRepliesInfo.serviceName, null /* newInfo */);
         if (listeners.isEmpty()) {
             shutDown();
         }
@@ -798,12 +853,15 @@ public class MdnsServiceTypeClient {
                 if (newServiceFound || serviceBecomesComplete) {
                     sharedLog.log("onServiceFound: " + serviceInfo);
                     listener.onServiceFound(serviceInfo, false /* isServiceFromCache */);
-                    listenerInfo.updateFilterRepliesHostname(MdnsRecord.labelsToString(
-                            response.getServiceRecord().getServiceHost()));
                 } else {
                     sharedLog.log("onServiceUpdated: " + serviceInfo);
                     listener.onServiceUpdated(serviceInfo);
                 }
+                listenerInfo.updateFilterRepliesHostname(MdnsRecord.labelsToString(
+                        response.getServiceRecord().getServiceHost()));
+                updateOffloadInfo(
+                        listenerInfo.filterRepliesInfo.serviceName,
+                        listenerInfo.filterRepliesInfo);
             }
         }
     }
@@ -1002,12 +1060,7 @@ public class MdnsServiceTypeClient {
      */
     public Set<FilterRepliesInfo> getFilterRepliesInfo() {
         ensureRunningOnHandlerThread(handler);
-        final Set<FilterRepliesInfo> info = new ArraySet<>();
-        for (int i = 0; i < listeners.size(); i++) {
-            final ListenerInfo listenerInfo = listeners.valueAt(i);
-            info.add(listenerInfo.filterRepliesInfoInfo);
-        }
-        return info;
+        return new ArraySet<>(offloadInfo.values());
     }
 
     /**

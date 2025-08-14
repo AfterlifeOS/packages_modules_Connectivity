@@ -25,7 +25,9 @@ import static com.android.server.connectivity.mdns.MdnsSearchOptions.PASSIVE_QUE
 import static com.android.server.connectivity.mdns.MdnsServiceTypeClient.EVENT_QUERY_RESULT;
 import static com.android.server.connectivity.mdns.MdnsServiceTypeClient.EVENT_REMOVE_EXPIRED_SERVICES;
 import static com.android.server.connectivity.mdns.MdnsServiceTypeClient.EVENT_START_QUERYTASK;
+import static com.android.server.connectivity.mdns.MdnsServiceTypeClient.NO_HOSTNAME;
 import static com.android.server.connectivity.mdns.MdnsServiceTypeClient.REMOVE_SERVICE_AFTER_QUERY_SENT_TIME;
+import static com.android.server.connectivity.mdns.MdnsServiceTypeClient.SERVICE_NAME_DISCOVERY;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
@@ -2325,12 +2327,18 @@ public class MdnsServiceTypeClientTests {
         verify(mockListenerTwo, never()).onServiceNameRemoved(any());
     }
 
+    private Set<FilterRepliesInfo> getFilterRepliesInfo() throws Exception {
+        final CompletableFuture<Set<FilterRepliesInfo>> future = new CompletableFuture<>();
+        handler.post(() -> future.complete(client.getFilterRepliesInfo()));
+        return future.get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+    }
+
     @Test
     public void testGetFilterRepliesInfo() throws Exception {
         final String instanceName = "instance1";
         final String subtype = "subtype";
         final MdnsSearchOptions resolveOptions = MdnsSearchOptions.newBuilder()
-                .addSubtype(subtype).setResolveInstanceName(instanceName).build();
+                .setResolveInstanceName(instanceName).build();
         final MdnsSearchOptions discoverOptions = MdnsSearchOptions.newBuilder()
                 .addSubtype(subtype).build();
         // Register two listener, one is for service resolution and one is for service discovery.
@@ -2343,17 +2351,76 @@ public class MdnsServiceTypeClientTests {
 
         // Check offload service info. There should be two services for both resolution and
         // discovery.
-        final CompletableFuture<Set<FilterRepliesInfo>> future = new CompletableFuture<>();
-        handler.post(() -> future.complete(client.getFilterRepliesInfo()));
-        final Set<FilterRepliesInfo> offloadInfo =
-                future.get(DEFAULT_TIMEOUT, TimeUnit.MILLISECONDS);
+        final Set<FilterRepliesInfo> offloadInfo = getFilterRepliesInfo();
         assertEquals(2, offloadInfo.size());
 
         final FilterRepliesInfo resolveInfo = new FilterRepliesInfo(
-                instanceName, SERVICE_TYPE, List.of(subtype), "hostname");
+                instanceName, SERVICE_TYPE, List.of(), "hostname");
         final FilterRepliesInfo discoverInfo = new FilterRepliesInfo(
-                "" /* serviceName */, SERVICE_TYPE, List.of(subtype), "" /* hostname */);
+                SERVICE_NAME_DISCOVERY, SERVICE_TYPE, List.of(subtype), "" /* hostname */);
         assertTrue(offloadInfo.containsAll(Set.of(resolveInfo, discoverInfo)));
+
+        // Stop the resolution listener
+        stopSendAndReceive(mockListenerOne);
+
+        // Check offload service info again. There should be only one service for discovery.
+        final Set<FilterRepliesInfo> offloadInfo2 = getFilterRepliesInfo();
+        assertEquals(1, offloadInfo2.size());
+        assertTrue(offloadInfo2.contains(discoverInfo));
+    }
+
+    @Test
+    public void testGetFilterRepliesInfo_twoDiscoveryRequests() throws Exception {
+        final String subtype = "subtype";
+        final MdnsSearchOptions discoverOptions1 = MdnsSearchOptions.newBuilder().build();
+        final MdnsSearchOptions discoverOptions2 = MdnsSearchOptions.newBuilder()
+                .addSubtype(subtype).build();
+        // Register two discovery listeners, one has subtypes and the other does not
+        startSendAndReceive(mockListenerOne, discoverOptions1);
+        startSendAndReceive(mockListenerTwo, discoverOptions2);
+
+        // Check offload service info. There should be only one service info with base type.
+        final Set<FilterRepliesInfo> offloadInfo = getFilterRepliesInfo();
+        assertEquals(1, offloadInfo.size());
+        assertTrue(offloadInfo.contains(new FilterRepliesInfo(
+                SERVICE_NAME_DISCOVERY, SERVICE_TYPE, List.of(), NO_HOSTNAME)));
+
+        // Stop base type listener
+        stopSendAndReceive(mockListenerOne);
+
+        // Check offload service info. There is still a service with subtypes.
+        final Set<FilterRepliesInfo> offloadInfo2 = getFilterRepliesInfo();
+        assertEquals(1, offloadInfo2.size());
+        assertTrue(offloadInfo2.contains(new FilterRepliesInfo(
+                SERVICE_NAME_DISCOVERY, SERVICE_TYPE, List.of(subtype), NO_HOSTNAME)));
+    }
+
+    @Test
+    public void testGetFilterRepliesInfo_combineSubtypes() throws Exception {
+        final String subtype1 = "subtype1";
+        final String subtype2 = "subtype2";
+        final MdnsSearchOptions discoverOptions1 = MdnsSearchOptions.newBuilder()
+                .addSubtype(subtype1).build();
+        final MdnsSearchOptions discoverOptions2 = MdnsSearchOptions.newBuilder()
+                .addSubtype(subtype2).build();
+        // Register two discovery listeners, both have subtypes
+        startSendAndReceive(mockListenerOne, discoverOptions1);
+        startSendAndReceive(mockListenerTwo, discoverOptions2);
+
+        // Check offload service info. There should be a service info with combined subtypes.
+        final Set<FilterRepliesInfo> offloadInfo = getFilterRepliesInfo();
+        assertEquals(1, offloadInfo.size());
+        assertTrue(offloadInfo.contains(new FilterRepliesInfo(
+                SERVICE_NAME_DISCOVERY, SERVICE_TYPE, List.of(subtype1, subtype2), NO_HOSTNAME)));
+
+        // Stop one of listener
+        stopSendAndReceive(mockListenerOne);
+
+        // Check offload service info. There is still a service with subtypes.
+        final Set<FilterRepliesInfo> offloadInfo2 = getFilterRepliesInfo();
+        assertEquals(1, offloadInfo2.size());
+        assertTrue(offloadInfo2.contains(new FilterRepliesInfo(
+                SERVICE_NAME_DISCOVERY, SERVICE_TYPE, List.of(subtype2), NO_HOSTNAME)));
     }
 
     private static MdnsServiceInfo matchServiceName(String name) {
