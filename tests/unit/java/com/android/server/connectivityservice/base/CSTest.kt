@@ -358,6 +358,10 @@ open class CSTest {
         ) =
             (cr as ContentResolverWithFakeSettingsProvider).registerContentObserver(uri, observer)
 
+        override fun registerContentObserverAsUser(cr: ContentResolver, uri: Uri,
+            notifyForDescendants: Boolean, observer: ContentObserver, userHandle: UserHandle) =
+            context.getContentResolver().registerContentObserverAsUser(uri, observer, userHandle)
+
         override fun makeCarrierPrivilegeAuthenticator(
                 context: Context,
                 tm: TelephonyManager,
