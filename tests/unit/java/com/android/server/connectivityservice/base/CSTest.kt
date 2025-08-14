@@ -95,6 +95,7 @@ import com.android.server.connectivity.SatelliteAccessController
 import com.android.testutils.ContentResolverWithFakeSettingsProvider
 import com.android.testutils.visibleOnHandlerThread
 import com.android.testutils.waitForIdle
+import com.android.tethering.mainline.beta.Flags.FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER
 import java.net.InetAddress
 import java.util.concurrent.Executors
 import java.util.concurrent.LinkedBlockingQueue
@@ -194,8 +195,7 @@ open class CSTest {
         it[ConnectivityFlags.USE_DECLARED_METHODS_FOR_CALLBACKS] = true
         it[ConnectivityFlags.QUEUE_CALLBACKS_FOR_FROZEN_APPS] = true
         it[ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_AFTER_B] = true
-        it[com.android.tethering.mainline.beta.Flags
-                .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER] = true
+        it[FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER] = true
         it[ConnectivityFlags.CLOSE_QUIC_CONNECTION] = true
         it[ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN] = true
         it[ConnectivityFlags.CONSTRAINED_DATA_SATELLITE_METRICS] = true
@@ -566,8 +566,7 @@ open class CSTest {
         override fun shouldBluetoothTetheringUseRandomAddress() = false
 
         override fun shouldQueueNetworkAgentEventsInSystemServer() =
-                enabledFeatures[com.android.tethering.mainline.beta.Flags
-                        .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER]
+                enabledFeatures[FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER]
                         ?: fail("Unmocked FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER," +
                                 " see CSTest.enabledFeatures")
     }
