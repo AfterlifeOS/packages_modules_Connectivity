@@ -95,6 +95,7 @@ public class MdnsAdvertiser {
     private final MdnsFeatureFlags mMdnsFeatureFlags;
     private final Map<String, Integer> mServiceTypeToOffloadPriority;
     private final ArraySet<String> mOffloadServiceTypeDenyList;
+    private final OffloadCallback mOffloadCb;
 
     /**
      * Dependencies for {@link MdnsAdvertiser}, useful for testing.
@@ -202,7 +203,7 @@ public class MdnsAdvertiser {
                     final OffloadServiceInfoWrapper newOffloadServiceInfoWrapper =
                             createOffloadService(serviceId, registration, rawOffloadPacket);
                     existingOffloadServiceInfoWrappers.add(newOffloadServiceInfoWrapper);
-                    mCb.onOffloadStartOrUpdate(interfaceName,
+                    mOffloadCb.onOffloadStartOrUpdate(interfaceName,
                             newOffloadServiceInfoWrapper.mOffloadServiceInfo);
                 }
             }
@@ -343,7 +344,7 @@ public class MdnsAdvertiser {
         int idx = CollectionUtils.indexOf(existingOffloadServiceInfoWrappers,
                 item -> item.mServiceId == serviceId);
         if (idx >= 0) {
-            mCb.onOffloadStop(interfaceName,
+            mOffloadCb.onOffloadStop(interfaceName,
                     existingOffloadServiceInfoWrappers.get(idx).mOffloadServiceInfo);
             existingOffloadServiceInfoWrappers.remove(idx);
         }
@@ -417,7 +418,7 @@ public class MdnsAdvertiser {
                 if (offloadServiceInfoWrappers != null) {
                     for (OffloadServiceInfoWrapper offloadServiceInfoWrapper :
                             offloadServiceInfoWrappers) {
-                        mCb.onOffloadStop(interfaceName,
+                        mOffloadCb.onOffloadStop(interfaceName,
                                 offloadServiceInfoWrapper.mOffloadServiceInfo);
                     }
                 }
@@ -630,7 +631,8 @@ public class MdnsAdvertiser {
                                     advertiser.getRawOffloadPayload(oldWrapper.mServiceId))
                     );
                     updatedOffloadServiceInfoWrappers.add(newWrapper);
-                    mCb.onOffloadStartOrUpdate(interfaceName, newWrapper.mOffloadServiceInfo);
+                    mOffloadCb.onOffloadStartOrUpdate(
+                            interfaceName, newWrapper.mOffloadServiceInfo);
                 }
                 mInterfaceOffloadServices.put(interfaceName, updatedOffloadServiceInfoWrappers);
             }
@@ -805,24 +807,6 @@ public class MdnsAdvertiser {
 
         // Unregistration is notified immediately as success in NsdService so no callback is needed
         // here.
-
-        /**
-         * Called when a service is ready to be sent for hardware offloading.
-         *
-         * @param interfaceName the interface for sending the update to.
-         * @param offloadServiceInfo the offloading content.
-         */
-        void onOffloadStartOrUpdate(@NonNull String interfaceName,
-                @NonNull OffloadServiceInfo offloadServiceInfo);
-
-        /**
-         * Called when a service is removed or the MdnsInterfaceAdvertiser is destroyed.
-         *
-         * @param interfaceName the interface for sending the update to.
-         * @param offloadServiceInfo the offloading content.
-         */
-        void onOffloadStop(@NonNull String interfaceName,
-                @NonNull OffloadServiceInfo offloadServiceInfo);
     }
 
     /**
@@ -845,16 +829,17 @@ public class MdnsAdvertiser {
 
     public MdnsAdvertiser(@NonNull Looper looper, @NonNull MdnsSocketProvider socketProvider,
             @NonNull AdvertiserCallback cb, @NonNull SharedLog sharedLog,
-            @NonNull MdnsFeatureFlags mDnsFeatureFlags, @NonNull Context context) {
+            @NonNull MdnsFeatureFlags mDnsFeatureFlags, @NonNull Context context,
+            @NonNull OffloadCallback offloadCb) {
         this(looper, socketProvider, cb, new Dependencies(), sharedLog, mDnsFeatureFlags,
-                context);
+                context, offloadCb);
     }
 
     @VisibleForTesting
     MdnsAdvertiser(@NonNull Looper looper, @NonNull MdnsSocketProvider socketProvider,
             @NonNull AdvertiserCallback cb, @NonNull Dependencies deps,
             @NonNull SharedLog sharedLog, @NonNull MdnsFeatureFlags mDnsFeatureFlags,
-            @NonNull Context context) {
+            @NonNull Context context, @NonNull OffloadCallback offloadCb) {
         mLooper = looper;
         mCb = cb;
         mSocketProvider = socketProvider;
@@ -867,6 +852,7 @@ public class MdnsAdvertiser {
                 res.get().getStringArray(R.array.config_nsdOffloadServicesPriority), sharedLog);
         mOffloadServiceTypeDenyList = new ArraySet<>(
                 res.get().getStringArray(R.array.config_nsdOffloadServicesDenyList));
+        mOffloadCb = offloadCb;
     }
 
     private static Map<String, Integer> parseOffloadPriorityList(

@@ -848,6 +848,7 @@ public class IpServer extends StateMachineShim {
         String upstreamIface = null;
         InterfaceParams upstreamIfaceParams = null;
         int upstreamIfIndex = NO_UPSTREAM;
+        int pmtu6 = 1400;  // default 'safe-ish' value
 
         if (v6only != null) {
             upstreamIface = v6only.getInterfaceName();
@@ -856,12 +857,14 @@ public class IpServer extends StateMachineShim {
                 upstreamIfIndex = upstreamIfaceParams.index;
             }
             params = new RaParams();
-            int mtu = v6only.getMtu();
+            pmtu6 = v6only.getMtu();
+            if (pmtu6 < 1280) pmtu6 = 1400;  // we simply don't know what it is, 1400 is safe-ish
             for (RouteInfo route : v6only.getRoutes()) {
-                if (route.getMtu() != 0) mtu = Math.min(mtu, route.getMtu());
+                if (route.getMtu() >= 1280) pmtu6 = Math.min(pmtu6, route.getMtu());
             }
-            // Clamp v6 MTU to 1280-1400 range.
-            params.mtu = Math.max(1280, Math.min(1400, mtu));
+            // Clamp v6 MTU to 1280-1500 range.
+            if (pmtu6 > 1500) pmtu6 = 1500;
+            params.mtu = pmtu6;
             params.hasDefaultRoute = v6only.hasIpv6DefaultRoute();
 
             if (params.hasDefaultRoute) params.hopLimit = getHopLimit(upstreamIface, ttlAdjustment);
@@ -893,7 +896,7 @@ public class IpServer extends StateMachineShim {
         // mLastIPv6UpstreamIfindex and mLastIPv6UpstreamPrefixes because BpfCoordinator will call
         // IpServer#getIpv6UpstreamIfindex and IpServer#getIpv6UpstreamPrefixes to retrieve current
         // upstream interface index and prefixes when handling upstream changes.
-        mBpfCoordinator.updateIpv6UpstreamInterface(this, upstreamIfIndex, upstreamPrefixes, 1400);
+        mBpfCoordinator.updateIpv6UpstreamInterface(this, upstreamIfIndex, upstreamPrefixes, pmtu6);
         mLastIPv6LinkProperties = v6only;
         mLastIPv6UpstreamIfindex = upstreamIfIndex;
         mLastIPv6UpstreamPrefixes = upstreamPrefixes;
