@@ -112,6 +112,23 @@ int bpfGetIfaceStatsInternal(const char* iface, StatsValue* stats,
 
     // specific iface
     int64_t unknownIfaceBytesTotal = 0;
+
+    if (isAtLeastKernelVersion(5, 10, 0)) {
+        // On 5.10+ bulk lookup api returns values for free, so just use forAll(f(K,V))
+        auto res = ifaceStatsMap.forAll(
+            [iface, stats, ifindex2name, &unknownIfaceBytesTotal, &ifaceStatsMap](const uint32_t& key, const StatsValue& value) {
+                Result<IfaceValue> ifname = ifindex2name(key);
+                if (!ifname.ok()) {
+                    maybeLogUnknownIface(key, ifaceStatsMap, key, &unknownIfaceBytesTotal);
+                    return;
+                }
+                if (!strcmp(iface, ifname.value().name)) *stats += value;
+            }
+        );
+        return res.ok() ? 0 : -res.error().code();
+    }
+
+    // Before 5.10 we try to avoid doing readValue unless needed
     auto res = ifaceStatsMap.iterate(
         [iface, stats, ifindex2name, &unknownIfaceBytesTotal, &ifaceStatsMap](const uint32_t& key) -> Result<void> {
             Result<IfaceValue> ifname = ifindex2name(key);
@@ -120,7 +137,6 @@ int bpfGetIfaceStatsInternal(const char* iface, StatsValue* stats,
                 return {};
             }
             if (!strcmp(iface, ifname.value().name)) {
-                // TODO: bulk api makes this readValue() inefficient - use forAll(K, V)
                 Result<StatsValue> statsEntry = ifaceStatsMap.readValue(key);
                 if (!statsEntry.ok()) return statsEntry.error();
                 *stats += statsEntry.value();
