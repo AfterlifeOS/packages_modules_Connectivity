@@ -40,6 +40,7 @@ public class SocketKey {
      */
     @NonNull
     private final String mInterfaceName;
+    private final int mHashCode;
 
     SocketKey(int interfaceIndex, @NonNull String interfaceName) {
         this(null /* network */, interfaceIndex, interfaceName);
@@ -49,6 +50,13 @@ public class SocketKey {
         mNetwork = network;
         mInterfaceIndex = interfaceIndex;
         mInterfaceName = interfaceName;
+
+        // Equivalent to Objects.hash(mNetwork, mInterfaceIndex), but without
+        // the unnecessary array allocation.
+        int hashCode = 1;
+        hashCode = 31 * hashCode + (mNetwork == null ? 0 : mNetwork.hashCode());
+        hashCode = 31 * hashCode + Integer.hashCode(mInterfaceIndex);
+        mHashCode = hashCode;
     }
 
     @Nullable
@@ -67,7 +75,7 @@ public class SocketKey {
 
     @Override
     public int hashCode() {
-        return Objects.hash(mNetwork, mInterfaceIndex);
+        return mHashCode;
     }
 
     @Override
