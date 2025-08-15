@@ -88,10 +88,30 @@ using std::vector;
 namespace android {
 namespace bpf {
 
-#if !defined(__riscv)
+// Due to support for RiscV not yet having been released,
+// there is no minimum supported api level for it.
+//
+// Thus in //build/soong/cc/api_level.go
+//   MinApiForArch(riscv64)
+// will return FutureApiLevel which results in
+// __ANDROID_API__ == __ANDROID_MIN_SDK_VERSION__ == 10000
+//
+// Normally __ANDROID_API__ is 'min_sdk_version = 30' from Android.bp
+#if defined(__riscv)
+static_assert(__ANDROID_API__ == 10000, "TODO: add proper mainline riscv support");
+#else
 static_assert(__ANDROID_API__ == 30, "NetBpfLoad must be compiled for 30/R");
-static_assert(!minSupportedKernelVer, "NetBpfLoad must not assume min kver");
 #endif
+
+#ifndef __ANDROID_APEX__
+#error "NetBpfLoad must be compiled into the Tethering Mainline Module APEX"
+#endif
+
+// We want to be able to run time enforce minimum kernel versions,
+// which means we can't just assume the minimum applies,
+// for this reason the value of 'minSupportedKernelVer'
+// should be 0 for APEX/mainline builds.
+static_assert(!minSupportedKernelVer, "NetBpfLoad must not assume min kver");
 
 // Returns the build type string (from ro.build.type).
 const std::string& getBuildType() {
