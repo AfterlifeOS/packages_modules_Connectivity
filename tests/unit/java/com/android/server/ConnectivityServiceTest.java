@@ -13094,8 +13094,8 @@ public class ConnectivityServiceTest {
                 nc, null /* localNetworkConfig */,
                 new NetworkScore.Builder().setLegacyInt(0).build(),
                 mServiceContext, null, new NetworkAgentConfig(), mService, null, null, 0,
-                INVALID_UID, TEST_LINGER_DELAY_MS, mQosCallbackTracker,
-                new ConnectivityService.Dependencies());
+                INVALID_UID, false /* isAppSpecificNetwork */, TEST_LINGER_DELAY_MS,
+                mQosCallbackTracker, new ConnectivityService.Dependencies());
     }
 
     @Test

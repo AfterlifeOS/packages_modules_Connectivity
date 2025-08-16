@@ -76,7 +76,8 @@ class CSNetdBypassRulesTests : CSTest() {
     private fun createNetworkAgentInfo(network: Network): NetworkAgentInfo {
         return NetworkAgentInfo(na, network, info, lp, nc, localNetworkConfig?.value, score,
                 context, csHandler, config, service, netd, dnsResolver, NetworkProvider.ID_NONE,
-                Binder.getCallingUid(), TEST_LINGER_DELAY_MS, qosCallbackTracker, CSDeps())
+                Binder.getCallingUid(), false /* isAppSpecificNetwork */, TEST_LINGER_DELAY_MS,
+                qosCallbackTracker, CSDeps())
     }
 
     private fun verifySetAllowBypassVpnOnNetwork(

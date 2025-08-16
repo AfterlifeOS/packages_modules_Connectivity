@@ -88,6 +88,11 @@ using std::vector;
 namespace android {
 namespace bpf {
 
+#if !defined(__riscv)
+static_assert(__ANDROID_API__ == 30, "NetBpfLoad must be compiled for 30/R");
+static_assert(!minSupportedKernelVer, "NetBpfLoad must not assume min kver");
+#endif
+
 // Returns the build type string (from ro.build.type).
 const std::string& getBuildType() {
     static std::string t = GetProperty("ro.build.type", "unknown");
