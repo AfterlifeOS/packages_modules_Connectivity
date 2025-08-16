@@ -9,6 +9,13 @@ flag {
 }
 
 flag {
+    name: "queue_network_agent_events_in_system_server"
+    namespace: "com_android_tethering"
+    description: "Queue NetworkAgent events in system server"
+    bug: "428098184"
+}
+
+flag {
     name: "lnp_developer_opt_in"
     namespace: "com_android_tethering"
     description: "The flag enables the developer opt-in for LNP."

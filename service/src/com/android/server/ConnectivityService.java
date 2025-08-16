@@ -167,7 +167,7 @@ import static com.android.server.connectivity.ConnectivityFlags.DELAY_DESTROY_SO
 import static com.android.server.connectivity.ConnectivityFlags.INGRESS_TO_VPN_ADDRESS_FILTERING;
 import static com.android.server.connectivity.ConnectivityFlags.NAMESPACE_TETHERING_BOOT;
 import static com.android.server.connectivity.ConnectivityFlags.QUEUE_CALLBACKS_FOR_FROZEN_APPS;
-import static com.android.server.connectivity.ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER;
+import static com.android.server.connectivity.ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_AFTER_B;
 import static com.android.server.connectivity.ConnectivityFlags.REQUEST_RESTRICTED_WIFI;
 import static com.android.server.connectivity.ConnectivityFlags.SATISFIED_BY_LOCAL_NETWORK_METRICS;
 import static com.android.server.connectivity.ConnectivityFlags.USE_SATELLITE_REPORTED_SUSPENDED_AND_ROAMING;
@@ -1600,6 +1600,11 @@ public class ConnectivityService extends IConnectivityManager.Stub
             cr.registerContentObserver(uri, notifyForDescendants, observer);
         }
 
+        public void registerContentObserverAsUser(ContentResolver cr, Uri uri,
+                boolean notifyForDescendants, ContentObserver observer, UserHandle userHandle) {
+            cr.registerContentObserverAsUser(uri, notifyForDescendants, observer, userHandle);
+        }
+
         /**
          * Get a reference to the ModuleNetworkStackClient.
          */
@@ -2039,6 +2044,14 @@ public class ConnectivityService extends IConnectivityManager.Stub
             return SdkLevel.isAtLeastT() &&
                     com.android.tethering.mainline.beta.Flags.bluetoothTetheringRandomizedAddress();
         }
+
+        /**
+         * Whether queue network agent events in the system server should be enabled.
+         */
+        public boolean shouldQueueNetworkAgentEventsInSystemServer() {
+            return com.android.tethering.mainline.beta.Flags
+                    .queueNetworkAgentEventsInSystemServer();
+        }
     }
 
     public ConnectivityService(Context context) {
@@ -2152,9 +2165,10 @@ public class ConnectivityService extends IConnectivityManager.Stub
         mUseDeclaredMethodsForCallbacksEnabled =
                 mDeps.isFeatureNotChickenedOut(context,
                         ConnectivityFlags.USE_DECLARED_METHODS_FOR_CALLBACKS);
-        mQueueNetworkAgentEventsInSystemServer = mDeps.isAtLeastB()
+        mQueueNetworkAgentEventsInSystemServer = (mDeps.isAtLeastB()
                 && mDeps.isFeatureNotChickenedOut(context,
-                        ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER);
+                        ConnectivityFlags.QUEUE_NETWORK_AGENT_EVENTS_AFTER_B))
+                || mDeps.shouldQueueNetworkAgentEventsInSystemServer();
         mSupportEarlyLinkPropertiesUpdateForVPN = mDeps.isFeatureNotChickenedOut(context,
                 ConnectivityFlags.EARLY_LINK_PROPERTIES_UPDATE_FOR_VPN);
         // registerUidFrozenStateChangedCallback is only available on U+
@@ -2518,7 +2532,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
                 EVENT_CONFIGURE_ALWAYS_ON_NETWORKS);
 
         // Watch for mobile data preferred uids changes.
-        mSettingsObserver.observe(
+        mSettingsObserver.observeForAllUsers(
                 Settings.Secure.getUriFor(ConnectivitySettingsManager.MOBILE_DATA_PREFERRED_UIDS),
                 EVENT_MOBILE_DATA_PREFERRED_UIDS_CHANGED);
 
@@ -4390,7 +4404,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         // Note that updating can be skipped here if the list is empty only because no uid
         // rules are applied before system ready. Normally, the empty uid list means to clear
         // the uids rules on netd.
-        if (!ConnectivitySettingsManager.getMobileDataPreferredUids(mContext).isEmpty()) {
+        if (!getMobileDataPreferredUids().isEmpty()) {
             mHandler.sendEmptyMessage(EVENT_MOBILE_DATA_PREFERRED_UIDS_CHANGED);
         }
 
@@ -7674,10 +7688,19 @@ public class ConnectivityService extends IConnectivityManager.Stub
     }
 
     private static class SettingsObserver extends ContentObserver {
-        private final HashMap<Uri, Integer> mUriEventMap;
+        private final HashMap<Uri, SettingInfo> mUriEventMap;
         private final Context mContext;
         private final Handler mHandler;
         private final Dependencies mDeps;
+
+        private static class SettingInfo {
+            final int what;
+            final boolean forAllUsers;
+            SettingInfo(int what, boolean forAllUsers) {
+                this.what = what;
+                this.forAllUsers = forAllUsers;
+            }
+        }
 
         SettingsObserver(Context context, Handler handler, Dependencies deps) {
             super(null);
@@ -7687,9 +7710,50 @@ public class ConnectivityService extends IConnectivityManager.Stub
             mDeps = deps;
         }
 
+        /**
+         * Observe settings changes for the specified URI on the current user.
+         *
+         * Sends an empty message with the specified {@code what} whenever the setting changes on
+         * the current user.
+         *
+         * @param uri The URI to observe.
+         * @param what The empty message to send whenever the setting changes.
+         */
         void observe(Uri uri, int what) {
-            mUriEventMap.put(uri, what);
-            mDeps.registerContentObserver(mContext.getContentResolver(), uri, false, this);
+            mUriEventMap.put(uri, new SettingInfo(what, false /* forAllUsers */));
+            final ContentResolver resolver = mContext.getContentResolver();
+            mDeps.registerContentObserver(resolver, uri, false, this);
+        }
+
+        /**
+         * Observe settings changes for the specified URI on all users.
+         *
+         * Sends an empty message with the specified {@code what} whenever the setting changes on
+         * any user, or whenever a user is added or removed.
+         *
+         * @param uri The URI to observe.
+         * @param what The empty message to send whenever the setting changes.
+         */
+        void observeForAllUsers(Uri uri, int what) {
+            if (!SdkLevel.isAtLeastT()) {
+                observe(uri, what);
+                return;
+            }
+            mUriEventMap.put(uri, new SettingInfo(what, true /* forAllUsers */));
+            final ContentResolver resolver = mContext.getContentResolver();
+            mDeps.registerContentObserverAsUser(resolver, uri, false, this, UserHandle.ALL);
+        }
+
+        void onUsersChanged() {
+            for (SettingInfo si : mUriEventMap.values()) {
+                if (si.forAllUsers) {
+                    sendMessage(si.what);
+                }
+            }
+        }
+
+        private void sendMessage(int what) {
+            mHandler.obtainMessage(what).sendToTarget();
         }
 
         @Override
@@ -7699,11 +7763,19 @@ public class ConnectivityService extends IConnectivityManager.Stub
 
         @Override
         public void onChange(boolean selfChange, Uri uri) {
-            final Integer what = mUriEventMap.get(uri);
-            if (what != null) {
-                mHandler.obtainMessage(what).sendToTarget();
+            final SettingInfo si = mUriEventMap.get(uri);
+            if (si != null) {
+                sendMessage(si.what);
             } else {
                 loge("No matching event to send for URI=" + uri);
+            }
+        }
+
+        @Override
+        public void onChange(boolean selfChange, @NonNull Collection<Uri> uris,
+                int flags, UserHandle unused) {
+            for (Uri uri : uris) {
+                onChange(selfChange, uri);
             }
         }
     }
@@ -8005,6 +8077,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (mSatelliteAccessController != null) {
             mSatelliteAccessController.onUserAddedWithInstalledPackageList(user, apps);
         }
+        mSettingsObserver.onUsersChanged();
     }
 
     @Override
@@ -8023,6 +8096,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (mSatelliteAccessController != null) {
             mSatelliteAccessController.onUserRemoved(user);
         }
+        mSettingsObserver.onUsersChanged();
     }
 
     @Override
@@ -14919,8 +14993,17 @@ public class ConnectivityService extends IConnectivityManager.Stub
         return requests;
     }
 
+    private Set<Integer> getMobileDataPreferredUids() {
+        Set<Integer> uids = new ArraySet<>();
+        for (UserHandle userHandle : mUserManager.getUserHandles(/* excludeDying= */ true)) {
+            final Context userContext = mContext.createContextAsUser(userHandle, 0 /* flags */);
+            uids.addAll(ConnectivitySettingsManager.getMobileDataPreferredUids(userContext));
+        }
+        return uids;
+    }
+
     private void handleMobileDataPreferredUidsChanged() {
-        mMobileDataPreferredUids = ConnectivitySettingsManager.getMobileDataPreferredUids(mContext);
+        mMobileDataPreferredUids = getMobileDataPreferredUids();
         removeDefaultNetworkRequestsForPreference(PREFERENCE_ORDER_MOBILE_DATA_PREFERERRED);
         addPerAppDefaultNetworkRequests(
                 createNrisFromMobileDataPreferredUids(mMobileDataPreferredUids));
@@ -15717,7 +15800,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         switch (featureFlag) {
             case INGRESS_TO_VPN_ADDRESS_FILTERING:
                 return mIngressToVpnAddressFiltering;
-            case QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER:
+            case QUEUE_NETWORK_AGENT_EVENTS_AFTER_B:
+            case com.android.tethering.mainline.beta.Flags
+                        .FLAG_QUEUE_NETWORK_AGENT_EVENTS_IN_SYSTEM_SERVER:
                 return mQueueNetworkAgentEventsInSystemServer;
             case CLOSE_QUIC_CONNECTION:
                 return mCloseQuicConnection;
