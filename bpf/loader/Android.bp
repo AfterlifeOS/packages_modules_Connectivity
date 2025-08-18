@@ -52,7 +52,7 @@ cc_binary {
         "com.android.tethering",
         "//apex_available:platform",
     ],
-    // really should be Android 13/T (33), but we cannot include binaries built
+    // really should be Android 12/S (31), but we cannot include binaries built
     // against newer sdk in the apex, which still targets 30(R):
     // module "netbpfload" variant "android_x86_apex30": should support
     // min_sdk_version(30) for "com.android.tethering": newer SDK(34).
