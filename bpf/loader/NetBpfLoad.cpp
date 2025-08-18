@@ -822,7 +822,7 @@ static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<
     vector<char> btfData;
     struct btf *btf = NULL;
     auto btfGuard = base::make_scope_guard([&btf] { if (btf) btf__free(btf); });
-    if (isAtLeastKernelVersion(4, 19, 0)) {
+    if (isAtLeastKernelVersion(4, 19, 0) && !bpfCmdFixupIsNeeded) {
         // On Linux Kernels older than 4.18 BPF_BTF_LOAD command doesn't exist.
         ret = elfObj.readSectionByName(".BTF", btfData);
         if (ret) {
