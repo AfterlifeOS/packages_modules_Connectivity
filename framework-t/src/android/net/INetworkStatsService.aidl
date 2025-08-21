@@ -103,9 +103,6 @@ interface INetworkStatsService {
      */
      void setStatsProviderWarningAndLimitAsync(String iface, long warning, long limit);
 
-     /** Clear TrafficStats rate-limit caches. */
-     void clearTrafficStatsRateLimitCaches();
-
      /** Get rate-limit cache config. */
      TrafficStatsRateLimitCacheConfig getRateLimitCacheConfig();
 }

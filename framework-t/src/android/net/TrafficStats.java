@@ -892,11 +892,6 @@ public class TrafficStats {
         if (uidCache != null) {
             uidCache.clear();
         }
-        try {
-            getStatsService().clearTrafficStatsRateLimitCaches();
-        } catch (RemoteException e) {
-            throw e.rethrowFromSystemServer();
-        }
     }
 
     /**
