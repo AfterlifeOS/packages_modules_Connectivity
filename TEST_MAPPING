@@ -435,12 +435,23 @@
       "name": "CtsNetTestCasesUpdateStatsPermission"
     }
   ],
-  "tv-presubmit": [
+  "hsum-presubmit": [
     {
       "name": "CtsNetTestCases"
     },
     {
-      "name": "CtsNativeNetTestCases"
+      "name": "CtsNativeNetDnsTestCases"
+    },
+    {
+      "name": "CtsNetTestCasesInternetPermission"
+    },
+    {
+      "name": "CtsNetTestCasesUpdateStatsPermission"
+    }
+  ],
+  "tv-presubmit": [
+    {
+      "name": "CtsNetTestCases"
     },
     {
       "name": "CtsNativeNetDnsTestCases"
