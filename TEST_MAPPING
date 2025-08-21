@@ -440,9 +440,6 @@
       "name": "CtsNetTestCases"
     },
     {
-      "name": "CtsNativeNetTestCases"
-    },
-    {
       "name": "CtsNativeNetDnsTestCases"
     },
     {
@@ -455,9 +452,6 @@
   "tv-presubmit": [
     {
       "name": "CtsNetTestCases"
-    },
-    {
-      "name": "CtsNativeNetTestCases"
     },
     {
       "name": "CtsNativeNetDnsTestCases"
