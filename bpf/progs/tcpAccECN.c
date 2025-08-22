@@ -20,6 +20,11 @@
  *              Includes separate handling for Ethernet and raw IP packets.
  */
 
+// The resulting .o needs to load on Android T+
+#define BPFLOADER_MIN_VER BPFLOADER_MAINLINE_T_VERSION
+#define BPF_OBJ_NAME "tcpAccECN"
+#define DEFAULT_BPF_PIN_SUBDIR "netd_shared"
+
 #include <linux/bpf.h>
 #include <linux/if.h>
 #include <linux/if_ether.h>
