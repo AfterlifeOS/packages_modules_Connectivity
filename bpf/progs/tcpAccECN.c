@@ -731,4 +731,3 @@ DEFINE_BPF_PROG("schedcls/egress/l4s_accecn_rawip", AID_ROOT, AID_SYSTEM, sched_
 }
 
 LICENSE("Apache 2.0");
-CRITICAL("eBPF tcpAccECN");
