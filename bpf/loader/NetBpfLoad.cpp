@@ -59,6 +59,8 @@
 #include <android-base/unique_fd.h>
 #include <android/api-level.h>
 
+#include <com_android_tethering_readonly_flags.h>
+
 #define BPF_SUPPORT_CMD_FIXUP
 #include "BpfSyscallWrappers.h"
 #include "bpf/BpfUtils.h"
@@ -79,6 +81,7 @@ using android::base::Split;
 using android::base::StartsWith;
 using android::base::Tokenize;
 using android::base::unique_fd;
+using com::android::tethering::readonly::flags::use_libbpf;
 using std::ifstream;
 using std::ios;
 using std::optional;
@@ -1394,7 +1397,7 @@ static bool loadObject(const unsigned int bpfloader_ver,
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
-    bool libbpf = isAtLeast25Q3;
+    bool libbpf = !bpfCmdFixupIsNeeded && (isAtLeast25Q3 || use_libbpf());
     if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
     if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {

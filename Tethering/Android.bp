@@ -66,6 +66,7 @@ java_defaults {
         "connectivity-net-module-utils-bpf",
         "com.android.net.flags-aconfig-java",
         "com.android.tethering.beta.test.flags-aconfig-java",
+        "com.android.tethering.mainline.beta.flags-aconfig-java",
         "modules-utils-build",
         "modules-utils-statemachine",
         "networkstack-client",

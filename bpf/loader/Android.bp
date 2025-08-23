@@ -47,6 +47,9 @@ cc_binary {
         "liblog",
         "libbpf",
     ],
+    static_libs: [
+        "libtetheringflags",
+    ],
     srcs: ["NetBpfLoad.cpp"],
     apex_available: [
         "com.android.tethering",

@@ -270,6 +270,19 @@ public final class BpfNetMapsTest {
 
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.VANILLA_ICE_CREAM)
+    public void testAddLocalNetAccessAfterV_withIPv6() throws Exception {
+        assertTrue(mLocalNetAccessMap.isEmpty());
+
+        mBpfNetMaps.addLocalNetAccess(160, TEST_IF_NAME,
+                Inet6Address.getByName("fe80::1cf1:35ff:fe8c:db87"), 0, 0,
+                true);
+
+        assertNotNull(mLocalNetAccessMap.getValue(new LocalNetAccessKey(160, TEST_IF_INDEX,
+                Inet6Address.getByName("fe80::1cf1:35ff:fe8c:db87"), 0, 0)));
+    }
+
+    @Test
+    @IgnoreUpTo(Build.VERSION_CODES.VANILLA_ICE_CREAM)
     public void testAddLocalNetAccessWithNullInterfaceAfterV() throws Exception {
         assertTrue(mLocalNetAccessMap.isEmpty());
 

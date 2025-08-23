@@ -21,3 +21,10 @@ flag {
     description: "The flag enables the developer opt-in for LNP."
     bug: "421952907"
 }
+
+flag {
+    name: "tethering_and_p2p_go_local_agent"
+    namespace: "com_android_tethering"
+    description: "The flag enables the Tethering and WI-Fi P2p Group Owner mode local network agent."
+    bug: "420590461"
+}

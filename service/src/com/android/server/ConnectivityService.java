@@ -3413,8 +3413,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
 
     private void maybeDisableLocalNetworkMatching(NetworkCapabilities nc, int callingUid) {
         // If disabled, NetworkRequest cannot match non-thread local networks even if
-        // specified explicitly. Compat change is enabled by default on apps targeting B+.
-        // Agent should not be visible on U- even if it's rolled out.
+        // specified explicitly. Compat change is enabled by default on apps targeting sdk
+        // level 37. Agent should not be visible on platform sdk level 36- even if it's rolled out.
+        // Note that on V+, isChangeEnabled returns false for
+        // ENABLE_MATCH_NON_THREAD_LOCAL_NETWORKS even if the app is targeting higher SDK
+        // due to b/401088586.
+        // TODO: Update the gating logic once SDK int APIs are ready.
         nc.setMatchNonThreadLocalNetworks(mDeps.isAtLeastV() && mDeps.isChangeEnabled(
                 ENABLE_MATCH_NON_THREAD_LOCAL_NETWORKS, callingUid));
         if (mDeps.isChangeEnabled(ENABLE_MATCH_LOCAL_NETWORK, callingUid)) {
