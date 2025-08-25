@@ -839,7 +839,7 @@ public class EthernetTracker {
 
         addInterface(port, trackingReason);
 
-        broadcastInterfaceStateChange(iface, getInterfaceTrackingReason(iface));
+        broadcastInterfaceStateChange(iface, trackingReason);
     }
 
     /**
