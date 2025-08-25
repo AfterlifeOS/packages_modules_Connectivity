@@ -18,11 +18,6 @@
 #define L4S_ACCECN_BYTE_MAP_PATH SS_BPF_PATH "map_tcpAccECN_l4s_accecn_byte_map"
 #define L4S_ACCECN_MSS_MAP_PATH SS_BPF_PATH "map_tcpAccECN_l4s_accecn_mss_map"
 
-unsigned long long load_word(void *skb,
-                 unsigned long long off) asm("llvm.bpf.load.word");
-unsigned long long load_half(void *skb,
-                 unsigned long long off) asm("llvm.bpf.load.half");
-
 typedef struct{
     uint64_t ceb;
     uint64_t e0b;
