@@ -147,6 +147,7 @@ java_genrule {
 
 android_test {
     name: "FrameworksNetTests",
+    min_sdk_version: "31",
     enabled: enable_frameworks_net_tests,
     defaults: [
         "framework-connectivity-internal-test-defaults",
