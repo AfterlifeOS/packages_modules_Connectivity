@@ -112,13 +112,6 @@ bpf {
 }
 
 bpf {
-    name: "tcpAccECN.o",
-    srcs: ["tcpAccECN.c"],
-    include_dirs: ["packages/modules/Connectivity/bpf/progs/include"],
-    sub_dir: "mainline",
-}
-
-bpf {
     name: "test.o",
     srcs: ["test.c"],
     include_dirs: ["packages/modules/Connectivity/bpf/progs/include"],

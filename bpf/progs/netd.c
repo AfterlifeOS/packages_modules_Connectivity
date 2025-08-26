@@ -902,4 +902,10 @@ DEFINE_NETD_V_BPF_PROG_KVER(setsockopt, prog, , 5_4)
     return BPF_ALLOW;
 }
 
+#undef BPFLOADER_MIN_VER
+#undef BPF_OBJ_NAME
+#undef DEFAULT_BPF_PIN_SUBDIR
+
+#include "tcpAccECN.c"
+
 LICENSE("Apache 2.0");

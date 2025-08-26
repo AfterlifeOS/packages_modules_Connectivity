@@ -236,8 +236,6 @@ STRUCT_SIZE(LocalNetAccessKey, 4 + 4 + 16 + 2 + 2);  // 28
 // Entry in the data saver enabled map that stores whether data saver is enabled or not.
 #define DATA_SAVER_ENABLED_KEY 0
 
-#undef STRUCT_SIZE
-
 // DROP_IF_SET is set of rules that DROP if rule is globally enabled, and per-uid bit is set
 #define DROP_IF_SET (STANDBY_MATCH | OEM_DENY_1_MATCH | OEM_DENY_2_MATCH | OEM_DENY_3_MATCH)
 // DROP_IF_UNSET is set of rules that should DROP if globally enabled, and per-uid bit is NOT set
