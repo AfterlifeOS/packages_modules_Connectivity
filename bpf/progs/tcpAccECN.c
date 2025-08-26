@@ -20,6 +20,11 @@
  *              Includes separate handling for Ethernet and raw IP packets.
  */
 
+// The resulting .o needs to load on Android T+
+#define BPFLOADER_MIN_VER BPFLOADER_MAINLINE_T_VERSION
+#define BPF_OBJ_NAME "tcpAccECN"
+#define DEFAULT_BPF_PIN_SUBDIR "netd_shared"
+
 #include <linux/bpf.h>
 #include <linux/if.h>
 #include <linux/if_ether.h>
@@ -163,7 +168,7 @@ parse_tcp_mss_option(struct __sk_buff *skb, uint8_t offset) {
     return -1;
 }
 
-DEFINE_BPF_PROG("sockops/l4s_accecn_option", AID_ROOT, AID_SYSTEM, l4s_accecn_option)
+DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 5_10)
 (struct bpf_sock_ops *skops) {
     switch (skops->op) {
         case BPF_SOCK_OPS_TCP_CONNECT_CB:
@@ -217,7 +222,7 @@ DEFINE_BPF_PROG("sockops/l4s_accecn_option", AID_ROOT, AID_SYSTEM, l4s_accecn_op
     return 1;
 }
 
-DEFINE_BPF_PROG("schedcls/ingress/l4s_accecn_eth", AID_ROOT, AID_SYSTEM, sched_cls_ingress_l4s_accecn_eth)
+DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 5_10)
 (struct __sk_buff* skb) {
     void* data = (void*)(long)skb->data;
     void* data_end = (void*)(long)skb->data_end;
@@ -353,7 +358,7 @@ DEFINE_BPF_PROG("schedcls/ingress/l4s_accecn_eth", AID_ROOT, AID_SYSTEM, sched_c
 }
 
 
-DEFINE_BPF_PROG("schedcls/egress/l4s_accecn_eth", AID_ROOT, AID_SYSTEM, sched_cls_egress_l4s_accecn_eth)
+DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_eth, , AID_SYSTEM, 5_10)
 (struct __sk_buff* skb) {
     void* data = (void*)(long)skb->data;
     void* data_end = (void*)(long)skb->data_end;
@@ -471,7 +476,7 @@ DEFINE_BPF_PROG("schedcls/egress/l4s_accecn_eth", AID_ROOT, AID_SYSTEM, sched_cl
     return TC_ACT_PIPE;
 }
 
-DEFINE_BPF_PROG("schedcls/ingress/l4s_accecn_rawip", AID_ROOT, AID_SYSTEM, sched_cls_ingress_l4s_accecn_rawip)
+DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 5_10)
 (struct __sk_buff* skb) {
     void* data = (void*)(long)skb->data;
     void* data_end = (void*)(long)skb->data_end;
@@ -607,7 +612,7 @@ DEFINE_BPF_PROG("schedcls/ingress/l4s_accecn_rawip", AID_ROOT, AID_SYSTEM, sched
 }
 
 
-DEFINE_BPF_PROG("schedcls/egress/l4s_accecn_rawip", AID_ROOT, AID_SYSTEM, sched_cls_egress_l4s_accecn_rawip)
+DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_rawip, , AID_SYSTEM, 5_10)
 (struct __sk_buff* skb) {
     void* data = (void*)(long)skb->data;
     void* data_end = (void*)(long)skb->data_end;
@@ -726,4 +731,3 @@ DEFINE_BPF_PROG("schedcls/egress/l4s_accecn_rawip", AID_ROOT, AID_SYSTEM, sched_
 }
 
 LICENSE("Apache 2.0");
-CRITICAL("eBPF tcpAccECN");

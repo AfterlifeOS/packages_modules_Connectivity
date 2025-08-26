@@ -501,6 +501,12 @@ public class BpfCoordinator {
                     lastMaxSessionCount);
         }
 
+        /** Send a BpfCoordinatorShimInitError event. */
+        public void sendBpfCoordinatorShimInitError() {
+            ConnectivityStatsLog.write(ConnectivityStatsLog.CORE_NETWORKING_TERRIBLE_ERROR_OCCURRED,
+                    ConnectivityStatsLog.CORE_NETWORKING_TERRIBLE_ERROR_OCCURRED__ERROR_TYPE__TYPE_BPF_COORDINATOR_SHIM_INIT_ERROR);
+        }
+
         /**
          * @see DeviceConfigUtils#isTetheringFeatureEnabled
          */
@@ -542,6 +548,7 @@ public class BpfCoordinator {
         mBpfCoordinatorShim = BpfCoordinatorShim.getBpfCoordinatorShim(deps);
         if (!mBpfCoordinatorShim.isInitialized()) {
             mLog.e("Bpf shim not initialized");
+            mDeps.sendBpfCoordinatorShimInitError();
         }
 
         // BPF IPv4 forwarding only supports on S+.

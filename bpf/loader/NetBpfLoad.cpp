@@ -81,7 +81,6 @@ using android::base::Split;
 using android::base::StartsWith;
 using android::base::Tokenize;
 using android::base::unique_fd;
-using com::android::tethering::readonly::flags::use_libbpf;
 using std::ifstream;
 using std::ios;
 using std::optional;
@@ -1393,11 +1392,16 @@ static bool loadObject(const unsigned int bpfloader_ver,
     return true;
 }
 
+#ifndef COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF
+#error "COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF must be defined"
+#endif
+#define USE_LIBBPF COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF
+
 #define APEXROOT "/apex/com.android.tethering"
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
-    bool libbpf = !bpfCmdFixupIsNeeded && (isAtLeast25Q3 || use_libbpf());
+    bool libbpf = !bpfCmdFixupIsNeeded && (isAtLeast25Q3 || USE_LIBBPF);
     if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
     if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {
