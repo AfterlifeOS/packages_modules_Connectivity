@@ -52,8 +52,10 @@ java_library {
 
 filegroup {
     name: "service-vcn-sources",
-    srcs: ["src/**/*.java"],
-    path: "src",
+    srcs: [
+        "src/**/*.java",
+        ":statslog-vcn-java-gen",
+    ],
     visibility: [
         "//packages/modules/Connectivity/service-b",
     ],
@@ -75,6 +77,7 @@ java_defaults {
         "framework-connectivity-pre-jarjar",
         "framework-connectivity-t-pre-jarjar",
         "framework-connectivity-b-pre-jarjar",
+        "framework-statsd.stubs.module_lib",
         "framework-wifi.stubs.module_lib",
         "keepanno-annotations",
         "modules-utils-statemachine",
@@ -114,4 +117,11 @@ java_library {
     apex_available: [
         "//apex_available:platform",
     ],
+}
+
+genrule {
+    name: "statslog-vcn-java-gen",
+    tools: ["stats-log-api-gen"],
+    cmd: "$(location stats-log-api-gen) --java $(out) --module vcn --javaPackage com.android.server.vcn.metrics --javaClass VcnStatsLog",
+    out: ["com/android/server/vcn/metrics/VcnStatsLog.java"],
 }
