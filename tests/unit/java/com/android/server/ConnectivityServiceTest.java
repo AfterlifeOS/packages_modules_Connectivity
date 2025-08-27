@@ -424,6 +424,7 @@ import com.android.server.connectivity.NetworkNotificationManager.NotificationTy
 import com.android.server.connectivity.PermissionMonitor;
 import com.android.server.connectivity.ProxyTracker;
 import com.android.server.connectivity.QosCallbackTracker;
+import com.android.server.connectivity.QuicConnectionCloser;
 import com.android.server.connectivity.SatelliteAccessController;
 import com.android.server.connectivity.TcpKeepaliveController;
 import com.android.server.connectivity.UidRangeUtils;
@@ -656,6 +657,7 @@ public class ConnectivityServiceTest {
     @Mock SatelliteCoarseUsageMetricsCollector mSatelliteCoarseUsageMetricsCollector;
     @Mock DefaultNetworkRematchMetrics mDefaultNetworkRematchMetrics;
     @Mock SatisfiedByLocalNetworkMetrics mSatisfiedByLocalNetworkMetrics;
+    @Mock QuicConnectionCloser mQuicConnectionCloser;
 
     // BatteryStatsManager is final and cannot be mocked with regular mockito, so just mock the
     // underlying binder calls.
@@ -2454,6 +2456,12 @@ public class ConnectivityServiceTest {
         @Override
         public boolean shouldQueueNetworkAgentEventsInSystemServer() {
             return true;
+        }
+
+        @Override
+        public QuicConnectionCloser makeQuicConnectionCloser(
+                final SparseArray<NetworkAgentInfo> networkForNetId, final Handler handler) {
+            return mQuicConnectionCloser;
         }
     }
 

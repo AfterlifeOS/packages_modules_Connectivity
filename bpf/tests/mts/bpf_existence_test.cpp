@@ -49,15 +49,6 @@ using android::bpf::isAtLeast25Q4;
 class BpfExistenceTest : public ::testing::Test {
 };
 
-// Part of Android R platform (for 4.9+), but mainlined in S
-static const set<string> PLATFORM_ONLY_IN_R = {
-    PLATFORM "map_offload_tether_ingress_map",
-    PLATFORM "map_offload_tether_limit_map",
-    PLATFORM "map_offload_tether_stats_map",
-    PLATFORM "prog_offload_schedcls_ingress_tether_ether",
-    PLATFORM "prog_offload_schedcls_ingress_tether_rawip",
-};
-
 // Provided by *current* mainline module for S+ devices
 static const set<string> MAINLINE_FOR_S_PLUS = {
     TETHERING "map_kernel_bugs",
@@ -182,19 +173,14 @@ TEST_F(BpfExistenceTest, TestPrograms) {
     set<string> mustExist;
     set<string> mustNotExist;
 
-    // We do not actually check the platform P/Q (netd) and Q (clatd) things
-    // and only verify the mainline module relevant R+ offload maps & progs.
+    // We only verify the mainline module relevant S+ offload maps & progs.
     //
     // The goal of this test is to verify compatibility with the tethering mainline module,
     // and not to test the platform itself, which may have been modified by vendor or oems,
     // so we should only test for the removal of stuff that was mainline'd,
     // and for the presence of mainline stuff.
 
-    // Note: Q is no longer supported by mainline
-    ASSERT_TRUE(isAtLeastR);
-
-    // R can potentially run on pre-4.9 kernel non-eBPF capable devices.
-    DO_EXPECT(isAtLeastR && !isAtLeastS && isAtLeastKernelVersion(4, 9, 0), PLATFORM_ONLY_IN_R);
+    ASSERT_TRUE(isAtLeastS);  // Q & R are no longer supported by mainline
 
     // S requires Linux Kernel 4.9+ and thus requires eBPF support.
     if (isAtLeastS) ASSERT_TRUE(isAtLeastKernelVersion(4, 9, 0));

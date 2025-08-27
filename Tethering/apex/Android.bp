@@ -94,7 +94,6 @@ apex {
         "dscpPolicy.o",
         "netd.o",
         "offload.o",
-        "tcpAccECN.o",
         "test.o",
     ],
     apps: [
