@@ -40,6 +40,7 @@ import static android.net.ip.IpServer.getTetherableIpv6Prefixes;
 import static com.android.modules.utils.build.SdkLevel.isAtLeastT;
 import static com.android.modules.utils.build.SdkLevel.isAtLeastV;
 import static com.android.net.module.util.Inet4AddressUtils.intToInet4AddressHTH;
+import static com.android.networkstack.tethering.TetheringFeatureFlags.TETHERING_AND_P2P_GO_LOCAL_AGENT;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -227,8 +228,12 @@ public class IpServerTest {
         when(mDependencies.getInterfaceParams(UPSTREAM_IFACE)).thenReturn(UPSTREAM_IFACE_PARAMS);
         when(mDependencies.getInterfaceParams(UPSTREAM_IFACE2)).thenReturn(UPSTREAM_IFACE_PARAMS2);
         when(mDependencies.getInterfaceParams(IPSEC_IFACE)).thenReturn(IPSEC_IFACE_PARAMS);
-        doReturn(mFeatureFlags.getOrDefault(Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, false))
-                .when(mDependencies).isTetheringAndP2pGoLocalAgentEnabled();
+        final boolean agentFeatureEnabled = mFeatureFlags.getOrDefault(
+                Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, false);
+        doReturn(agentFeatureEnabled).when(mDependencies).isTetheringFeatureNotChickenedOut(any(),
+                eq(TETHERING_AND_P2P_GO_LOCAL_AGENT));
+        doReturn(agentFeatureEnabled).when(mDependencies)
+                .isTetheringAndP2pGoLocalAgentBetaFlagEnabled();
         if (isAtLeastV()) {
             when(mDependencies.makeNetworkAgent(any(), any(), anyString(), anyInt(), any()))
                     .thenReturn(mNetworkAgent);

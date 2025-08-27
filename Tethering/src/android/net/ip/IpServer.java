@@ -42,6 +42,7 @@ import static android.system.OsConstants.RT_SCOPE_UNIVERSE;
 import static com.android.net.module.util.Inet4AddressUtils.intToInet4AddressHTH;
 import static com.android.net.module.util.NetworkStackConstants.RFC7421_PREFIX_LENGTH;
 import static com.android.networkstack.tethering.TetheringConfiguration.USE_SYNC_SM;
+import static com.android.networkstack.tethering.TetheringFeatureFlags.TETHERING_AND_P2P_GO_LOCAL_AGENT;
 import static com.android.networkstack.tethering.util.PrefixUtils.asIpPrefix;
 import static com.android.networkstack.tethering.util.TetheringMessageBase.BASE_IPSERVER;
 import static com.android.networkstack.tethering.util.TetheringUtils.getTransportTypeForTetherableType;
@@ -84,10 +85,12 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.MessageUtils;
 import com.android.internal.util.State;
 import com.android.modules.utils.build.SdkLevel;
+import com.android.net.module.util.DeviceConfigUtils;
 import com.android.net.module.util.IIpv4PrefixRequest;
 import com.android.net.module.util.InterfaceParams;
 import com.android.net.module.util.NetdUtils;
 import com.android.net.module.util.RoutingCoordinatorManager;
+import com.android.net.module.util.SdkUtil;
 import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.SyncStateMachine.StateInfo;
 import com.android.net.module.util.ip.InterfaceController;
@@ -215,8 +218,17 @@ public class IpServer extends StateMachineShim {
         public abstract void makeDhcpServer(String ifName, DhcpServingParamsParcel params,
                 DhcpServerCallbacks cb);
 
-        /** Get whether TETHERING_AND_P2P_GO_LOCAL_AGENT feature is enabled. */
-        public boolean isTetheringAndP2pGoLocalAgentEnabled() {
+        /**
+         * Get whether a tethering feature flag is enabled via chickened out.
+         * @param name the name of the feature.
+         */
+        public boolean isTetheringFeatureNotChickenedOut(@NonNull Context context,
+                @NonNull String name) {
+            return DeviceConfigUtils.isTetheringFeatureNotChickenedOut(context, name);
+        }
+
+        /** Get whether tethering and P2P GO local agent flag is enabled via beta flags. */
+        public boolean isTetheringAndP2pGoLocalAgentBetaFlagEnabled() {
             return Flags.tetheringAndP2pGoLocalAgent();
         }
 
@@ -377,9 +389,16 @@ public class IpServer extends StateMachineShim {
         mLastError = TETHER_ERROR_NO_ERROR;
         mServingMode = STATE_AVAILABLE;
 
-        // Tethering network agent is supported on V+, and will be adopting mainline beta program.
+        // Determines support for the Tethering/P2P GO local network agent. This feature is
+        // gated on Android V+ because it requires NET_CAPABILITY_LOCAL_NETWORK.
+        // For 25Q4+, it is enabled by default with a kill switch to prevent impacting
+        // existing devices if issues arise. For older V+ devices, rollout is controlled
+        // by a mainline beta flag.
         mSupportTetheringAndP2pGoLocalAgent = SdkLevel.isAtLeastV()
-                && mDeps.isTetheringAndP2pGoLocalAgentEnabled();
+                && (SdkUtil.isAtLeast25Q4()
+                ? mDeps.isTetheringFeatureNotChickenedOut(mContext,
+                        TETHERING_AND_P2P_GO_LOCAL_AGENT)
+                : mDeps.isTetheringAndP2pGoLocalAgentBetaFlagEnabled());
 
         mInitialState = new InitialState();
         mLocalHotspotState = new LocalHotspotState();
