@@ -58,9 +58,9 @@ DEFINE_BPF_MAP(l4s_accecn_ce_map, LRU_HASH, uint32_t, uint32_t, L4S_ACCECN_MAP_S
 DEFINE_BPF_MAP(l4s_accecn_byte_map, LRU_HASH, uint32_t, EcnByteCounters, L4S_ACCECN_MAP_SIZE)
 DEFINE_BPF_MAP(l4s_accecn_mss_map, LRU_HASH, uint32_t, uint16_t, L4S_ACCECN_MAP_SIZE)
 
-static int (*bpf_sock_ops_cb_flags_set)(struct bpf_sock_ops *skops, int flags) = (void *) BPF_FUNC_sock_ops_cb_flags_set;
-static int (*bpf_reserve_hdr_opt)(struct bpf_sock_ops *skops, int space, int flags) = (void *) BPF_FUNC_reserve_hdr_opt;
-static int (*bpf_store_hdr_opt)(struct bpf_sock_ops *skops, void *from, int len, int flags) = (void *) BPF_FUNC_store_hdr_opt;
+static long (*bpf_sock_ops_cb_flags_set)(struct bpf_sock_ops *skops, int flags) = (void *) BPF_FUNC_sock_ops_cb_flags_set;
+static long (*bpf_reserve_hdr_opt)(struct bpf_sock_ops *skops, int space, long flags) = (void *) BPF_FUNC_reserve_hdr_opt;
+static long (*bpf_store_hdr_opt)(struct bpf_sock_ops *skops, const void *from, int len, long flags) = (void *) BPF_FUNC_store_hdr_opt;
 
 static inline __attribute__((always_inline)) int
 find_accecn_options_offset(struct __sk_buff *skb, uint8_t offset) {
@@ -165,7 +165,7 @@ DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 6_1)
         }
         case BPF_SOCK_OPS_WRITE_HDR_OPT_CB:
         {
-            struct {
+            static const struct {
                 __u8 kind;
                 __u8 length;
                 __u8 data[CUSTOM_TCP_OPTION_SIZE - 2];
@@ -276,7 +276,7 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 6_1)
                 if (!byte_count) {
                     int is_accecn = find_accecn_options_offset(skb, hdr_len);
                     if (is_accecn != -1) {
-                        EcnByteCounters new_cnt = {
+                        static const EcnByteCounters new_cnt = {
                             .ceb = 0,
                             .e0b = 1,
                             .e1b = 1,
