@@ -530,7 +530,7 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 6_1)
                 if (!byte_count) {
                     int is_accecn = find_accecn_options_offset(skb, hdr_len);
                     if (is_accecn != -1) {
-                        EcnByteCounters new_cnt = {
+                        static const EcnByteCounters new_cnt = {
                             .ceb = 0,
                             .e0b = 1,
                             .e1b = 1,
