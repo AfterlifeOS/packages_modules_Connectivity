@@ -59,4 +59,10 @@ public class TetheringFeatureFlags {
      * Disabled by default.
      */
     public static final String TETHER_ACTIVE_SESSIONS_METRICS = "tether_active_sessions_metrics";
+
+    /**
+     * A kill switch to control whether the TETHERING_AND_P2P_GO_LOCAL_AGENT is enabled.
+     */
+    public static final String TETHERING_AND_P2P_GO_LOCAL_AGENT =
+            "tethering_and_p2p_go_local_agent";
 }

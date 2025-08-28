@@ -58,9 +58,9 @@ DEFINE_BPF_MAP(l4s_accecn_ce_map, LRU_HASH, uint32_t, uint32_t, L4S_ACCECN_MAP_S
 DEFINE_BPF_MAP(l4s_accecn_byte_map, LRU_HASH, uint32_t, EcnByteCounters, L4S_ACCECN_MAP_SIZE)
 DEFINE_BPF_MAP(l4s_accecn_mss_map, LRU_HASH, uint32_t, uint16_t, L4S_ACCECN_MAP_SIZE)
 
-static int (*bpf_sock_ops_cb_flags_set)(struct bpf_sock_ops *skops, int flags) = (void *) BPF_FUNC_sock_ops_cb_flags_set;
-static int (*bpf_reserve_hdr_opt)(struct bpf_sock_ops *skops, int space, int flags) = (void *) BPF_FUNC_reserve_hdr_opt;
-static int (*bpf_store_hdr_opt)(struct bpf_sock_ops *skops, void *from, int len, int flags) = (void *) BPF_FUNC_store_hdr_opt;
+static long (*bpf_sock_ops_cb_flags_set)(struct bpf_sock_ops *skops, int flags) = (void *) BPF_FUNC_sock_ops_cb_flags_set;
+static long (*bpf_reserve_hdr_opt)(struct bpf_sock_ops *skops, int space, long flags) = (void *) BPF_FUNC_reserve_hdr_opt;
+static long (*bpf_store_hdr_opt)(struct bpf_sock_ops *skops, const void *from, int len, long flags) = (void *) BPF_FUNC_store_hdr_opt;
 
 static inline __attribute__((always_inline)) int
 find_accecn_options_offset(struct __sk_buff *skb, uint8_t offset) {
@@ -138,7 +138,7 @@ parse_tcp_mss_option(struct __sk_buff *skb, uint8_t offset) {
     return -1;
 }
 
-DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 5_10)
+DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 6_1)
 (struct bpf_sock_ops *skops) {
     switch (skops->op) {
         case BPF_SOCK_OPS_TCP_CONNECT_CB:
@@ -165,8 +165,8 @@ DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 5_10)
         }
         case BPF_SOCK_OPS_WRITE_HDR_OPT_CB:
         {
-            struct {
-                __u8 kind; 
+            static const struct {
+                __u8 kind;
                 __u8 length;
                 __u8 data[CUSTOM_TCP_OPTION_SIZE - 2];
             } __attribute__((packed)) tcp_option = {
@@ -192,7 +192,7 @@ DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 5_10)
     return 1;
 }
 
-DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 5_10)
+DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 6_1)
 (struct __sk_buff* skb) {
     void* data = (void*)(long)skb->data;
     void* data_end = (void*)(long)skb->data_end;
@@ -247,7 +247,7 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 5_10)
     uint32_t *conn_count = bpf_l4s_accecn_ce_map_lookup_elem(&conn_key);
 
     EcnByteCounters* byte_count = bpf_l4s_accecn_byte_map_lookup_elem(&flow_key);
- 
+
     int tcp_flags_offset = isIpv4 ? ETH_IP4_TCP_FLAGS_OFF : ETH_IP6_TCP_FLAGS_OFF;
 
     if (!ce_count) {
@@ -276,7 +276,7 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 5_10)
                 if (!byte_count) {
                     int is_accecn = find_accecn_options_offset(skb, hdr_len);
                     if (is_accecn != -1) {
-                        EcnByteCounters new_cnt = {
+                        static const EcnByteCounters new_cnt = {
                             .ceb = 0,
                             .e0b = 1,
                             .e1b = 1,
@@ -328,7 +328,7 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 5_10)
 }
 
 
-DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_eth, , AID_SYSTEM, 5_10)
+DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_eth, , AID_SYSTEM, 6_1)
 (struct __sk_buff* skb) {
     void* data = (void*)(long)skb->data;
     void* data_end = (void*)(long)skb->data_end;
@@ -418,7 +418,7 @@ DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_eth, , AID_SYSTEM, 5_10)
             __u8 ace_option[12] = {0};
             __u32 e0b_val = htonl((__u32)(byte_count->e0b & 0x0000000000FFFFFF)) >> 8;
             __u32 ceb_val = htonl((__u32)(byte_count->ceb & 0x0000000000FFFFFF)) >> 8;
-            __u32 e1b_val = htonl((__u32)(byte_count->e1b & 0x0000000000FFFFFF)) >> 8; 
+            __u32 e1b_val = htonl((__u32)(byte_count->e1b & 0x0000000000FFFFFF)) >> 8;
             __builtin_memcpy(&ace_option[0], &e0b_val, 3);
             __builtin_memcpy(&ace_option[3], &ceb_val, 3);
             __builtin_memcpy(&ace_option[6], &e1b_val, 3);
@@ -446,7 +446,7 @@ DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_eth, , AID_SYSTEM, 5_10)
     return TC_ACT_PIPE;
 }
 
-DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 5_10)
+DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 6_1)
 (struct __sk_buff* skb) {
     void* data = (void*)(long)skb->data;
     void* data_end = (void*)(long)skb->data_end;
@@ -530,7 +530,7 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 5_10)
                 if (!byte_count) {
                     int is_accecn = find_accecn_options_offset(skb, hdr_len);
                     if (is_accecn != -1) {
-                        EcnByteCounters new_cnt = {
+                        static const EcnByteCounters new_cnt = {
                             .ceb = 0,
                             .e0b = 1,
                             .e1b = 1,
@@ -582,7 +582,7 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 5_10)
 }
 
 
-DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_rawip, , AID_SYSTEM, 5_10)
+DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_rawip, , AID_SYSTEM, 6_1)
 (struct __sk_buff* skb) {
     void* data = (void*)(long)skb->data;
     void* data_end = (void*)(long)skb->data_end;
@@ -672,7 +672,7 @@ DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_rawip, , AID_SYSTEM, 5_10)
             __u8 ace_option[12] = {0};
             __u32 e0b_val = htonl((__u32)(byte_count->e0b & 0x0000000000FFFFFF)) >> 8;
             __u32 ceb_val = htonl((__u32)(byte_count->ceb & 0x0000000000FFFFFF)) >> 8;
-            __u32 e1b_val = htonl((__u32)(byte_count->e1b & 0x0000000000FFFFFF)) >> 8; 
+            __u32 e1b_val = htonl((__u32)(byte_count->e1b & 0x0000000000FFFFFF)) >> 8;
             __builtin_memcpy(&ace_option[0], &e0b_val, 3);
             __builtin_memcpy(&ace_option[3], &ceb_val, 3);
             __builtin_memcpy(&ace_option[6], &e1b_val, 3);

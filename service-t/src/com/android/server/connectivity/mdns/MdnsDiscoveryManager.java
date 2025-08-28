@@ -51,6 +51,7 @@ public class MdnsDiscoveryManager implements MdnsSocketClientBase.Callback {
     @NonNull private final PerSocketServiceTypeClients perSocketServiceTypeClients;
     @NonNull private final DiscoveryExecutor discoveryExecutor;
     @NonNull private final MdnsFeatureFlags mdnsFeatureFlags;
+    @NonNull private final OffloadCallback offloadCallback;
 
     // Only accessed on the handler thread, initialized before first use
     @Nullable
@@ -131,13 +132,15 @@ public class MdnsDiscoveryManager implements MdnsSocketClientBase.Callback {
 
     public MdnsDiscoveryManager(@NonNull ExecutorProvider executorProvider,
             @NonNull MdnsSocketClientBase socketClient, @NonNull SharedLog sharedLog,
-            @NonNull MdnsFeatureFlags mdnsFeatureFlags) {
+            @NonNull MdnsFeatureFlags mdnsFeatureFlags,
+            @NonNull OffloadCallback offloadCallback) {
         this.executorProvider = executorProvider;
         this.socketClient = socketClient;
         this.sharedLog = sharedLog;
         this.perSocketServiceTypeClients = new PerSocketServiceTypeClients();
         this.mdnsFeatureFlags = mdnsFeatureFlags;
         this.discoveryExecutor = new DiscoveryExecutor(socketClient.getLooper(), mdnsFeatureFlags);
+        this.offloadCallback = offloadCallback;
     }
 
     /**
@@ -387,7 +390,8 @@ public class MdnsDiscoveryManager implements MdnsSocketClientBase.Callback {
         return new MdnsServiceTypeClient(
                 serviceType, socketClient,
                 executorProvider.newServiceTypeClientSchedulerExecutor(), socketKey,
-                sharedLog.forSubComponent(tag), looper, serviceCache, mdnsFeatureFlags);
+                sharedLog.forSubComponent(tag), looper, serviceCache, mdnsFeatureFlags,
+                offloadCallback);
     }
 
     private List<MdnsServiceTypeClient> getMdnsServiceTypeClientByInterfaceName(

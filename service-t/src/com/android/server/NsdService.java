@@ -43,6 +43,7 @@ import static com.android.server.connectivity.mdns.MdnsRecord.MAX_LABEL_LENGTH;
 import static com.android.server.connectivity.mdns.MdnsSearchOptions.AGGRESSIVE_QUERY_MODE;
 import static com.android.server.connectivity.mdns.MdnsSearchOptions.PASSIVE_QUERY_MODE;
 import static com.android.server.connectivity.mdns.util.MdnsUtils.Clock;
+import static com.android.server.connectivity.mdns.util.MdnsUtils.createOffloadServiceInfoFromFilterReplies;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -116,6 +117,7 @@ import com.android.server.connectivity.mdns.MdnsServiceTypeClient.FilterRepliesI
 import com.android.server.connectivity.mdns.MdnsSocketProvider;
 import com.android.server.connectivity.mdns.OffloadCallback;
 import com.android.server.connectivity.mdns.util.MdnsUtils;
+import com.android.tethering.mainline.beta.Flags;
 
 import java.io.FileDescriptor;
 import java.io.PrintWriter;
@@ -1991,6 +1993,8 @@ public class NsdService extends INsdManager.Stub {
                         mContext, MdnsFeatureFlags.NSD_CACHE_FLUSH_PER_ADDRESS_TYPE))
                 .setIsIgnoreTemporaryIPv6AddressesEnabled(mDeps.isTetheringFeatureNotChickenedOut(
                         mContext, MdnsFeatureFlags.NSD_IGNORE_TEMPORARY_IPV6_ADDRESSES))
+                .setIsSelectiveMdnsResponseOffloadEnabled(mDeps.isAconfigFlagEnabled(
+                        Flags.FLAG_NSD_SELECTIVE_MDNS_RESPONSE_OFFLOAD))
                 .setOverrideProvider(new MdnsFeatureFlags.FlagOverrideProvider() {
                     @Override
                     public boolean isForceEnabledForTest(@NonNull String flag) {
@@ -2006,16 +2010,17 @@ public class NsdService extends INsdManager.Stub {
                     }
                 })
                 .build();
+        final MdnsOffloadCallback offloadCallback = new MdnsOffloadCallback();
         mMdnsSocketClient =
                 new MdnsMultinetworkSocketClient(handler.getLooper(), mMdnsSocketProvider,
                         LOGGER.forSubComponent("MdnsMultinetworkSocketClient"), mMdnsFeatureFlags);
         mMdnsDiscoveryManager = deps.makeMdnsDiscoveryManager(new ExecutorProvider(),
                 mMdnsSocketClient, LOGGER.forSubComponent("MdnsDiscoveryManager"),
-                mMdnsFeatureFlags);
+                mMdnsFeatureFlags, offloadCallback);
         handler.post(() -> mMdnsSocketClient.setCallback(mMdnsDiscoveryManager));
         mAdvertiser = deps.makeMdnsAdvertiser(handler.getLooper(), mMdnsSocketProvider,
                 new AdvertiserCallback(), LOGGER.forSubComponent("MdnsAdvertiser"),
-                mMdnsFeatureFlags, mContext, new MdnsOffloadCallback());
+                mMdnsFeatureFlags, mContext, offloadCallback);
         mClock = deps.makeClock();
     }
 
@@ -2070,6 +2075,15 @@ public class NsdService extends INsdManager.Stub {
             return DeviceConfigUtils.isTetheringFeatureNotChickenedOut(context, feature);
         }
 
+        /** Get whether a feature config is enabled. */
+        public boolean isAconfigFlagEnabled(String feature) {
+            return switch (feature) {
+                case Flags.FLAG_NSD_SELECTIVE_MDNS_RESPONSE_OFFLOAD ->
+                        Flags.nsdSelectiveMdnsResponseOffload();
+                default -> throw new IllegalStateException("Unknown flag " + feature);
+            };
+        }
+
         /**
          * @see DeviceConfigUtils#getDeviceConfigPropertyInt
          */
@@ -2084,9 +2098,9 @@ public class NsdService extends INsdManager.Stub {
         public MdnsDiscoveryManager makeMdnsDiscoveryManager(
                 @NonNull ExecutorProvider executorProvider,
                 @NonNull MdnsMultinetworkSocketClient socketClient, @NonNull SharedLog sharedLog,
-                @NonNull MdnsFeatureFlags featureFlags) {
+                @NonNull MdnsFeatureFlags featureFlags, @NonNull OffloadCallback cb) {
             return new MdnsDiscoveryManager(
-                    executorProvider, socketClient, sharedLog, featureFlags);
+                    executorProvider, socketClient, sharedLog, featureFlags, cb);
         }
 
         /**
@@ -2222,27 +2236,6 @@ public class NsdService extends INsdManager.Stub {
         public String getInterfaceHash() throws RemoteException {
             return this.HASH;
         }
-    }
-
-    /**
-     * Creates an {@link OffloadServiceInfo} object from a {@link FilterRepliesInfo} instance.
-     * This method facilitates the conversion of filtering criteria into a service information
-     * object suitable for offloading mechanisms.
-     *
-     * @param info The {@link FilterRepliesInfo} containing the filtering criteria.
-     * @return A new {@link OffloadServiceInfo} instance populated with data from the
-     *        {@code FilterRepliesInfo}.
-     */
-    @VisibleForTesting
-    static OffloadServiceInfo createOffloadServiceInfoFromFilterReplies(
-            @NonNull FilterRepliesInfo info) {
-        return  new OffloadServiceInfo(
-                new OffloadServiceInfo.Key(info.serviceName, info.serviceType),
-                new ArrayList<>(info.subtypes),
-                info.hostname,
-                null /* offloadPayload */,
-                0 /* priority */,
-                OffloadEngine.OFFLOAD_TYPE_FILTER_REPLIES);
     }
 
     private void sendAllOffloadServiceInfos(@NonNull OffloadEngineInfo offloadEngineInfo) {

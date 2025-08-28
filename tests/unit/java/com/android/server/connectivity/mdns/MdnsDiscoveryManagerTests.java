@@ -100,6 +100,7 @@ public class MdnsDiscoveryManagerTests {
     @Mock MdnsServiceBrowserListener mockListenerTwo;
     @Mock SharedLog sharedLog;
     @Mock MdnsServiceCache mockServiceCache;
+    @Mock OffloadCallback mockCallback;
     private MdnsDiscoveryManager discoveryManager;
     private HandlerThread thread;
     private Handler handler;
@@ -117,7 +118,7 @@ public class MdnsDiscoveryManagerTests {
         doReturn(true).when(socketClient).supportsRequestingSpecificNetworks();
         createdServiceTypeClientCount = 0;
         discoveryManager = new MdnsDiscoveryManager(executorProvider, socketClient,
-                sharedLog, MdnsFeatureFlags.newBuilder().build()) {
+                sharedLog, MdnsFeatureFlags.newBuilder().build(), mockCallback) {
                     @Override
                     MdnsServiceTypeClient createServiceTypeClient(@NonNull String serviceType,
                             @NonNull SocketKey socketKey) {
@@ -157,7 +158,8 @@ public class MdnsDiscoveryManagerTests {
     }
 
     private MdnsDiscoveryManager makeDiscoveryManager(@NonNull MdnsFeatureFlags featureFlags) {
-        return new MdnsDiscoveryManager(executorProvider, socketClient, sharedLog, featureFlags) {
+        return new MdnsDiscoveryManager(executorProvider, socketClient, sharedLog, featureFlags,
+                mockCallback) {
             @Override
             MdnsServiceTypeClient createServiceTypeClient(@NonNull String serviceType,
                     @NonNull SocketKey socketKey) {
