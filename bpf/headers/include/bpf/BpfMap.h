@@ -37,6 +37,8 @@ using base::unique_fd;
 using std::function;
 
 #ifdef BPF_MAP_MAKE_VISIBLE_FOR_TESTING
+#undef BPFMAP_VERBOSE
+#define BPFMAP_VERBOSE
 #undef BPFMAP_VERBOSE_ABORT
 #define BPFMAP_VERBOSE_ABORT
 #endif
@@ -383,9 +385,11 @@ class BpfMap : public BpfMapRW<Key, Value> {
         // We already have the data, not clear what to do on delete failure...
         // Let's just log something...
         // (but ignore ENOENT in case we're racing against someone else)
+#ifdef BPFMAP_VERBOSE
         if (res.error().code() != ENOENT)
             ALOGE("BpfMap::readAndDeleteValue(): read but failed to delete data %s",
                   strerror(res.error().code()));
+#endif
         return v;
     }
 
@@ -400,7 +404,9 @@ class BpfMap : public BpfMapRW<Key, Value> {
             if (!res.ok()) {
                 // Someone else could have deleted the key, so ignore ENOENT
                 if (res.error().code() == ENOENT) continue;
+#ifdef BPFMAP_VERBOSE
                 ALOGE("Failed to delete data %s", strerror(res.error().code()));
+#endif
                 return res.error();
             }
         }
