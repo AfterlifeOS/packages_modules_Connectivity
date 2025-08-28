@@ -33,6 +33,7 @@ namespace android {
 namespace bpf {
 
 using base::Result;
+using base::ResultError;
 using base::unique_fd;
 using std::function;
 
@@ -61,7 +62,24 @@ void Abort(int __unused error, const char* __unused fmt, ...) {
     abort();
 }
 
-#define ERROR_FROM_ERRNO(f) ErrnoErrorf("BpfMap::" f "() failed")
+// We care about enabling SSO on 64-bit platforms
+// It turns out that our string implementation can SSO optimize 22 characters + (23rd) trailing NULL
+//
+// 32-bit userspace is obsolete, and SSO would require shortening the errors more than is reasonable
+//
+// For the curious: the initial u8 is a 7+1 bitfield and stores strlen * 2 + (is_short_flag=0),
+// though newer versions (_LIBCPP_ABI_VERSION >= 2), reverse the order
+#ifndef __ILP32__
+static_assert(sizeof(std::string) == 24);
+#endif
+
+// Our string implementation, on 64-bit platforms can fit up to 22 characters with SSO
+// The common case (ENOENT) shouldn't require heap memory allocation nor string formatting
+// Other errors will return (string argument passed to ErrnoErrorf) + ": " + strerror(errno)
+#define ERROR_FROM_ERRNO(f) ({ \
+  static_assert(__builtin_strlen(f ": ENOENT") <= 22, "ERROR_FROM_ERRNO - arg string too long"); \
+  (errno == ENOENT) ? ResultError(f ": ENOENT", ENOENT) : ErrnoErrorf("BpfMap::" f "() failed"); \
+})
 
 // This is a class wrapper for eBPF maps. The eBPF map is a special in-kernel
 // data structure that stores data in <Key, Value> pairs. It can be read/write
@@ -179,7 +197,7 @@ class BpfMapRO {
                 uint32_t count = N; // how many to fetch (and possibly delete)
                 int rv = batchLookupAndMaybeDelete(mMapFd, first ? NULL : &batch, &batch, &keys, &values, &count, del);
                 if (rv && errno == ENOSPC) break;  // not enough space for full HASH bucket, go around the *outer* loop
-                if (rv && errno != ENOENT) return ERROR_FROM_ERRNO("doBulkLookupAndMaybeDelete");
+                if (rv && errno != ENOENT) return ERROR_FROM_ERRNO("bulkLookup&Del");
                 // count is now how many *were* fetched (and possibly delete)
                 for (unsigned i = 0; i < count; ++i) f(keys[i], values[i]);
                 if (rv) return {};  // ENOENT -> success
@@ -364,7 +382,7 @@ class BpfMap : public BpfMapRW<Key, Value> {
         if (isAtLeastKernelVersion(5, 4, 0)) {
             Value value;
             if (!findAndDeleteMapEntry(mMapFd, &key, &value)) return value;
-            if (errno == ENOENT) return ERROR_FROM_ERRNO("readAndDeleteValue");
+            if (errno == ENOENT) return ERROR_FROM_ERRNO("read&DeleteVal");
         };
 
         // fallback path in case of weird error and for pre-5.4 kernels
