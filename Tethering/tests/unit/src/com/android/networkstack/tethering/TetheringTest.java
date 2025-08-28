@@ -88,6 +88,7 @@ import static com.android.networkstack.tethering.Tethering.UserRestrictionAction
 import static com.android.networkstack.tethering.TetheringConfiguration.TETHER_FORCE_USB_FUNCTIONS;
 import static com.android.networkstack.tethering.TetheringConfiguration.TETHER_USB_NCM_FUNCTION;
 import static com.android.networkstack.tethering.TetheringConfiguration.TETHER_USB_RNDIS_FUNCTION;
+import static com.android.networkstack.tethering.TetheringFeatureFlags.TETHERING_AND_P2P_GO_LOCAL_AGENT;
 import static com.android.networkstack.tethering.TetheringNotificationUpdater.DOWNSTREAM_NONE;
 import static com.android.networkstack.tethering.UpstreamNetworkMonitor.EVENT_ON_CAPABILITIES;
 import static com.android.testutils.TestPermissionUtil.runAsShell;
@@ -479,7 +480,18 @@ public class TetheringTest {
         }
 
         @Override
-        public boolean isTetheringAndP2pGoLocalAgentEnabled() {
+        public boolean isTetheringFeatureNotChickenedOut(@NonNull Context context,
+                @NonNull String name) {
+            return switch (name) {
+                // Use one flag for mocking to reduce test complexity.
+                case TETHERING_AND_P2P_GO_LOCAL_AGENT -> mFeatureFlags.getOrDefault(
+                        Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, false);
+                default -> throw new IllegalArgumentException("Unknown flag " + name);
+            };
+        }
+
+        @Override
+        public boolean isTetheringAndP2pGoLocalAgentBetaFlagEnabled() {
             return mFeatureFlags.getOrDefault(Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, false);
         }
     }
