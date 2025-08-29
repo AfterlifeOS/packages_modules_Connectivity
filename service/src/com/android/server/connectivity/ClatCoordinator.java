@@ -64,7 +64,7 @@ import java.util.Objects;
 /**
  * This coordinator is responsible for providing clat relevant functionality.
  *
- * {@hide}
+ * @hide
  */
 @RequiresApi(Build.VERSION_CODES.TIRAMISU)
 public class ClatCoordinator {

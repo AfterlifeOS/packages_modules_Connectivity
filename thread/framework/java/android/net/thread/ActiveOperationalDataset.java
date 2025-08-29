@@ -930,7 +930,10 @@ public final class ActiveOperationalDataset implements Parcelable {
             return this;
         }
 
-        /** Adds one more unknown TLV. @hide */
+        /**
+         * Adds one more unknown TLV.
+         * @hide
+         */
         @VisibleForTesting
         @NonNull
         public Builder addUnknownTlv(int type, byte[] value) {

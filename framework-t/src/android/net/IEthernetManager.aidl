@@ -29,7 +29,7 @@ import java.util.List;
  * Interface that answers queries about, and allows changing
  * ethernet configuration.
  */
-/** {@hide} */
+/** @hide */
 interface IEthernetManager
 {
     String[] getAvailableInterfaces();
