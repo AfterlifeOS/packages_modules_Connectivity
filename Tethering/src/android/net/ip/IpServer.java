@@ -39,6 +39,7 @@ import static android.net.dhcp.IDhcpServer.STATUS_SUCCESS;
 import static android.net.util.NetworkConstants.asByte;
 import static android.system.OsConstants.RT_SCOPE_UNIVERSE;
 
+import static com.android.net.module.util.ConnectivityCommonFlags.USE_ROUTE_PARCEL_IPCS;
 import static com.android.net.module.util.Inet4AddressUtils.intToInet4AddressHTH;
 import static com.android.net.module.util.NetworkStackConstants.RFC7421_PREFIX_LENGTH;
 import static com.android.networkstack.tethering.TetheringConfiguration.USE_SYNC_SM;
@@ -232,6 +233,13 @@ public class IpServer extends StateMachineShim {
             return Flags.tetheringAndP2pGoLocalAgent();
         }
 
+        /**
+         * @see DeviceConfigUtils#isTetheringFeatureNotChickenedOut
+         */
+        public boolean isFeatureNotChickenedOut(Context context, String name) {
+            return DeviceConfigUtils.isTetheringFeatureNotChickenedOut(context, name);
+        }
+
         /** Create a NetworkAgent instance to be used by IpServer. */
         @RequiresApi(Build.VERSION_CODES.VANILLA_ICE_CREAM)
         @SuppressLint("NewApi")
@@ -296,6 +304,7 @@ public class IpServer extends StateMachineShim {
     private final boolean mUsingLegacyDhcp;
     private final int mP2pLeasesSubnetPrefixLength;
     private final boolean mIsWifiP2pDedicatedIpEnabled;
+    private final boolean mUseRouteParcel;
 
     private final Dependencies mDeps;
 
@@ -399,6 +408,11 @@ public class IpServer extends StateMachineShim {
                 ? mDeps.isTetheringFeatureNotChickenedOut(mContext,
                         TETHERING_AND_P2P_GO_LOCAL_AGENT)
                 : mDeps.isTetheringAndP2pGoLocalAgentBetaFlagEnabled());
+
+        // For post 25Q2 releases always use *RouteParcel methods. For 25Q2 or lower, decide based
+        // on kill-switch
+        mUseRouteParcel = SdkUtil.isAtLeast25Q4()
+                || mDeps.isFeatureNotChickenedOut(mContext, USE_ROUTE_PARCEL_IPCS);
 
         mInitialState = new InitialState();
         mLocalHotspotState = new LocalHotspotState();
@@ -919,7 +933,8 @@ public class IpServer extends StateMachineShim {
     }
 
     private void removeRoutesFromNetwork(int netId, @NonNull final List<RouteInfo> toBeRemoved) {
-        final int removalFailures = NetdUtils.removeRoutesFromNetwork(mNetd, netId, toBeRemoved);
+        final int removalFailures = NetdUtils.removeRoutesFromNetwork(mNetd, netId, toBeRemoved,
+                mUseRouteParcel);
         if (removalFailures > 0) {
             mLog.e("Failed to remove " + removalFailures
                     + " IPv6 routes from network " + netId + ".");
@@ -950,15 +965,14 @@ public class IpServer extends StateMachineShim {
         }
     }
 
-    private void addRoutesToNetwork(int netId,
-            @NonNull final List<RouteInfo> toBeAdded) {
+    private void addRoutesToNetwork(int netId, @NonNull final List<RouteInfo> toBeAdded) {
         // It's safe to call addInterfaceToNetwork() even if
         // the interface is already in the network.
         addInterfaceToNetwork(netId, mIfaceName);
         try {
             // Add routes from local network. Note that adding routes that
             // already exist does not cause an error (EEXIST is silently ignored).
-            NetdUtils.addRoutesToNetwork(mNetd, netId, mIfaceName, toBeAdded);
+            NetdUtils.addRoutesToNetwork(mNetd, netId, mIfaceName, toBeAdded, mUseRouteParcel);
         } catch (IllegalStateException e) {
             mLog.e("Failed to add IPv4/v6 routes to local table: " + e);
             return;
@@ -972,6 +986,7 @@ public class IpServer extends StateMachineShim {
             final List<RouteInfo> routesToBeRemoved =
                     getLocalRoutesFor(mIfaceName, deprecatedPrefixes);
             if (mTetheringAgent == null) {
+                // Routes for local network are not considered local routes.
                 removeRoutesFromNetwork(LOCAL_NET_ID, routesToBeRemoved);
             }
             for (RouteInfo route : routesToBeRemoved) mLinkProperties.removeRoute(route);
@@ -1219,10 +1234,11 @@ public class IpServer extends StateMachineShim {
                             20 /* maxAttempts */, 50 /* pollingIntervalMs */);
                     // Activate a route to dest and IPv6 link local.
                     NetdUtils.modifyRoute(mNetd, NetdUtils.ModifyOperation.ADD, LOCAL_NET_ID,
-                            new RouteInfo(asIpPrefix(mIpv4Address), null, mIfaceName, RTN_UNICAST));
+                            new RouteInfo(asIpPrefix(mIpv4Address), null, mIfaceName,
+                                    RTN_UNICAST), mUseRouteParcel);
                     NetdUtils.modifyRoute(mNetd, NetdUtils.ModifyOperation.ADD, LOCAL_NET_ID,
                             new RouteInfo(new IpPrefix("fe80::/64"), null, mIfaceName,
-                                    RTN_UNICAST));
+                                    RTN_UNICAST), mUseRouteParcel);
                 }
             } catch (RemoteException | ServiceSpecificException | IllegalStateException e) {
                 mLog.e("Error Tethering", e);
@@ -1352,6 +1368,7 @@ public class IpServer extends StateMachineShim {
             final List<RouteInfo> routesToBeRemoved =
                     List.of(getDirectConnectedRoute(deprecatedLinkAddress));
             if (mTetheringAgent == null) {
+                // Routes for local network are not considered local routes.
                 removeRoutesFromNetwork(LOCAL_NET_ID, routesToBeRemoved);
             }
             for (RouteInfo route : routesToBeRemoved) mLinkProperties.removeRoute(route);

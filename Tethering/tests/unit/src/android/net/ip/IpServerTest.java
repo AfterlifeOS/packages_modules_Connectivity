@@ -39,6 +39,7 @@ import static android.net.ip.IpServer.getTetherableIpv6Prefixes;
 
 import static com.android.modules.utils.build.SdkLevel.isAtLeastT;
 import static com.android.modules.utils.build.SdkLevel.isAtLeastV;
+import static com.android.net.module.util.ConnectivityCommonFlags.USE_ROUTE_PARCEL_IPCS;
 import static com.android.net.module.util.Inet4AddressUtils.intToInet4AddressHTH;
 import static com.android.networkstack.tethering.TetheringFeatureFlags.TETHERING_AND_P2P_GO_LOCAL_AGENT;
 
@@ -234,6 +235,9 @@ public class IpServerTest {
                 eq(TETHERING_AND_P2P_GO_LOCAL_AGENT));
         doReturn(agentFeatureEnabled).when(mDependencies)
                 .isTetheringAndP2pGoLocalAgentBetaFlagEnabled();
+        doAnswer(
+                invocation -> mFeatureFlags.getOrDefault((String) invocation.getArgument(1), true)
+        ).when(mDependencies).isFeatureNotChickenedOut(any(), anyString());
         if (isAtLeastV()) {
             when(mDependencies.makeNetworkAgent(any(), any(), anyString(), anyInt(), any()))
                     .thenReturn(mNetworkAgent);
@@ -385,6 +389,7 @@ public class IpServerTest {
     }
 
     @Test
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS)
     public void canBeTetheredAsBluetooth() throws Exception {
         initStateMachine(TETHERING_BLUETOOTH);
 
@@ -404,13 +409,11 @@ public class IpServerTest {
         inOrder.verify(mNetd).tetherInterfaceAdd(IFACE_NAME);
         if (isTetheringNetworkAgentFeatureEnabled()) {
             inOrder.verify(mNetd, never()).networkAddInterface(anyInt(), anyString());
-            inOrder.verify(mNetd, never())
-                    .networkAddRoute(anyInt(), anyString(), anyString(), anyString());
+            verifyNeverNetworkAddRoute(inOrder);
         } else {
             inOrder.verify(mNetd).networkAddInterface(INetd.LOCAL_NET_ID, IFACE_NAME);
             // One for ipv4 route, one for ipv6 link local route.
-            inOrder.verify(mNetd, times(2))
-                    .networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(IFACE_NAME), any(), any());
+            verifyNetworkAddRoute(inOrder, true, 2);
         }
         inOrder.verify(mCallback).updateInterfaceState(
                 mIpServer, STATE_TETHERED, TETHER_ERROR_NO_ERROR);
@@ -451,6 +454,7 @@ public class IpServerTest {
     }
 
     @Test
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS)
     public void canBeTetheredAsUsb() throws Exception {
         initStateMachine(TETHERING_USB);
 
@@ -465,12 +469,10 @@ public class IpServerTest {
         inOrder.verify(mNetd).tetherInterfaceAdd(IFACE_NAME);
         if (isTetheringNetworkAgentFeatureEnabled()) {
             inOrder.verify(mNetd, never()).networkAddInterface(anyInt(), anyString());
-            inOrder.verify(mNetd, never())
-                    .networkAddRoute(anyInt(), anyString(), anyString(), anyString());
+            verifyNeverNetworkAddRoute(inOrder);
         } else {
             inOrder.verify(mNetd).networkAddInterface(INetd.LOCAL_NET_ID, IFACE_NAME);
-            inOrder.verify(mNetd, times(2))
-                    .networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(IFACE_NAME), any(), any());
+            verifyNetworkAddRoute(inOrder, true, 2);
         }
         inOrder.verify(mCallback).updateInterfaceState(
                 mIpServer, STATE_TETHERED, TETHER_ERROR_NO_ERROR);
@@ -481,6 +483,7 @@ public class IpServerTest {
     }
 
     @Test
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS)
     public void canBeTetheredAsWifiP2p_NotUsingDedicatedIp() throws Exception {
         initStateMachine(TETHERING_WIFI_P2P);
 
@@ -494,8 +497,7 @@ public class IpServerTest {
                   IFACE_NAME.equals(cfg.ifName) && assertNotContainsFlag(cfg.flags, IF_STATE_UP)));
         inOrder.verify(mNetd).tetherInterfaceAdd(IFACE_NAME);
         inOrder.verify(mNetd).networkAddInterface(INetd.LOCAL_NET_ID, IFACE_NAME);
-        inOrder.verify(mNetd, times(2)).networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(IFACE_NAME),
-                any(), any());
+        verifyNetworkAddRoute(inOrder, true, 2);
         inOrder.verify(mCallback).updateInterfaceState(
                 mIpServer, STATE_LOCAL_ONLY, TETHER_ERROR_NO_ERROR);
         inOrder.verify(mCallback).updateLinkProperties(
@@ -505,6 +507,7 @@ public class IpServerTest {
     }
 
     @Test
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS)
     public void canBeTetheredAsWifiP2p_UsingDedicatedIp() throws Exception {
         initStateMachine(TETHERING_WIFI_P2P, false /* usingLegacyDhcp */, DEFAULT_USING_BPF_OFFLOAD,
                 true /* shouldEnableWifiP2pDedicatedIp */);
@@ -521,8 +524,7 @@ public class IpServerTest {
                 IFACE_NAME.equals(cfg.ifName) && assertNotContainsFlag(cfg.flags, IF_STATE_UP)));
         inOrder.verify(mNetd).tetherInterfaceAdd(IFACE_NAME);
         inOrder.verify(mNetd).networkAddInterface(INetd.LOCAL_NET_ID, IFACE_NAME);
-        inOrder.verify(mNetd, times(2)).networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(IFACE_NAME),
-                any(), any());
+        verifyNetworkAddRoute(inOrder, true, 2);
         inOrder.verify(mCallback).updateInterfaceState(
                 mIpServer, STATE_LOCAL_ONLY, TETHER_ERROR_NO_ERROR);
         inOrder.verify(mCallback).updateLinkProperties(
@@ -789,6 +791,7 @@ public class IpServerTest {
     }
 
     @Test
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS)
     public void testOnNewPrefixRequest() throws Exception {
         initStateMachine(TETHERING_NCM);
         dispatchCommand(IpServer.CMD_TETHER_REQUESTED, 0, 0,
@@ -810,8 +813,7 @@ public class IpServerTest {
         inOrder.verify(mRoutingCoordinatorManager, never()).requestDownstreamAddress(any());
         inOrder.verify(mNetd).networkAddInterface(INetd.LOCAL_NET_ID, IFACE_NAME);
         // One for ipv4 route, one for ipv6 link local route.
-        inOrder.verify(mNetd, times(2)).networkAddRoute(eq(INetd.LOCAL_NET_ID), eq(IFACE_NAME),
-                any(), any());
+        verifyNetworkAddRoute(inOrder, true, 2);
         inOrder.verify(mCallback).updateInterfaceState(
                 mIpServer, STATE_LOCAL_ONLY, TETHER_ERROR_NO_ERROR);
         inOrder.verify(mCallback).updateLinkProperties(eq(mIpServer), lpCaptor.capture());
@@ -1120,24 +1122,67 @@ public class IpServerTest {
         return true;
     }
 
-    @FeatureFlag(name = Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT)
+    private void verifyNeverNetworkAddRoute(InOrder inOrder) throws Exception {
+        inOrder.verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), anyString(),
+                anyString());
+    }
+
+    private void verifyNetworkAddRoute(InOrder inOrder, boolean useParcelMethods, int times)
+            throws Exception {
+        if (useParcelMethods) {
+            inOrder.verify(mNetd, times(times)).networkAddRouteParcel(eq(INetd.LOCAL_NET_ID),
+                    argThat(routeInfo -> routeInfo != null && IFACE_NAME.equals(routeInfo.ifName)));
+            inOrder.verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), anyString(),
+                    anyString());
+        } else {
+            inOrder.verify(mNetd, times(times)).networkAddRoute(eq(INetd.LOCAL_NET_ID),
+                    eq(IFACE_NAME), any(), any());
+            inOrder.verify(mNetd, never()).networkAddRouteParcel(anyInt(), any());
+        }
+    }
+
     @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @FeatureFlag(name = Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT)
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS)
     @Test
     public void testTetheringNetworkAgent_tetheringAgentEnabled() throws Exception {
-        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_GLOBAL, true);
-        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, true);
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_GLOBAL, true, true);
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, true, true);
     }
 
-    @FeatureFlag(name = Flags.FLAG_TETHERING_AND_P2P_GO_LOCAL_AGENT, enabled = false)
-    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS)
     @Test
     public void testTetheringNetworkAgent_tetheringAgentDisabled() throws Exception {
-        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_GLOBAL, false);
-        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, false);
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_GLOBAL, false, true);
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, false, true);
     }
 
-    private void doTestTetheringNetworkAgent(int scope, boolean expectAgentEnabled)
+    // todo(b/441359615) : remove the test while cleaning up flag USE_ROUTE_PARCEL_IPCS.
+    @IgnoreAfter(Build.VERSION_CODES.BAKLAVA)
+    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS, enabled = false)
+    @Test
+    public void testTetheringNetworkAgent_UseRouteParcelDisabled_RouteMethodsCalled()
             throws Exception {
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_GLOBAL, false, false);
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, false, false);
+    }
+
+    @IgnoreUpTo(Build.VERSION_CODES.BAKLAVA)
+    @FeatureFlag(name = USE_ROUTE_PARCEL_IPCS, enabled = false)
+    @Test
+    public void testTetheringNetworkAgent_postBaklava_RouteParcelMethodsCalled()
+            throws Exception {
+        // On Android versions post-Baklava, the implementation exclusively uses route parcel
+        // IPCs. As a result, the USE_ROUTE_PARCEL_IPCS feature flag is no longer checked and
+        // has no effect.
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_GLOBAL, false, true);
+        doTestTetheringNetworkAgent(CONNECTIVITY_SCOPE_LOCAL, false, true);
+    }
+
+    private void doTestTetheringNetworkAgent(int scope, boolean expectAgentEnabled,
+            boolean useRouteParcelIpcs) throws Exception {
         initStateMachine(TETHERING_USB);
 
         final InOrder inOrder = inOrder(mNetworkAgent, mNetd);
@@ -1148,12 +1193,12 @@ public class IpServerTest {
         inOrder.verify(mNetd, times(1)).tetherInterfaceAdd(anyString());
         if (expectAgentEnabled) {
             inOrder.verify(mNetd, never()).networkAddInterface(anyInt(), anyString());
-            inOrder.verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), any(), any());
+            verifyNeverNetworkAddRoute(inOrder);
             inOrder.verify(mNetworkAgent, times(1)).sendLinkProperties(any());
             inOrder.verify(mNetworkAgent, times(1)).markConnected();
         } else {
             inOrder.verify(mNetd, times(1)).networkAddInterface(anyInt(), anyString());
-            inOrder.verify(mNetd, times(2)).networkAddRoute(anyInt(), anyString(), any(), any());
+            verifyNetworkAddRoute(inOrder, useRouteParcelIpcs, 2);
             inOrder.verify(mNetworkAgent, never()).sendLinkProperties(any());
             inOrder.verify(mNetworkAgent, never()).markConnected();
         }
@@ -1226,7 +1271,7 @@ public class IpServerTest {
 
         inOrder.verify(mNetworkAgent).register();
         inOrder.verify(mNetd, never()).networkCreate(any());
-        inOrder.verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), any(), any());
+        verifyNeverNetworkAddRoute(inOrder);
 
         // Ipv6 link local route won't show up in the LinkProperties, so just
         // verify ipv4 route.
@@ -1249,7 +1294,7 @@ public class IpServerTest {
         lp.setInterfaceName(UPSTREAM_IFACE);
         lp.setLinkAddresses(UPSTREAM_ADDRESSES);
         dispatchTetherConnectionChanged(UPSTREAM_IFACE, lp, -1);
-        inOrder.verify(mNetd, never()).networkAddRoute(anyInt(), anyString(), any(), any());
+        verifyNeverNetworkAddRoute(inOrder);
         inOrder.verify(mNetworkAgent).sendLinkProperties(lpCaptor.capture());
 
         // Expect one Ipv4 route, plus one Ipv6 route.
