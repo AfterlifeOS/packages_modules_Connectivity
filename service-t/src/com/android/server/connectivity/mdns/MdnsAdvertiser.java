@@ -153,13 +153,14 @@ public class MdnsAdvertiser {
     }
 
     /**
-     * Gets the current status of the OffloadServiceInfos per interface.
+     * Notifies the Advertiser that an offload operation is starting for a specific network
+     * interface.
+     *
      * @param interfaceName the target interfaceName
      * @return the list of current offloaded services.
      */
     @NonNull
-    public List<OffloadServiceInfoWrapper> getAllInterfaceOffloadServiceInfos(
-            @NonNull String interfaceName) {
+    public List<OffloadServiceInfoWrapper> notifyOffloadStart(@NonNull String interfaceName) {
         return mInterfaceOffloadServices.getOrDefault(interfaceName, Collections.emptyList());
     }
 

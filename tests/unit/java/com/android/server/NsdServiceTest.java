@@ -2127,7 +2127,7 @@ public class NsdServiceTest {
                 "Android.local", new byte[] { 0x1, 0x2, 0x3 }, 1 /* priority */,
                 OFFLOAD_TYPE_REPLY);
         doReturn(List.of(new MdnsAdvertiser.OffloadServiceInfoWrapper(123, advertingInfo)))
-                .when(mAdvertiser).getAllInterfaceOffloadServiceInfos(interfaceName);
+                .when(mAdvertiser).notifyOffloadStart(interfaceName);
         final FilterRepliesInfo filerRepliesInfo = new FilterRepliesInfo(
                 "_testService", "_testType", List.of("_sub1", "_sub2"), "Android.local");
         final OffloadServiceInfo discoveryInfo =
@@ -2137,7 +2137,7 @@ public class NsdServiceTest {
         final OffloadEngine offloadEngine = registerOffloadEngine(interfaceName);
         // Verify that the OffloadServiceInfo retrieves from the advertiser and discoveryManager and
         // then sends it to the OffloadEngine.
-        verify(mAdvertiser).getAllInterfaceOffloadServiceInfos(interfaceName);
+        verify(mAdvertiser).notifyOffloadStart(interfaceName);
         verify(mDiscoveryManager).notifyOffloadStart(eq(interfaceName));
         verify(offloadEngine).onOffloadServiceUpdated(advertingInfo);
         verify(offloadEngine).onOffloadServiceUpdated(discoveryInfo);
@@ -2165,11 +2165,11 @@ public class NsdServiceTest {
                 "Android.local", new byte[] { 0x1, 0x2, 0x3 }, 1 /* priority */,
                 OFFLOAD_TYPE_REPLY);
         doReturn(Collections.emptyList()).when(mAdvertiser)
-                .getAllInterfaceOffloadServiceInfos(anyString());
+                .notifyOffloadStart(anyString());
         final OffloadEngine offloadEngine = registerOffloadEngine(interfaceName);
         // Verify that the OffloadServiceInfo retrieves from the advertiser and that no info is
         // sent to the OffloadEngine.
-        verify(mAdvertiser).getAllInterfaceOffloadServiceInfos(interfaceName);
+        verify(mAdvertiser).notifyOffloadStart(interfaceName);
         verify(offloadEngine, never()).onOffloadServiceUpdated(any());
         verifyOffloadServiceUpdatedAndRemoved(
                 interfaceName, info, mOffloadCallback, offloadEngine);
