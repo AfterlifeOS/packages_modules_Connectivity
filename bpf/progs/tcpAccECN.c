@@ -138,6 +138,16 @@ parse_tcp_mss_option(struct __sk_buff *skb, uint8_t offset) {
     return -1;
 }
 
+static const struct {
+    __u8 kind;
+    __u8 length;
+    __u8 data[CUSTOM_TCP_OPTION_SIZE - 2];
+} __attribute__((packed)) tcp_option = {
+    .kind = CUSTOM_TCP_OPTION_KIND,
+    .length = CUSTOM_TCP_OPTION_SIZE,
+    .data = {0},
+};
+
 DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 6_1)
 (struct bpf_sock_ops *skops) {
     switch (skops->op) {
@@ -165,15 +175,6 @@ DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 6_1)
         }
         case BPF_SOCK_OPS_WRITE_HDR_OPT_CB:
         {
-            static const struct {
-                __u8 kind;
-                __u8 length;
-                __u8 data[CUSTOM_TCP_OPTION_SIZE - 2];
-            } __attribute__((packed)) tcp_option = {
-                .kind = CUSTOM_TCP_OPTION_KIND,
-                .length = CUSTOM_TCP_OPTION_SIZE,
-                .data = {0},
-            };
             if (skops->skb_tcp_flags & TCPHDR_SYN) {
                 break;
             }
@@ -191,6 +192,12 @@ DEFINE_BPF_PROG_KVER(sockops, accecn_option, , AID_SYSTEM, 6_1)
     }
     return 1;
 }
+
+static const EcnByteCounters new_cnt = {
+    .ceb = 0,
+    .e0b = 1,
+    .e1b = 1,
+};
 
 DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 6_1)
 (struct __sk_buff* skb) {
@@ -276,11 +283,6 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 6_1)
                 if (!byte_count) {
                     int is_accecn = find_accecn_options_offset(skb, hdr_len);
                     if (is_accecn != -1) {
-                        static const EcnByteCounters new_cnt = {
-                            .ceb = 0,
-                            .e0b = 1,
-                            .e1b = 1,
-                        };
                         bpf_l4s_accecn_byte_map_update_elem(&flow_key, &new_cnt, 0);
                     }
                 }
@@ -529,11 +531,6 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 6_1)
                 if (!byte_count) {
                     int is_accecn = find_accecn_options_offset(skb, hdr_len);
                     if (is_accecn != -1) {
-                        static const EcnByteCounters new_cnt = {
-                            .ceb = 0,
-                            .e0b = 1,
-                            .e1b = 1,
-                        };
                         bpf_l4s_accecn_byte_map_update_elem(&flow_key, &new_cnt, 0);
                     }
                 }
