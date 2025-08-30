@@ -81,6 +81,7 @@ import static android.net.ConnectivityManager.TYPE_WIFI_P2P;
 import static android.net.ConnectivityManager.getNetworkTypeName;
 import static android.net.ConnectivityManager.isNetworkTypeValid;
 import static android.net.ConnectivitySettingsManager.PRIVATE_DNS_MODE_OPPORTUNISTIC;
+import static android.net.INetd.LOCAL_NET_ID;
 import static android.net.INetd.PERMISSION_INTERNET;
 import static android.net.INetworkMonitor.NETWORK_VALIDATION_PROBE_PRIVDNS;
 import static android.net.INetworkMonitor.NETWORK_VALIDATION_RESULT_PARTIAL;
@@ -149,6 +150,7 @@ import static com.android.net.module.util.BpfUtils.BPF_CGROUP_UDP4_RECVMSG;
 import static com.android.net.module.util.BpfUtils.BPF_CGROUP_UDP4_SENDMSG;
 import static com.android.net.module.util.BpfUtils.BPF_CGROUP_UDP6_RECVMSG;
 import static com.android.net.module.util.BpfUtils.BPF_CGROUP_UDP6_SENDMSG;
+import static com.android.net.module.util.NetdUtils.toRouteInfoParcel;
 import static com.android.net.module.util.NetworkMonitorUtils.isPrivateDnsValidationRequired;
 import static com.android.net.module.util.NetworkStackConstants.IPV4_LOCAL_PREFIXES;
 import static com.android.net.module.util.NetworkStackConstants.MULTICAST_AND_BROADCAST_PREFIXES;
@@ -267,6 +269,7 @@ import android.net.QosFilter;
 import android.net.QosSocketFilter;
 import android.net.QosSocketInfo;
 import android.net.RouteInfo;
+import android.net.RouteInfoParcel;
 import android.net.SocketKeepalive;
 import android.net.TetheringManager;
 import android.net.TransportInfo;
@@ -362,7 +365,6 @@ import com.android.net.module.util.LinkPropertiesUtils;
 import com.android.net.module.util.LinkPropertiesUtils.CompareOrUpdateResult;
 import com.android.net.module.util.LinkPropertiesUtils.CompareResult;
 import com.android.net.module.util.LocationPermissionChecker;
-import com.android.net.module.util.NetdUtils;
 import com.android.net.module.util.PerUidCounter;
 import com.android.net.module.util.PermissionUtils;
 import com.android.net.module.util.RoutingCoordinatorService;
@@ -3620,7 +3622,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         final String nextHop = bestRoute.hasGateway()
                 ? bestRoute.getGateway().getHostAddress() : "";
         try {
-            mNetd.networkAddLegacyRoute(netId, bestRoute.getInterface(), dst, nextHop , uid);
+            mNetd.networkAddLegacyRoute(netId, bestRoute.getInterface(), dst, nextHop, uid);
         } catch (RemoteException | ServiceSpecificException e) {
             if (DBG) loge("Exception trying to add a route: " + e);
             return false;
@@ -10515,8 +10517,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
         for (LinkProperties linkProperty : linkPropertiesDiff.added) {
             final List<IpPrefix> unicastLocalPrefixesToBeAdded = new ArrayList<>();
             for (LinkAddress linkAddress : linkProperty.getLinkAddresses()) {
-                unicastLocalPrefixesToBeAdded.addAll(
-                        getLocalNetworkPrefixesForAddress(linkAddress));
+                unicastLocalPrefixesToBeAdded.addAll(getLocalNetworkPrefixesForAddress(
+                        linkAddress.getAddress(), linkAddress.getPrefixLength()));
             }
             addLocalAddressesToBpfMap(linkProperty.getInterfaceName(),
                     unicastLocalPrefixesToBeAdded, linkProperty);
@@ -10535,8 +10537,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
                     linkProperty.getInterfaceName(), Collections.emptyList());
 
             for (LinkAddress linkAddress : linkProperty.getLinkAddresses()) {
-                unicastLocalPrefixesToBeRemoved.addAll(
-                        getLocalNetworkPrefixesForAddress(linkAddress));
+                unicastLocalPrefixesToBeRemoved.addAll(getLocalNetworkPrefixesForAddress(
+                        linkAddress.getAddress(), linkAddress.getPrefixLength()));
             }
 
             // This is to ensure if 10.0.10.0/24 was added and 10.0.11.0/24 was removed both will
@@ -10551,23 +10553,24 @@ public class ConnectivityService extends IConnectivityManager.Stub
 
     /**
      * Filters IpPrefix that are local prefixes and LinkAddress is part of them.
-     * @param linkAddress link address used for filtering
+     * @param prefix address used for filtering
+     * @param prefixLength prefix length of address
      * @return list of IpPrefix that are local addresses.
      */
-    private List<IpPrefix> getLocalNetworkPrefixesForAddress(LinkAddress linkAddress) {
+    public static List<IpPrefix> getLocalNetworkPrefixesForAddress(InetAddress prefix,
+            int prefixLength) {
         List<IpPrefix> localPrefixes = new ArrayList<>();
-        if (linkAddress.isIpv6()) {
+        if (prefix instanceof Inet6Address) {
             // For IPv6, if the prefix length is greater than zero then they are part of local
             // network
-            if (linkAddress.getPrefixLength() != 0) {
+            if (prefixLength != 0) {
                 localPrefixes.add(
-                        new IpPrefix(linkAddress.getAddress(), linkAddress.getPrefixLength()));
+                        new IpPrefix(prefix, prefixLength));
             }
         } else {
             // For IPv4, if the linkAddress is part of IpPrefix adding prefix to result.
             for (IpPrefix ipv4LocalPrefix : IPV4_LOCAL_PREFIXES) {
-                if (ipv4LocalPrefix.containsPrefix(
-                        new IpPrefix(linkAddress.getAddress(), linkAddress.getPrefixLength()))) {
+                if (ipv4LocalPrefix.containsPrefix(new IpPrefix(prefix, prefixLength))) {
                     localPrefixes.add(ipv4LocalPrefix);
                 }
             }
@@ -10695,8 +10698,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
             if (route.hasGateway()) continue;
             if (VDBG || DDBG) log("Adding Route [" + route + "] to network " + netId);
             try {
-                mRoutingCoordinatorService.addRouteParcel(netId,
-                        NetdUtils.toRouteInfoParcel(route));
+                final RouteInfoParcel routeParcel = toRouteInfoParcel(route);
+                routeParcel.isLocalRoute = isLocalRoute(routeParcel, netId);
+                mRoutingCoordinatorService.addRouteParcel(netId, routeParcel);
             } catch (Exception e) {
                 if ((route.getDestination().getAddress() instanceof Inet4Address) || VDBG) {
                     loge("Exception in addRoute for non-gateway: " + e);
@@ -10707,8 +10711,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
             if (!route.hasGateway()) continue;
             if (VDBG || DDBG) log("Adding Route [" + route + "] to network " + netId);
             try {
-                mRoutingCoordinatorService.addRouteParcel(netId,
-                        NetdUtils.toRouteInfoParcel(route));
+                final RouteInfoParcel routeParcel = toRouteInfoParcel(route);
+                routeParcel.isLocalRoute = isLocalRoute(routeParcel, netId);
+                mRoutingCoordinatorService.addRouteParcel(netId, routeParcel);
             } catch (Exception e) {
                 if ((route.getGateway() instanceof Inet4Address) || VDBG) {
                     loge("Exception in addRoute for gateway: " + e);
@@ -10719,8 +10724,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         for (RouteInfo route : routeDiff.removed) {
             if (VDBG || DDBG) log("Removing Route [" + route + "] from network " + netId);
             try {
-                mRoutingCoordinatorService.removeRouteParcel(netId,
-                        NetdUtils.toRouteInfoParcel(route));
+                final RouteInfoParcel routeParcel = toRouteInfoParcel(route);
+                routeParcel.isLocalRoute = isLocalRoute(routeParcel, netId);
+                mRoutingCoordinatorService.removeRouteParcel(netId, routeParcel);
             } catch (Exception e) {
                 loge("Exception in removeRoute: " + e);
             }
@@ -10729,8 +10735,9 @@ public class ConnectivityService extends IConnectivityManager.Stub
         for (RouteInfo route : routeDiff.updated) {
             if (VDBG || DDBG) log("Updating Route [" + route + "] from network " + netId);
             try {
-                mRoutingCoordinatorService.updateRouteParcel(netId,
-                        NetdUtils.toRouteInfoParcel(route));
+                final RouteInfoParcel routeParcel = toRouteInfoParcel(route);
+                routeParcel.isLocalRoute = isLocalRoute(routeParcel, netId);
+                mRoutingCoordinatorService.updateRouteParcel(netId, routeParcel);
             } catch (Exception e) {
                 loge("Exception in updateRoute: " + e);
             }
@@ -10755,6 +10762,23 @@ public class ConnectivityService extends IConnectivityManager.Stub
         } catch (Exception e) {
             loge("Exception in setDnsConfigurationForNetwork: " + e);
         }
+    }
+
+    /**
+     * Decides if the route on netId is local.
+     * @param route route information
+     * @param netId network id.
+     * @return true if route is local network route.
+     */
+    public static boolean isLocalRoute(RouteInfoParcel route, int netId) {
+        if (route.nextHop != INetd.NEXTHOP_NONE) return false;
+        // LOCAL_NET_ID does not support local routes. It only looks up the
+        // LOCAL_NETWORK routing table, which has no corresponding local table for
+        // local routes to be added to.
+        if (netId == LOCAL_NET_ID) return false;
+        IpPrefix routeDestination = new IpPrefix(route.destination);
+        return !getLocalNetworkPrefixesForAddress(routeDestination.getAddress(),
+                routeDestination.getPrefixLength()).isEmpty();
     }
 
     private void updateVpnFiltering(@NonNull LinkProperties newLp, @Nullable LinkProperties oldLp,

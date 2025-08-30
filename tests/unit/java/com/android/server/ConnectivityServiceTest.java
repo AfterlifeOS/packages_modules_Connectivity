@@ -189,6 +189,7 @@ import static com.android.testutils.MiscAsserts.assertLength;
 import static com.android.testutils.MiscAsserts.assertRunsInAtMost;
 import static com.android.testutils.MiscAsserts.assertSameElements;
 import static com.android.testutils.MiscAsserts.assertThrows;
+import static com.android.testutils.TestPermissionUtil.runAsShell;
 import static com.android.testutils.TestableNetworkCallback.Event.AVAILABLE;
 import static com.android.testutils.TestableNetworkCallback.Event.BLOCKED_STATUS;
 import static com.android.testutils.TestableNetworkCallback.Event.BLOCKED_STATUS_INT;
@@ -199,7 +200,6 @@ import static com.android.testutils.TestableNetworkCallback.Event.NETWORK_CAPS_U
 import static com.android.testutils.TestableNetworkCallback.Event.RESUMED;
 import static com.android.testutils.TestableNetworkCallback.Event.SUSPENDED;
 import static com.android.testutils.TestableNetworkCallback.Event.UNAVAILABLE;
-import static com.android.testutils.TestPermissionUtil.runAsShell;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
