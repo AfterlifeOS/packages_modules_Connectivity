@@ -311,7 +311,6 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 6_1)
         // update the map if CE is marked
         if (ip_ecn == 0b11) {
             __sync_fetch_and_add(ce_count, ce_packets);
-            return TC_ACT_PIPE;
         }
 
         if (byte_count) {
@@ -565,7 +564,6 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 6_1)
         // update the map if CE is marked
         if (ip_ecn == 0b11) {
             __sync_fetch_and_add(ce_count, ce_packets);
-            return TC_ACT_PIPE;
         }
 
         if (byte_count) {
