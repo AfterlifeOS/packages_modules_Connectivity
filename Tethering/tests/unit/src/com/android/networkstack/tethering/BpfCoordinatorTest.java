@@ -301,8 +301,8 @@ public class BpfCoordinatorTest {
             private int mIif = DOWNSTREAM_IFINDEX;
             private MacAddress mDstMac = DOWNSTREAM_MAC;
             private short mL4proto = (short) IPPROTO_TCP;
-            private byte[] mSrc4 = PRIVATE_ADDR.getAddress();
-            private byte[] mDst4 = REMOTE_ADDR.getAddress();
+            private Inet4Address mSrc4 = PRIVATE_ADDR;
+            private Inet4Address mDst4 = REMOTE_ADDR;
             private int mSrcPort = PRIVATE_PORT;
             private int mDstPort = REMOTE_PORT;
 
@@ -325,8 +325,8 @@ public class BpfCoordinatorTest {
             private int mIif = UPSTREAM_IFINDEX;
             private MacAddress mDstMac = MacAddress.ALL_ZEROS_ADDRESS /* dstMac (rawip) */;
             private short mL4proto = (short) IPPROTO_TCP;
-            private byte[] mSrc4 = REMOTE_ADDR.getAddress();
-            private byte[] mDst4 = PUBLIC_ADDR.getAddress();
+            private Inet4Address mSrc4 = REMOTE_ADDR;
+            private Inet4Address mDst4 = PUBLIC_ADDR;
             private int mSrcPort = REMOTE_PORT;
             private int mDstPort = PUBLIC_PORT;
 
@@ -2430,15 +2430,14 @@ public class BpfCoordinatorTest {
     private static Tether4Key makeUpstream4Key(final int downstreamIfindex,
             @NonNull final MacAddress downstreamMac, @NonNull final Inet4Address privateAddr,
             final short privatePort) {
-        return new Tether4Key(downstreamIfindex, downstreamMac, (short) IPPROTO_TCP,
-            privateAddr.getAddress(), REMOTE_ADDR.getAddress(), privatePort, REMOTE_PORT);
+        return new Tether4Key(downstreamIfindex, downstreamMac, (short) IPPROTO_TCP, privateAddr,
+                REMOTE_ADDR, privatePort, REMOTE_PORT);
     }
 
     @NonNull
     private static Tether4Key makeDownstream4Key(final short publicPort) {
         return new Tether4Key(UPSTREAM_IFINDEX, MacAddress.ALL_ZEROS_ADDRESS /* dstMac (rawip) */,
-                (short) IPPROTO_TCP, REMOTE_ADDR.getAddress(), PUBLIC_ADDR.getAddress(),
-                REMOTE_PORT, publicPort);
+                (short) IPPROTO_TCP, REMOTE_ADDR, PUBLIC_ADDR, REMOTE_PORT, publicPort);
     }
 
     @NonNull

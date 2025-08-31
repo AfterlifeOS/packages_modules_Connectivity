@@ -1020,9 +1020,9 @@ public class EthernetTetheringTest extends EthernetTetheringTestBase {
 
         final Tether4Key upstream4Key = rule.getKey();
         assertEquals(IPPROTO_UDP, upstream4Key.l4proto);
-        assertTrue(Arrays.equals(tethered.ipv4Addr.getAddress(), upstream4Key.src4));
+        assertEquals(tethered.ipv4Addr, upstream4Key.src4);
         assertEquals(LOCAL_PORT, upstream4Key.srcPort);
-        assertTrue(Arrays.equals(REMOTE_IP4_ADDR.getAddress(), upstream4Key.dst4));
+        assertEquals(REMOTE_IP4_ADDR, upstream4Key.dst4);
         assertEquals(REMOTE_PORT, upstream4Key.dstPort);
 
         final Tether4Value upstream4Value = rule.getValue();

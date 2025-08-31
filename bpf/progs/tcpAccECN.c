@@ -311,7 +311,6 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 6_1)
         // update the map if CE is marked
         if (ip_ecn == 0b11) {
             __sync_fetch_and_add(ce_count, ce_packets);
-            return TC_ACT_PIPE;
         }
 
         if (byte_count) {
@@ -433,13 +432,13 @@ DEFINE_BPF_PROG_KVER(schedcls, egress_accecn_eth, , AID_SYSTEM, 6_1)
             ret = bpf_l4_csum_replace(skb, tcp_csum_offset, 0, (__u64)res, 0);
             if (ret) return TC_ACT_PIPE;
 
-            ret = bpf_skb_store_bytes(skb, hdr_len + offset + 2, &e0b_val, 3, BPF_F_RECOMPUTE_CSUM);
+            ret = bpf_skb_store_bytes(skb, hdr_len + offset + 2, &e1b_val, 3, BPF_F_RECOMPUTE_CSUM);
             if (ret) return TC_ACT_PIPE;
 
             ret = bpf_skb_store_bytes(skb, hdr_len + offset + 5, &ceb_val, 3, BPF_F_RECOMPUTE_CSUM);
             if (ret) return TC_ACT_PIPE;
 
-            ret = bpf_skb_store_bytes(skb, hdr_len + offset + 8, &e1b_val, 3, BPF_F_RECOMPUTE_CSUM);
+            ret = bpf_skb_store_bytes(skb, hdr_len + offset + 8, &e0b_val, 3, BPF_F_RECOMPUTE_CSUM);
             if (ret) return TC_ACT_PIPE;
         }
     }
@@ -565,7 +564,6 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 6_1)
         // update the map if CE is marked
         if (ip_ecn == 0b11) {
             __sync_fetch_and_add(ce_count, ce_packets);
-            return TC_ACT_PIPE;
         }
 
         if (byte_count) {
