@@ -1446,9 +1446,10 @@ public class BpfCoordinator {
     }
 
     private String ipv6UpstreamRuleToString(TetherUpstream6Key key, Tether6Value value) {
-        return String.format("%d(%s) [%s] [%s] -> %d(%s) %04x [%s] [%s]",
+        return String.format("%d(%s) [%s] [%s] -> %d(%s) %04x [%s] [%s] %d",
                 key.iif, getIfName(key.iif), key.dstMac, bytesToPrefix(key.src64), value.oif,
-                getIfName(value.oif), value.ethProto, value.ethSrcMac, value.ethDstMac);
+                getIfName(value.oif), value.ethProto, value.ethSrcMac, value.ethDstMac,
+                value.pmtu);
     }
 
     private void dumpIpv6UpstreamRules(IndentingPrintWriter pw) {
@@ -1474,9 +1475,9 @@ public class BpfCoordinator {
         } catch (UnknownHostException impossible) {
             throw new AssertionError("IP address array not valid IPv6 address!");
         }
-        return String.format("%d(%s) [%s] %s -> %d(%s) %04x [%s] [%s]",
+        return String.format("%d(%s) [%s] %s -> %d(%s) %04x [%s] [%s] %d",
                 key.iif, getIfName(key.iif), key.dstMac, neigh6, value.oif, getIfName(value.oif),
-                value.ethProto, value.ethSrcMac, value.ethDstMac);
+                value.ethProto, value.ethSrcMac, value.ethDstMac, value.pmtu);
     }
 
     private void dumpIpv6DownstreamRules(IndentingPrintWriter pw) {
@@ -1499,13 +1500,13 @@ public class BpfCoordinator {
     // duplicate bpf map dump code.
     private void dumpBpfForwardingRulesIpv6(IndentingPrintWriter pw) {
         pw.println("IPv6 Upstream: iif(iface) [inDstMac] [sourcePrefix] -> oif(iface) etherType "
-                + "[outSrcMac] [outDstMac]");
+                + "[outSrcMac] [outDstMac] pmtu");
         pw.increaseIndent();
         dumpIpv6UpstreamRules(pw);
         pw.decreaseIndent();
 
         pw.println("IPv6 Downstream: iif(iface) [inDstMac] neigh6 -> oif(iface) etherType "
-                + "[outSrcMac] [outDstMac]");
+                + "[outSrcMac] [outDstMac] pmtu");
         pw.increaseIndent();
         dumpIpv6DownstreamRules(pw);
         pw.decreaseIndent();
