@@ -3326,12 +3326,22 @@ public class ConnectivityService extends IConnectivityManager.Stub
             newNc.setUids(null);
             newNc.setSSID(null);
         }
-        // The NetworkCapabilities constructor above will only have redacted the
-        // specifier if it implements the getApplicableRedactions method. If it does
-        // not, then redact() must be called.
-        if (newNc.getNetworkSpecifier() != null) {
-            newNc.setNetworkSpecifier(newNc.getNetworkSpecifier().redact());
+        // This code does not need to call redact(long) because that was already done above during
+        // the construction of newNc.
+        // If {@code getApplicableRedactions()} of a NetworkSpecifier subclass returns
+        // {@code REDACT_NONE}, it's because either 1) it doesn't override it or 2) it does
+        // override it, and the implementation returned REDACT_NONE. For the first case, call
+        // {@code redact()} for backward compatibility with existing NetworkSpecifier such as
+        // WifiNetworkSpecifier. For the second case, it's still okay to call {@code redact()} as
+        // it's suggested that all new NetworkSpecifier subclasses should not override the default
+        // {@code redact()} and it will do nothing (this is consistent with what REDACT_NONE
+        // indicates).
+        final NetworkSpecifier specifier = newNc.getNetworkSpecifier();
+        if (specifier != null
+                && RedactionHelper.getSpecifierApplicableRedactions(specifier) == REDACT_NONE) {
+            newNc.setNetworkSpecifier(specifier.redact());
         }
+
         if (!hasAnyPermissionOf(mContext, callingPid, callingUid,
                 android.Manifest.permission.NETWORK_STACK,
                 NetworkStack.PERMISSION_MAINLINE_NETWORK_STACK)) {

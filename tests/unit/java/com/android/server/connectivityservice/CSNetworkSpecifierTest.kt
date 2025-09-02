@@ -35,6 +35,7 @@ import com.android.testutils.DevSdkIgnoreRule.IgnoreAfter
 import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo
 import com.android.testutils.DevSdkIgnoreRunner
 import com.android.testutils.TestableNetworkCallback
+import com.android.testutils.TestableNetworkCallback.Event.CapabilitiesChanged
 import com.android.testutils.assertThrows
 import org.junit.Rule
 import org.junit.Test
@@ -84,8 +85,38 @@ class CSNetworkSpecifierTest : CSTest() {
         }
     }
 
+    /** Legacy NetworkSpecifier subclass which overrides only the {@code redact()} method. */
+    data class LegacyNetworkSpecifier(val macAddress: MacAddress?) :
+            NetworkSpecifier(), Parcelable {
+        constructor(
+                p: Parcel
+        ) : this(p.readParcelable(MacAddress::class.java.classLoader, MacAddress::class.java))
+
+        override fun canBeSatisfiedBy(other: NetworkSpecifier?) = equals(other)
+
+        override fun redact(): NetworkSpecifier? =
+                LegacyNetworkSpecifier(null)
+
+        override fun writeToParcel(dest: Parcel, flags: Int) {
+            dest.writeParcelable(macAddress, 0 /* parcelableFlags */)
+        }
+
+        override fun describeContents() = 0
+        companion object CREATOR : Parcelable.Creator<LegacyNetworkSpecifier> {
+            override fun createFromParcel(source: Parcel) = LegacyNetworkSpecifier(source)
+            override fun newArray(size: Int) = arrayOfNulls<LegacyNetworkSpecifier?>(size)
+        }
+    }
+
     fun newWifiRequestBuilder(): NetworkRequest.Builder {
         return NetworkRequest.Builder().addTransportType(TRANSPORT_WIFI)
+    }
+
+    fun newWifiCapabilities(specifier: NetworkSpecifier): NetworkCapabilities {
+        return defaultNc().apply {
+            addTransportType(TRANSPORT_WIFI)
+            setNetworkSpecifier(specifier)
+        }
     }
 
     @Test
@@ -145,6 +176,61 @@ class CSNetworkSpecifierTest : CSTest() {
         assertThrows(SecurityException::class.java) {
             cm.registerNetworkCallback(request, TestableNetworkCallback())
         }
+    }
+
+    @Test
+    @IgnoreUpTo(VERSION_CODES.UPSIDE_DOWN_CAKE)
+    fun testNetworkCallback_permissionGranted_notRedacted() {
+        context.setPermission(LOCAL_MAC_ADDRESS, PERMISSION_GRANTED)
+        context.setPermission(THREAD_NETWORK_PRIVILEGED, PERMISSION_GRANTED)
+        val specifier = RedactableNetworkSpecifier(DEFAULT_MAC_ADDR, DEFAULT_THREAD_KEY)
+        val request = newWifiRequestBuilder().setNetworkSpecifier(specifier).build()
+
+        val callback = TestableNetworkCallback()
+        cm.registerNetworkCallback(request, callback)
+        Agent(TRANSPORT_WIFI, baseNc = newWifiCapabilities(specifier)).connect()
+
+        callback.eventuallyExpect<CapabilitiesChanged> {
+            it.caps.networkSpecifier == specifier
+        }
+        cm.unregisterNetworkCallback(callback)
+    }
+
+    @Test
+    @IgnoreUpTo(VERSION_CODES.UPSIDE_DOWN_CAKE)
+    fun testNetworkCallback_permissionDenied_redacted() {
+        context.setPermission(LOCAL_MAC_ADDRESS, PERMISSION_DENIED)
+        context.setPermission(THREAD_NETWORK_PRIVILEGED, PERMISSION_DENIED)
+        val specifier = RedactableNetworkSpecifier(DEFAULT_MAC_ADDR, DEFAULT_THREAD_KEY)
+        val request = newWifiRequestBuilder().build()
+
+        val callback = TestableNetworkCallback()
+        cm.registerNetworkCallback(request, callback)
+        Agent(TRANSPORT_WIFI, baseNc = newWifiCapabilities(specifier)).connect()
+
+        callback.eventuallyExpect<CapabilitiesChanged> {
+            (it.caps.networkSpecifier as RedactableNetworkSpecifier).macAddress == null
+            (it.caps.networkSpecifier as RedactableNetworkSpecifier).threadPrivilegedKey == null
+        }
+        cm.unregisterNetworkCallback(callback)
+    }
+
+    @Test
+    @IgnoreUpTo(VERSION_CODES.UPSIDE_DOWN_CAKE)
+    fun testNetworkCallback_permissionGrantedForLegacyNetworkSpecifier_redacted() {
+        context.setPermission(LOCAL_MAC_ADDRESS, PERMISSION_GRANTED)
+        context.setPermission(THREAD_NETWORK_PRIVILEGED, PERMISSION_GRANTED)
+        val specifier = LegacyNetworkSpecifier(DEFAULT_MAC_ADDR)
+        val request = newWifiRequestBuilder().build()
+
+        val callback = TestableNetworkCallback()
+        cm.registerNetworkCallback(request, callback)
+        Agent(TRANSPORT_WIFI, baseNc = newWifiCapabilities(specifier)).connect()
+
+        callback.eventuallyExpect<CapabilitiesChanged> {
+            (it.caps.networkSpecifier as LegacyNetworkSpecifier).macAddress == null
+        }
+        cm.unregisterNetworkCallback(callback)
     }
 
     companion object {
