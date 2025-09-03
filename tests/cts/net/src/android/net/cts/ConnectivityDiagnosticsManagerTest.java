@@ -22,8 +22,6 @@ import static android.net.ConnectivityDiagnosticsManager.ConnectivityReport;
 import static android.net.ConnectivityDiagnosticsManager.ConnectivityReport.KEY_NETWORK_PROBES_ATTEMPTED_BITMASK;
 import static android.net.ConnectivityDiagnosticsManager.ConnectivityReport.KEY_NETWORK_PROBES_SUCCEEDED_BITMASK;
 import static android.net.ConnectivityDiagnosticsManager.ConnectivityReport.KEY_NETWORK_VALIDATION_RESULT;
-import static android.net.ConnectivityDiagnosticsManager.ConnectivityReport.NETWORK_VALIDATION_RESULT_INVALID;
-import static android.net.ConnectivityDiagnosticsManager.ConnectivityReport.NETWORK_VALIDATION_RESULT_PARTIALLY_VALID;
 import static android.net.ConnectivityDiagnosticsManager.ConnectivityReport.NETWORK_VALIDATION_RESULT_SKIPPED;
 import static android.net.ConnectivityDiagnosticsManager.ConnectivityReport.NETWORK_VALIDATION_RESULT_VALID;
 import static android.net.ConnectivityDiagnosticsManager.DataStallReport;
@@ -36,7 +34,6 @@ import static android.net.ConnectivityDiagnosticsManager.persistableBundleEquals
 import static android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_NOT_VPN;
 import static android.net.NetworkCapabilities.NET_CAPABILITY_TRUSTED;
-import static android.net.NetworkCapabilities.NET_CAPABILITY_VALIDATED;
 import static android.net.NetworkCapabilities.TRANSPORT_CELLULAR;
 import static android.net.NetworkCapabilities.TRANSPORT_TEST;
 import static android.net.cts.util.CtsNetUtils.TestNetworkCallback;
@@ -328,18 +325,6 @@ public class ConnectivityDiagnosticsManagerTest {
 
         final Network network = testNetworkCallback.waitForAvailable();
         assertNotNull(network);
-        // TODO : get rid of the underpowered CtsNetUtils.TestNetworkCallback and use the more
-        // capable TestableNetworkCallback instead. Then no need to use the synchronous getter
-        // which may cause further flakes.
-        final NetworkCapabilities caps = mConnectivityManager.getNetworkCapabilities(network);
-        final int expectedResult;
-        if (caps.hasCapability(24)) { // NET_CAPABILITY_PARTIAL_CONNECTIVITY is @SystemApi
-            expectedResult = NETWORK_VALIDATION_RESULT_PARTIALLY_VALID;
-        } else if (caps.hasCapability(NET_CAPABILITY_VALIDATED)) {
-            expectedResult = NETWORK_VALIDATION_RESULT_VALID;
-        } else {
-            expectedResult = NETWORK_VALIDATION_RESULT_INVALID;
-        }
 
         // TODO(b/217559768): Receiving carrier config change and immediately checking carrier
         //  privileges is racy, as the CP status is updated after receiving the same signal. Move
@@ -354,7 +339,7 @@ public class ConnectivityDiagnosticsManagerTest {
         final String interfaceName =
                 mConnectivityManager.getLinkProperties(network).getInterfaceName();
         connDiagsCallback.maybeVerifyConnectivityReportAvailable(
-                network, interfaceName, TRANSPORT_CELLULAR, expectedResult);
+                network, interfaceName, TRANSPORT_CELLULAR, NETWORK_VALIDATION_RESULT_VALID);
         connDiagsCallback.assertNoCallback();
     }
 
