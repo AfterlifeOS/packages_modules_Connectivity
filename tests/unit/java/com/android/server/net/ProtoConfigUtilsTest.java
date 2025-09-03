@@ -205,4 +205,40 @@ public class ProtoConfigUtilsTest {
                     ProtoConfigUtils.convertStaticIpConfigurationToProto(null);
                 });
     }
+
+    @Test
+    public void testConvertProtoToStaticIpConfiguration() {
+        LinkAddressProto linkAddrProto =
+                LinkAddressProto.newBuilder()
+                        .setAddress(IP_ADDRESS_STRING)
+                        .setPrefixLength(PREFIX_LENGTH)
+                        .build();
+        StaticIpv4ConfigurationProto staticIpConfigProto =
+                StaticIpv4ConfigurationProto.newBuilder()
+                        .setAddress(linkAddrProto)
+                        .addDnsServers(DNS_IP_ADDR_1)
+                        .addDnsServers(DNS_IP_ADDR_2)
+                        .addSearchDomains(DOMAIN1)
+                        .addSearchDomains(DOMAIN2)
+                        .build();
+
+        StaticIpConfiguration actualConfig =
+                ProtoConfigUtils.convertStaticIpConfigurationFromProto(staticIpConfigProto);
+
+        StaticIpConfiguration expectedConfig = new StaticIpConfiguration.Builder()
+                .setIpAddress(new LinkAddress(LINK_ADDRESS_STRING))
+                .setDnsServers(DNS_SERVERS)
+                .setDomains(DOMAIN1 + "," + DOMAIN2)
+                .build();
+
+        assertEquals(expectedConfig, actualConfig);
+    }
+
+    @Test
+    public void testConvertProtoToStaticIpConfiguration_nullInput() {
+        assertThrows("Static IP configuration proto object cannot be null.",
+                NullPointerException.class, () -> {
+                    ProtoConfigUtils.convertStaticIpConfigurationFromProto(null);
+                });
+    }
 }
