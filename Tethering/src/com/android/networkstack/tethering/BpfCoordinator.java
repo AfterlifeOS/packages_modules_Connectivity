@@ -1071,7 +1071,7 @@ public class BpfCoordinator {
             }
         });
         mBpfCoordinatorShim.tetherOffloadRuleForEach(DOWNSTREAM, (k, v) -> {
-            if (Arrays.equals(v.dst46, toIpv4MappedAddressBytes(clientAddr))) {
+            if (Objects.equals(v.dst46, clientAddr)) {
                 deleteDownstreamRuleKeys.add(k);
                 upstreamIndiceSet.add((int) k.iif);
             }
@@ -1560,20 +1560,15 @@ public class BpfCoordinator {
             Tether4Key key, Tether4Value value) {
         final String src4, public4, dst4;
         final int publicPort;
-        try {
-            src4 = key.src4.getHostAddress();
-            if (downstream) {
-                public4 = key.dst4.getHostAddress();
-                publicPort = key.dstPort;
-            } else {
-                public4 = InetAddress.getByAddress(value.src46).getHostAddress();
-                publicPort = value.srcPort;
-            }
-            dst4 = InetAddress.getByAddress(value.dst46).getHostAddress();
-        } catch (UnknownHostException impossible) {
-            throw new AssertionError("IP address array not valid IPv4 address!");
+        src4 = key.src4.getHostAddress();
+        if (downstream) {
+            public4 = key.dst4.getHostAddress();
+            publicPort = key.dstPort;
+        } else {
+            public4 = value.src46.getHostAddress();
+            publicPort = value.srcPort;
         }
-
+        dst4 = value.dst46.getHostAddress();
         final String ageStr = (value.lastUsed == 0) ? "-"
                 : String.format("%dms", (now - value.lastUsed) / 1_000_000);
         return String.format("%s [%s] %d(%s) %s:%d -> %d(%s) %s:%d -> %s:%d [%s] %d %s",
@@ -2042,20 +2037,6 @@ public class BpfCoordinator {
         return null;
     }
 
-    @NonNull
-    @VisibleForTesting
-    static byte[] toIpv4MappedAddressBytes(Inet4Address ia4) {
-        final byte[] addr4 = ia4.getAddress();
-        final byte[] addr6 = new byte[16];
-        addr6[10] = (byte) 0xff;
-        addr6[11] = (byte) 0xff;
-        addr6[12] = addr4[0];
-        addr6[13] = addr4[1];
-        addr6[14] = addr4[2];
-        addr6[15] = addr4[3];
-        return addr6;
-    }
-
     // TODO: parse CTA_PROTOINFO of conntrack event in ConntrackMonitor. For TCP, only add rules
     // while TCP status is established.
     @VisibleForTesting
@@ -2139,8 +2120,7 @@ public class BpfCoordinator {
             return new Tether4Value(upstreamInfo.ifIndex,
                     NULL_MAC_ADDRESS /* ethDstMac (rawip) */,
                     NULL_MAC_ADDRESS /* ethSrcMac (rawip) */, ETH_P_IP,
-                    upstreamInfo.mtu, toIpv4MappedAddressBytes(e.tupleReply.dstIp),
-                    toIpv4MappedAddressBytes(e.tupleReply.srcIp), e.tupleReply.dstPort,
+                    upstreamInfo.mtu, e.tupleReply.dstIp, e.tupleReply.srcIp, e.tupleReply.dstPort,
                     e.tupleReply.srcPort, 0 /* lastUsed, filled by bpf prog only */);
         }
 
@@ -2149,8 +2129,7 @@ public class BpfCoordinator {
                 @NonNull ClientInfo c, @NonNull UpstreamInfo upstreamInfo) {
             return new Tether4Value(c.downstreamIfindex,
                     c.clientMac, c.downstreamMac, ETH_P_IP, upstreamInfo.mtu,
-                    toIpv4MappedAddressBytes(e.tupleOrig.dstIp),
-                    toIpv4MappedAddressBytes(e.tupleOrig.srcIp),
+                    e.tupleOrig.dstIp, e.tupleOrig.srcIp,
                     e.tupleOrig.dstPort, e.tupleOrig.srcPort,
                     0 /* lastUsed, filled by bpf prog only */);
         }
@@ -2475,17 +2454,6 @@ public class BpfCoordinator {
         return Math.max(DEFAULT_TETHER_OFFLOAD_POLL_INTERVAL_MS, configInterval);
     }
 
-    @Nullable
-    private Inet4Address parseIPv4Address(byte[] addrBytes) {
-        try {
-            final InetAddress ia = Inet4Address.getByAddress(addrBytes);
-            if (ia instanceof Inet4Address) return (Inet4Address) ia;
-        } catch (UnknownHostException e) {
-            mLog.e("Failed to parse IPv4 address: " + e);
-        }
-        return null;
-    }
-
     // Update CTA_TUPLE_ORIG timeout for a given conntrack entry. Note that there will also be
     // coming a conntrack event to notify updated timeout.
     private void updateConntrackTimeout(byte proto, Inet4Address src4, short srcPort,
@@ -2552,9 +2520,8 @@ public class BpfCoordinator {
         // which is opposite direction for downstream map value.
         mBpfCoordinatorShim.tetherOffloadRuleForEach(DOWNSTREAM, (k, v) -> {
             if ((now - v.lastUsed) / 1_000_000 < CONNTRACK_TIMEOUT_UPDATE_INTERVAL_MS) {
-                updateConntrackTimeout((byte) k.l4proto,
-                        parseIPv4Address(v.dst46), (short) v.dstPort,
-                        parseIPv4Address(v.src46), (short) v.srcPort);
+                updateConntrackTimeout((byte) k.l4proto, (Inet4Address) v.dst46, (short) v.dstPort,
+                        (Inet4Address) v.src46, (short) v.srcPort);
             }
         });
     }
