@@ -25,6 +25,7 @@ import static android.net.NetworkCapabilities.TRANSPORT_ETHERNET;
 import static android.net.NetworkCapabilities.TRANSPORT_TEST;
 import static android.net.NetworkCapabilities.TRANSPORT_WIFI;
 import static android.net.NetworkCapabilities.transportNamesOf;
+import static android.os.Process.INVALID_UID;
 import static android.system.OsConstants.EEXIST;
 import static android.system.OsConstants.EIO;
 import static android.system.OsConstants.ENOENT;
@@ -93,6 +94,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
+import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
 import java.util.function.Consumer;
@@ -1651,6 +1653,27 @@ public class NetworkAgentInfo implements NetworkRanker.Scoreable {
         } catch (ServiceSpecificException e) {
             return e.errorCode;
         }
+    }
+
+    /**
+     * Get the delegate UIDs of the apps that are allowed to perform network traffic for captive.
+     */
+    public Set<Integer> getCaptivePortalDelegateUids() {
+        return new ArraySet<>(mCaptivePortalDelegateUids.values());
+    }
+
+    /**
+     * Clear all the delegate UIDs.
+     */
+    public void clearCaptivePortalDelegateUids() {
+        mCaptivePortalDelegateUids.clear();
+    }
+
+    /**
+     * Check if the given uid is the delegate uid of the given caller.
+     */
+    public boolean isCurrentUidDelegate(@NonNull CaptivePortalImpl caller, int uid) {
+        return uid == mCaptivePortalDelegateUids.getOrDefault(caller, INVALID_UID);
     }
 
     /**
