@@ -106,6 +106,7 @@ import com.android.internal.util.WakeupMessage;
 import com.android.modules.utils.HandlerExecutor;
 import com.android.server.vcn.TelephonySubscriptionTracker.TelephonySubscriptionSnapshot;
 import com.android.server.vcn.Vcn.VcnGatewayStatusCallback;
+import com.android.server.vcn.metrics.VcnMetrics;
 import com.android.server.vcn.routeselection.UnderlyingNetworkController;
 import com.android.server.vcn.routeselection.UnderlyingNetworkController.UnderlyingNetworkControllerCallback;
 import com.android.server.vcn.routeselection.UnderlyingNetworkRecord;
@@ -626,6 +627,7 @@ public class VcnGatewayConnection extends StateMachine {
     @NonNull private final UnderlyingNetworkController mUnderlyingNetworkController;
     @NonNull private final VcnGatewayConnectionConfig mConnectionConfig;
     @NonNull private final VcnGatewayStatusCallback mGatewayStatusCallback;
+    @NonNull private final VcnMetrics mVcnMetrics;
     @NonNull private final Dependencies mDeps;
 
     @NonNull
@@ -634,6 +636,7 @@ public class VcnGatewayConnection extends StateMachine {
     @NonNull private final VcnConnectivityDiagnosticsCallback mConnectivityDiagnosticsCallback;
 
     private final boolean mIsMobileDataEnabled;
+    private final int mId = System.identityHashCode(this);
 
     @NonNull private final IpSecManager mIpSecManager;
     @NonNull private final ConnectivityManager mConnectivityManager;
@@ -787,6 +790,7 @@ public class VcnGatewayConnection extends StateMachine {
                 Objects.requireNonNull(gatewayStatusCallback, "Missing gatewayStatusCallback");
         mIsMobileDataEnabled = isMobileDataEnabled;
         mDeps = Objects.requireNonNull(deps, "Missing deps");
+        mVcnMetrics = mDeps.newVcnMetrics();
 
         mLastSnapshot = Objects.requireNonNull(snapshot, "Missing snapshot");
 
@@ -1522,6 +1526,9 @@ public class VcnGatewayConnection extends StateMachine {
 
             // Connectivity for this GatewayConnection is broken; tear down the Network.
             teardownNetwork();
+            if (!mIsInSafeMode) {
+                mVcnMetrics.logEnterSafeMode(mId);
+            }
             mIsInSafeMode = true;
             mGatewayStatusCallback.onSafeModeStatusChanged();
         }
@@ -1893,6 +1900,9 @@ public class VcnGatewayConnection extends StateMachine {
             mFailedAttempts = 0;
             cancelSafeModeAlarm();
 
+            if (mIsInSafeMode) {
+                mVcnMetrics.logExitSafeMode(mId);
+            }
             mIsInSafeMode = false;
             mGatewayStatusCallback.onSafeModeStatusChanged();
         }
@@ -2514,8 +2524,7 @@ public class VcnGatewayConnection extends StateMachine {
                 + LogUtils.getHashedSubscriptionGroup(mSubscriptionGroup)
                 + "-"
                 + mConnectionConfig.getGatewayConnectionName()
-                + "-"
-                + System.identityHashCode(this)
+                + "-" + mId
                 + ") ";
     }
 
@@ -2743,6 +2752,11 @@ public class VcnGatewayConnection extends StateMachine {
     /** External dependencies used by VcnGatewayConnection, for injection in tests */
     @VisibleForTesting(visibility = Visibility.PRIVATE)
     public static class Dependencies {
+        /** Builds a new VcnMetrics. */
+        public VcnMetrics newVcnMetrics() {
+            return new VcnMetrics();
+        }
+
         /** Builds a new UnderlyingNetworkController. */
         public UnderlyingNetworkController newUnderlyingNetworkController(
                 VcnContext vcnContext,
