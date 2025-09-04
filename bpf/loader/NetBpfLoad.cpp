@@ -1316,6 +1316,8 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
 
     ret = bpf_object__load(obj);
     if (ret) return ret;
+    // On Linux Kernels older than 4.18 BPF_BTF_LOAD command doesn't exist.
+    if (isAtLeastKernelVersion(4, 19, 0) && bpf_object__btf_fd(obj) < 0) return -1;
 
     ret = pinMaps(obj, md);
     if (ret) return ret;
