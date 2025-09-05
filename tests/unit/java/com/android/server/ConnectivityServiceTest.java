@@ -356,6 +356,7 @@ import android.os.IBinder;
 import android.os.INetworkManagementService;
 import android.os.Looper;
 import android.os.Messenger;
+import android.os.OutcomeReceiver;
 import android.os.Parcel;
 import android.os.ParcelFileDescriptor;
 import android.os.Parcelable;
@@ -5043,6 +5044,69 @@ public class ConnectivityServiceTest {
         captivePortalCallback.expect(LOST, mWiFiAgent);
 
         mCm.unregisterNetworkCallback(captivePortalCallback);
+    }
+
+    public class FakeOutcomeReceiver<R, E extends Throwable> implements OutcomeReceiver<R, E> {
+        private final ConditionVariable mCv = new ConditionVariable();
+        private E mError = null;
+
+        @Override
+        public void onResult(@NonNull R result) {
+            mCv.open();
+        }
+
+        @Override
+        public void onError(@NonNull E error) {
+            mError = error;
+            mCv.open();
+        }
+
+        void awaitOutcome() {
+            assertTrue("OutcomeReceiver did not receive outcome after "
+                    + TIMEOUT_MS + " ms", mCv.block(TIMEOUT_MS));
+            if (mError != null) {
+                fail("OutcomeReceiver got: " + mError.getMessage());
+            }
+        }
+    }
+
+    @Test
+    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    public void testCaptivePortalApp_SetDelegateUid() throws Exception {
+        final TestNetworkCallback captivePortalCallback = new TestNetworkCallback();
+        final NetworkRequest captivePortalRequest = new NetworkRequest.Builder()
+                .addCapability(NET_CAPABILITY_CAPTIVE_PORTAL).build();
+        mCm.registerNetworkCallback(captivePortalRequest, captivePortalCallback);
+
+        mWiFiAgent = new TestNetworkAgentWrapper(TRANSPORT_WIFI);
+        mWiFiAgent.connectWithCaptivePortal(TEST_REDIRECT_URL, false);
+        captivePortalCallback.expectAvailableCallbacksUnvalidated(mWiFiAgent);
+
+        final Intent signInIntent = startCaptivePortalApp(mWiFiAgent);
+        final CaptivePortal captivePortal = signInIntent
+                .getParcelableExtra(ConnectivityManager.EXTRA_CAPTIVE_PORTAL);
+
+        FakeOutcomeReceiver or = new FakeOutcomeReceiver();
+        captivePortal.setDelegateUid(APP2_UID, r -> r.run(), or);
+        or.awaitOutcome();
+        verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP2_UID,
+                mWiFiAgent.getNetwork().netId);
+
+        or = new FakeOutcomeReceiver();
+        captivePortal.setDelegateUid(APP2_UID, r -> r.run(), or);
+        or.awaitOutcome();
+        verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
+                mWiFiAgent.getNetwork().netId);
+
+        mWiFiAgent.disconnect();
+        waitForIdle();
+
+        // TODO: test that if the network disconnects, the delegated UID is gone.
+        verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
+                mWiFiAgent.getNetwork().netId);
+
+        // TODO: check VPN interface filtering rules, see
+        // testFullyRoutedVpnResultsInInterfaceFilteringRules
     }
 
     @Test
@@ -19373,7 +19437,8 @@ public class ConnectivityServiceTest {
         verifyClatdStop(null /* inOrder */, MOBILE_IFNAME);
     }
 
-    private static final int EXPECTED_TEST_METHOD_COUNT = 333;
+    // TODO(yuyanghuang): reduce this number after move all CaptivePortal related tests to CSTest.
+    private static final int EXPECTED_TEST_METHOD_COUNT = 334;
 
     @Test
     public void testTestMethodCount() {
