@@ -5086,24 +5086,49 @@ public class ConnectivityServiceTest {
         final CaptivePortal captivePortal = signInIntent
                 .getParcelableExtra(ConnectivityManager.EXTRA_CAPTIVE_PORTAL);
 
+        InOrder inOrder = inOrder(mMockNetd);
+
+        // Add the UID and check that it's added to the bypass list.
         FakeOutcomeReceiver or = new FakeOutcomeReceiver();
         captivePortal.setDelegateUid(APP2_UID, r -> r.run(), or);
         or.awaitOutcome();
-        verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP2_UID,
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP2_UID,
                 mWiFiAgent.getNetwork().netId);
 
+        // Remove the UID and check that it's removed from the list.
+        or = new FakeOutcomeReceiver();
+        captivePortal.setDelegateUid(Process.INVALID_UID, r -> r.run(), or);
+        or.awaitOutcome();
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
+                mWiFiAgent.getNetwork().netId);
+
+        // Add the UID again.
         or = new FakeOutcomeReceiver();
         captivePortal.setDelegateUid(APP2_UID, r -> r.run(), or);
         or.awaitOutcome();
-        verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP2_UID,
+                mWiFiAgent.getNetwork().netId);
+
+        // Add the UID again. Nothing should change.
+        or = new FakeOutcomeReceiver();
+        captivePortal.setDelegateUid(APP2_UID, r -> r.run(), or);
+        or.awaitOutcome();
+        // BUG: the code should not call into netd.
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
+                mWiFiAgent.getNetwork().netId);
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP2_UID,
+                mWiFiAgent.getNetwork().netId);
+
+        // Add another UID again. The old UID should be removed and the new one added.
+        or = new FakeOutcomeReceiver();
+        captivePortal.setDelegateUid(APP1_UID, r -> r.run(), or);
+        or.awaitOutcome();
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
+                mWiFiAgent.getNetwork().netId);
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
                 mWiFiAgent.getNetwork().netId);
 
         mWiFiAgent.disconnect();
-        waitForIdle();
-
-        // TODO: test that if the network disconnects, the delegated UID is gone.
-        verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
-                mWiFiAgent.getNetwork().netId);
 
         // TODO: check VPN interface filtering rules, see
         // testFullyRoutedVpnResultsInInterfaceFilteringRules
