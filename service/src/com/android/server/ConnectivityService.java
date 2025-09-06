@@ -368,6 +368,7 @@ import com.android.net.module.util.LocationPermissionChecker;
 import com.android.net.module.util.PerUidCounter;
 import com.android.net.module.util.PermissionUtils;
 import com.android.net.module.util.RoutingCoordinatorService;
+import com.android.net.module.util.SdkUtil;
 import com.android.net.module.util.SharedLog;
 import com.android.net.module.util.TcUtils;
 import com.android.net.module.util.ip.NetlinkMonitor;
@@ -1568,7 +1569,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
 
         public boolean isAtLeast25Q4() {
-            return Build.VERSION.SDK_INT_FULL >= Build.VERSION_CODES_FULL.BAKLAVA_1;
+            return SdkUtil.isAtLeast25Q4();
         }
 
         /** Get SystemClock.elapsedRealtime() */

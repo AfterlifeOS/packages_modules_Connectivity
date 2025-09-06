@@ -626,6 +626,7 @@ public class VcnGatewayConnectionConnectedStateTest extends VcnGatewayConnection
 
         verifySafeModeStateAndCallbackFired(2 /* invocationCount */, false /* isInSafeMode */);
         assertFalse(mGatewayConnection.isInSafeMode());
+        verify(mVcnMetrics).logExitSafeMode(anyInt());
     }
 
     @Test
@@ -654,6 +655,7 @@ public class VcnGatewayConnectionConnectedStateTest extends VcnGatewayConnection
         mTestLooper.dispatchAll();
 
         verifySafeModeStateAndCallbackFired(2 /* invocationCount */, true /* isInSafeMode */);
+        verify(mVcnMetrics).logEnterSafeMode(anyInt());
     }
 
     private void verifySetSafeModeAlarm(

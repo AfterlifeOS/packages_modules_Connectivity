@@ -70,6 +70,7 @@ import com.android.server.vcn.VcnGatewayConnection.VcnChildSessionCallback;
 import com.android.server.vcn.VcnGatewayConnection.VcnIkeSession;
 import com.android.server.vcn.VcnGatewayConnection.VcnNetworkAgent;
 import com.android.server.vcn.VcnGatewayConnection.VcnWakeLock;
+import com.android.server.vcn.metrics.VcnMetrics;
 import com.android.server.vcn.routeselection.UnderlyingNetworkController;
 import com.android.server.vcn.routeselection.UnderlyingNetworkRecord;
 
@@ -173,6 +174,7 @@ public class VcnGatewayConnectionTestBase {
     @NonNull protected final WakeupMessage mDisconnectRequestAlarm;
     @NonNull protected final WakeupMessage mRetryTimeoutAlarm;
     @NonNull protected final WakeupMessage mSafeModeTimeoutAlarm;
+    @NonNull protected final VcnMetrics mVcnMetrics;
 
     @NonNull protected final IpSecService mIpSecSvc;
     @NonNull protected final ConnectivityManager mConnMgr;
@@ -199,6 +201,7 @@ public class VcnGatewayConnectionTestBase {
         mDisconnectRequestAlarm = mock(WakeupMessage.class);
         mRetryTimeoutAlarm = mock(WakeupMessage.class);
         mSafeModeTimeoutAlarm = mock(WakeupMessage.class);
+        mVcnMetrics = mock(VcnMetrics.class);
 
         mIpSecSvc = mock(IpSecService.class);
         setupIpSecManager(mContext, mIpSecSvc);
@@ -226,6 +229,7 @@ public class VcnGatewayConnectionTestBase {
         doReturn(mUnderlyingNetworkController)
                 .when(mDeps)
                 .newUnderlyingNetworkController(any(), any(), any(), any(), any());
+        doReturn(mVcnMetrics).when(mDeps).newVcnMetrics();
         doReturn(mWakeLock)
                 .when(mDeps)
                 .newWakeLock(eq(mContext), eq(PowerManager.PARTIAL_WAKE_LOCK), any());
