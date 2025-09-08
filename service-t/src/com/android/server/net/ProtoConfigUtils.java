@@ -19,8 +19,11 @@ import static java.util.Objects.requireNonNull;
 
 import android.net.EthernetConfiguration;
 import android.net.EthernetConfiguration.MeteredOverride;
+import android.net.InetAddresses;
+import android.net.LinkAddress;
 import android.util.Log;
 
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.LinkAddressProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverrideProto;
 
 /**
@@ -68,5 +71,29 @@ public class ProtoConfigUtils {
                 yield EthernetConfiguration.METERED_OVERRIDE_NONE;
             }
         };
+    }
+
+    /**
+     * Converts an {@link LinkAddress} object to a corresponding {@link LinkAddressProto} object.
+     */
+    public static LinkAddressProto convertLinkAddressToProto(LinkAddress linkAddress) {
+        requireNonNull(linkAddress, "LinkAddress must not be null");
+        return LinkAddressProto.newBuilder()
+                .setAddress(linkAddress.getAddress().getHostAddress())
+                .setPrefixLength(linkAddress.getPrefixLength())
+                .build();
+    }
+
+    /**
+     * Converts an {@link LinkAddressProto} object to a corresponding value of {@link LinkAddress}
+     * type.
+     *
+     * @throws IllegalArgumentException if the address string in the proto is not a valid IP
+     * address.
+     */
+    public static LinkAddress convertLinkAddressFromProto(LinkAddressProto linkAddress) {
+        requireNonNull(linkAddress, "LinkAddressProto must not be null");
+        return new LinkAddress(InetAddresses.parseNumericAddress(linkAddress.getAddress()),
+                linkAddress.getPrefixLength());
     }
 }
