@@ -17,11 +17,18 @@
 package com.android.server.net;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 import android.net.EthernetConfiguration;
+import android.net.EthernetPortSelector;
 import android.net.LinkAddress;
+import android.net.MacAddress;
 import android.os.Build;
 
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.EthernetPortSelectorProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.LinkAddressProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverrideProto;
 import com.android.testutils.DevSdkIgnoreRule;
@@ -39,6 +46,8 @@ public class ProtoConfigUtilsTest {
     private static final String LINK_ADDRESS_STRING = "192.168.1.10/24";
     private static final String IP_ADDRESS_STRING = "192.168.1.10";
     private static final int PREFIX_LENGTH = 24;
+    private static final String IFACE_NAME = "eth0";
+    private static final MacAddress MAC_ADDR = MacAddress.fromString("aa:bb:cc:dd:ee:11");
 
     @Test
     public void testconvertMeteredOverrideToProto() {
@@ -85,5 +94,60 @@ public class ProtoConfigUtilsTest {
         LinkAddress actual = ProtoConfigUtils.convertLinkAddressFromProto(proto);
         LinkAddress target = new LinkAddress(LINK_ADDRESS_STRING);
         assertEquals(actual, target);
+    }
+
+    @Test
+    public void testConvertPortSelectorToProto_withMacAddress_setsMacAddrField() {
+        final EthernetPortSelector portSelector = new EthernetPortSelector(MAC_ADDR);
+
+        final EthernetPortSelectorProto proto =
+                ProtoConfigUtils.convertPortSelectorToProto(portSelector);
+
+        assertNotNull(proto);
+        assertTrue(proto.hasMacAddr());
+        assertFalse(proto.hasIfaceName());
+        assertEquals(MAC_ADDR.toString(), proto.getMacAddr());
+    }
+
+    @Test
+    public void testConvertPortSelectorToProto_withInterfaceName_setsIfaceNameField() {
+        final EthernetPortSelector portSelector = new EthernetPortSelector(IFACE_NAME);
+
+        final EthernetPortSelectorProto proto =
+                ProtoConfigUtils.convertPortSelectorToProto(portSelector);
+
+        assertNotNull(proto);
+        assertTrue(proto.hasIfaceName());
+        assertFalse(proto.hasMacAddr());
+        assertEquals(IFACE_NAME, proto.getIfaceName());
+    }
+
+
+    @Test
+    public void testConvertPortSelectorFromProto_withMacAddress() {
+        EthernetPortSelectorProto proto = EthernetPortSelectorProto.newBuilder()
+                .setMacAddr(MAC_ADDR.toString())
+                .build();
+
+        EthernetPortSelector selector = ProtoConfigUtils.convertPortSelectorFromProto(proto);
+        assertEquals(MAC_ADDR, selector.getMacAddress());
+    }
+
+    @Test
+    public void testConvertPortSelectorFromProto_withInterfaceName() {
+        EthernetPortSelectorProto proto = EthernetPortSelectorProto.newBuilder()
+                .setIfaceName(IFACE_NAME)
+                .build();
+
+        EthernetPortSelector selector = ProtoConfigUtils.convertPortSelectorFromProto(proto);
+        assertEquals(IFACE_NAME, selector.getInterfaceName());
+    }
+
+    @Test
+    public void testConvertPortSelectorFromProto_emptyProto_throwsException() {
+        EthernetPortSelectorProto emptyProto = EthernetPortSelectorProto.newBuilder().build();
+
+        assertThrows(IllegalArgumentException.class, () ->
+                ProtoConfigUtils.convertPortSelectorFromProto(emptyProto));
     }
 }

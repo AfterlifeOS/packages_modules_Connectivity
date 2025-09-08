@@ -19,10 +19,14 @@ import static java.util.Objects.requireNonNull;
 
 import android.net.EthernetConfiguration;
 import android.net.EthernetConfiguration.MeteredOverride;
+import android.net.EthernetPortSelector;
 import android.net.InetAddresses;
 import android.net.LinkAddress;
+import android.net.MacAddress;
+import android.text.TextUtils;
 import android.util.Log;
 
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.EthernetPortSelectorProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.LinkAddressProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverrideProto;
 
@@ -95,5 +99,48 @@ public class ProtoConfigUtils {
         requireNonNull(linkAddress, "LinkAddressProto must not be null");
         return new LinkAddress(InetAddresses.parseNumericAddress(linkAddress.getAddress()),
                 linkAddress.getPrefixLength());
+    }
+
+    /**
+     * Converts an {@link EthernetPortSelector} object to a corresponding
+     * {@link EthernetPortSelectorProto} object.
+     *
+     * @throws IllegalArgumentException if both MAC address and interface name in
+     * {@code portSelector} are invalid.
+     */
+    public static EthernetPortSelectorProto convertPortSelectorToProto(
+            EthernetPortSelector portSelector) {
+        requireNonNull(portSelector, "EthernetPortSelector must not be null");
+        EthernetPortSelectorProto.Builder selectorBuilder =
+                EthernetPortSelectorProto.newBuilder();
+        if (portSelector.getMacAddress() != null) {
+            selectorBuilder.setMacAddr(portSelector.getMacAddress().toString());
+        } else if (!TextUtils.isEmpty(portSelector.getInterfaceName())) {
+            selectorBuilder.setIfaceName(portSelector.getInterfaceName());
+        } else {
+            // This branch should not be reached theoretically. Added for safety reason.
+            throw new IllegalArgumentException("Both MAC address and interface name are invalid in "
+                    + "port selector: " + portSelector);
+        }
+        return selectorBuilder.build();
+    }
+
+    /**
+     * Converts an {@link EthernetPortSelectorProto} object to a corresponding value of
+     * {@link EthernetPortSelector} type.
+     *
+     * @throws IllegalArgumentException if both MAC address and interface in {@code portSelector}
+     * are invalid.
+     */
+    public static EthernetPortSelector convertPortSelectorFromProto(
+            EthernetPortSelectorProto portSelector) {
+        requireNonNull(portSelector, "EthernetPortSelectorProto must not be null");
+        if (portSelector.hasMacAddr()) {
+            return new EthernetPortSelector(MacAddress.fromString(portSelector.getMacAddr()));
+        } else if (portSelector.hasIfaceName()) {
+            return new EthernetPortSelector(portSelector.getIfaceName());
+        } else {
+            throw new IllegalArgumentException("No MAC address or interface is found.");
+        }
     }
 }
