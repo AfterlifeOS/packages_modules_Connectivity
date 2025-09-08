@@ -101,7 +101,7 @@ import java.util.StringJoiner;
 /**
  * BpfNetMaps is responsible for providing traffic controller relevant functionality.
  *
- * {@hide}
+ * @hide
  */
 public class BpfNetMaps {
     static {

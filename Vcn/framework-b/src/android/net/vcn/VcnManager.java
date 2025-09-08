@@ -192,7 +192,10 @@ public class VcnManager {
     public static final String VCN_TUNNEL_AGGREGATION_SA_COUNT_MAX_KEY =
             "vcn_tunnel_aggregation_sa_count_max";
 
-    /** List of Carrier Config options to extract from Carrier Config bundles. @hide */
+    /**
+     * List of Carrier Config options to extract from Carrier Config bundles.
+     * @hide
+     */
     @NonNull
     public static final String[] VCN_RELATED_CARRIER_CONFIG_KEYS =
             new String[] {

@@ -31,7 +31,7 @@ import android.net.netstats.provider.INetworkStatsProviderCallback;
 import android.os.IBinder;
 import android.os.Messenger;
 
-/** {@hide} */
+/** @hide */
 interface INetworkStatsService {
 
     /** Start a statistics query session. */
