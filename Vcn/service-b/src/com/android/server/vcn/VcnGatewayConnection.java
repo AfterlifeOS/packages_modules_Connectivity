@@ -432,6 +432,8 @@ public class VcnGatewayConnection extends StateMachine {
 
         public final boolean shouldQuit;
 
+        // TODO(b/440645797): Consider not taking in shouldQuit as a param and relying on the reason
+        // deterministically.
         EventDisconnectRequestedInfo(@NonNull String reason, boolean shouldQuit) {
             this.reason = Objects.requireNonNull(reason);
             this.shouldQuit = shouldQuit;
@@ -450,6 +452,26 @@ public class VcnGatewayConnection extends StateMachine {
 
             final EventDisconnectRequestedInfo rhs = (EventDisconnectRequestedInfo) other;
             return reason.equals(rhs.reason) && shouldQuit == rhs.shouldQuit;
+        }
+
+        @VcnMetrics.GatewayTeardownReason
+        int getGatewayTeardownReason() {
+            // TODO(b/440645797): Assuming DISCONNECT_REASON_UNDERLYING_NETWORK_LOST means
+            // shouldQuit == false. Consider removing shouldQuit variable and rely on the reason
+            // deterministically.
+            if (!shouldQuit) {
+                return VcnMetrics.GATEWAY_TEARDOWN_REASON_NONE;
+            }
+            switch (reason) {
+                case DISCONNECT_REASON_INTERNAL_ERROR:
+                    return VcnMetrics.GATEWAY_TEARDOWN_REASON_INTERNAL_ERROR;
+                case DISCONNECT_REASON_NETWORK_AGENT_UNWANTED:
+                    return VcnMetrics.GATEWAY_TEARDOWN_REASON_NETWORK_AGENT_UNWANTED;
+                case DISCONNECT_REASON_TEARDOWN:
+                    return VcnMetrics.GATEWAY_TEARDOWN_REASON_REQUESTED;
+                default:
+                    return VcnMetrics.GATEWAY_TEARDOWN_REASON_UNSPECIFIED;
+            }
         }
     }
 
@@ -674,6 +696,15 @@ public class VcnGatewayConnection extends StateMachine {
     private OneWayBoolean mIsQuitting = new OneWayBoolean();
 
     /**
+     * The reason we are about to quit/teardown VcnGatewayConnection.
+     *
+     * <p>When mIsQuitting is set true, we also update the reason for logging purposes. If multiple
+     * reasons/triggers end up sending teardown command, we will log with the last reason received.
+     */
+    private @VcnMetrics.GatewayTeardownReason int mTeardownReason =
+            VcnMetrics.GATEWAY_TEARDOWN_REASON_NONE;
+
+    /**
      * Whether the VcnGatewayConnection is in safe mode.
      *
      * <p>Upon hitting the safe mode timeout, this will be set to {@code true}. In safe mode, this
@@ -886,6 +917,7 @@ public class VcnGatewayConnection extends StateMachine {
 
         mGatewayStatusCallback.onQuit();
 
+        mVcnMetrics.logVcnGatewayTeardown(mId, mTeardownReason);
         mConnectivityDiagnosticsManager.unregisterConnectivityDiagnosticsCallback(
                 mConnectivityDiagnosticsCallback);
     }
@@ -1108,6 +1140,11 @@ public class VcnGatewayConnection extends StateMachine {
         }
 
         maybeReleaseWakeLock();
+    }
+
+    private void markQuitting(@VcnMetrics.GatewayTeardownReason int teardownReason) {
+        mIsQuitting.setTrue();
+        mTeardownReason = teardownReason;
     }
 
     private WakeupMessage createScheduledAlarm(
@@ -1508,7 +1545,7 @@ public class VcnGatewayConnection extends StateMachine {
 
             logInfo("Tearing down. Cause: " + info.reason + "; quitting = " + info.shouldQuit);
             if (info.shouldQuit) {
-                mIsQuitting.setTrue();
+                markQuitting(info.getGatewayTeardownReason());
             }
 
             teardownNetwork();
@@ -1579,8 +1616,9 @@ public class VcnGatewayConnection extends StateMachine {
                     }
                     break;
                 case EVENT_DISCONNECT_REQUESTED:
-                    if (((EventDisconnectRequestedInfo) msg.obj).shouldQuit) {
-                        mIsQuitting.setTrue();
+                    EventDisconnectRequestedInfo info = (EventDisconnectRequestedInfo) msg.obj;
+                    if (info.shouldQuit) {
+                        markQuitting(info.getGatewayTeardownReason());
 
                         quitNow();
                     }
@@ -1667,7 +1705,7 @@ public class VcnGatewayConnection extends StateMachine {
                 case EVENT_DISCONNECT_REQUESTED:
                     EventDisconnectRequestedInfo info = ((EventDisconnectRequestedInfo) msg.obj);
                     if (info.shouldQuit) {
-                        mIsQuitting.setTrue();
+                        markQuitting(info.getGatewayTeardownReason());
                     }
 
                     teardownNetwork();
@@ -1856,6 +1894,8 @@ public class VcnGatewayConnection extends StateMachine {
                                 }
 
                                 logInfo("NetworkAgent was unwanted");
+                                // TODO(b/440645797): This tears down with _TEARDOWN reason rather
+                                // than _NETWORK_AGENT_UNWANTED.
                                 teardownAsynchronously();
                             } /* networkUnwantedCallback */,
                             (status) -> {
@@ -2673,6 +2713,12 @@ public class VcnGatewayConnection extends StateMachine {
     @VisibleForTesting(visibility = Visibility.PRIVATE)
     boolean isQuitting() {
         return mIsQuitting.getValue();
+    }
+
+    @VisibleForTesting(visibility = Visibility.PRIVATE)
+    @VcnMetrics.GatewayTeardownReason
+    int getTeardownReason() {
+        return mTeardownReason;
     }
 
     @VisibleForTesting(visibility = Visibility.PRIVATE)
