@@ -98,6 +98,7 @@ import java.util.function.Consumer;
 @SmallTest
 public class VcnGatewayConnectionConnectedStateTest extends VcnGatewayConnectionTestBase {
     private static final int PARALLEL_SA_COUNT = 4;
+    private static final int NETWORK_AGENT_ID = 1234;
 
     private VcnIkeSession mIkeSession;
     private VcnNetworkAgent mNetworkAgent;
@@ -114,6 +115,7 @@ public class VcnGatewayConnectionConnectedStateTest extends VcnGatewayConnection
 
         mVcnNetwork = mock(Network.class);
         doReturn(mVcnNetwork).when(mNetworkAgent).getNetwork();
+        doReturn(NETWORK_AGENT_ID).when(mNetworkAgent).getIdentityHashCode();
 
         mGatewayConnection.setUnderlyingNetwork(TEST_UNDERLYING_NETWORK_RECORD_1);
 
@@ -609,6 +611,26 @@ public class VcnGatewayConnectionConnectedStateTest extends VcnGatewayConnection
         // Verify that IpSecTunnelInterface only created once
         verify(mIpSecSvc).createTunnelInterface(any(), any(), any(), any(), any());
         verifyNoMoreInteractions(mIpSecSvc);
+    }
+
+    @Test
+    public void testValidatedTriggered_logsMetrics() throws Exception {
+        triggerChildOpened();
+        mTestLooper.dispatchAll();
+
+        triggerValidation(NetworkAgent.VALIDATION_STATUS_VALID);
+
+        verify(mVcnMetrics).logVcnNetworkValidated(anyInt(), eq(NETWORK_AGENT_ID));
+    }
+
+    @Test
+    public void testNotValidatedTriggered_logsMetrics() throws Exception {
+        triggerChildOpened();
+        mTestLooper.dispatchAll();
+
+        triggerValidation(NetworkAgent.VALIDATION_STATUS_NOT_VALID);
+
+        verify(mVcnMetrics).logVcnNetworkNotValidated(anyInt(), eq(NETWORK_AGENT_ID));
     }
 
     @Test
