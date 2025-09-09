@@ -19,6 +19,7 @@ package com.android.net.module.util.dhcp6;
 import static com.android.net.module.util.NetworkStackConstants.DHCP_MAX_LENGTH;
 
 import androidx.annotation.NonNull;
+import androidx.annotation.VisibleForTesting;
 
 import com.android.net.module.util.structs.IaAddressOption;
 
@@ -40,7 +41,8 @@ public class Dhcp6AddrRegReplyPacket extends Dhcp6Packet {
     /**
      * Generates a ADDR-REG-REPLY packet with the specified parameters.
      */
-    Dhcp6AddrRegReplyPacket(int transId, @NonNull final byte[] clientDuid,
+    @VisibleForTesting
+    public Dhcp6AddrRegReplyPacket(int transId, @NonNull final byte[] clientDuid,
             @NonNull final byte[] serverDuid, @NonNull final Inet6Address iaAddress,
             long preferred, long valid) {
         super(transId, 0 /* elapsedTime */, clientDuid, serverDuid, null /* iapd */);
