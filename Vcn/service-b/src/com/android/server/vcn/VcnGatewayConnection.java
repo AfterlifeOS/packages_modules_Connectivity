@@ -859,6 +859,7 @@ public class VcnGatewayConnection extends StateMachine {
 
         if (mNetworkAgent != null) {
             logWtf("NetworkAgent was non-null in onQuitting");
+            mVcnMetrics.logVcnNetworkNotConnected(mId, mNetworkAgent.getIdentityHashCode());
             mNetworkAgent.unregister();
             mNetworkAgent = null;
         }
@@ -1496,6 +1497,7 @@ public class VcnGatewayConnection extends StateMachine {
 
         protected void teardownNetwork() {
             if (mNetworkAgent != null) {
+                mVcnMetrics.logVcnNetworkNotConnected(mId, mNetworkAgent.getIdentityHashCode());
                 mNetworkAgent.unregister();
                 mNetworkAgent = null;
             }
@@ -1894,6 +1896,7 @@ public class VcnGatewayConnection extends StateMachine {
 
             agent.register();
             agent.markConnected();
+            mVcnMetrics.logVcnNetworkConnected(mId, agent.getIdentityHashCode());
 
             return agent;
         }

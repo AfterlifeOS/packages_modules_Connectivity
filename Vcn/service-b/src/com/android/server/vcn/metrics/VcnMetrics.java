@@ -42,6 +42,26 @@ public class VcnMetrics {
                 false /* isInSafeMode */);
     }
 
+    /** Log an atom when VCN network is connected. */
+    public void logVcnNetworkConnected(int gatewayConnectionId, int networkId) {
+        VcnStatsLog.write(
+                VcnStatsLog.VCN_NETWORK_STATE_CHANGED,
+                gatewayConnectionId,
+                networkId,
+                true /* isConnected */,
+                false /* isValidated */);
+    }
+
+    /** Log an atom when VCN network is being torn down. */
+    public void logVcnNetworkNotConnected(int gatewayConnectionId, int networkId) {
+        VcnStatsLog.write(
+                VcnStatsLog.VCN_NETWORK_STATE_CHANGED,
+                gatewayConnectionId,
+                networkId,
+                false /* isConnected */,
+                false /* isValidated */);
+    }
+
     /** Log an atom when VCN network has been validated. */
     public void logVcnNetworkValidated(int gatewayConnectionId, int networkId) {
         VcnStatsLog.write(
