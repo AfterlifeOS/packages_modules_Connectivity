@@ -32,7 +32,11 @@ import com.android.server.network.configstore.proto.NetworkConfigStoreProto.Link
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverrideProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.StaticIpv4ConfigurationProto;
 
+import java.net.Inet4Address;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Static util methods for {@link ProtoConfig}.
@@ -171,6 +175,47 @@ public class ProtoConfigUtils {
                 builder.addSearchDomains(domain);
             }
         }
+        return builder.build();
+    }
+
+    /**
+     * Extracts static IP configuration from a {@link StaticIpv4ConfigurationProto} proto object and
+     * converts it to a corresponding {@link StaticIpConfiguration} framework object.
+     *
+     * @throws IllegalArgumentException if the {@code proto} does not contain a valid IPv4 address,
+     * or any gateway/DNS server address is invalid.
+     */
+    public static StaticIpConfiguration convertStaticIpConfigurationFromProto(
+            StaticIpv4ConfigurationProto proto) {
+        requireNonNull(proto, "Static IP configuration proto object cannot be null.");
+
+        final StaticIpConfiguration.Builder builder = new StaticIpConfiguration.Builder();
+
+        final LinkAddress linkAddr = convertLinkAddressFromProto(proto.getAddress());
+        if (linkAddr.getAddress() instanceof Inet4Address) {
+            builder.setIpAddress(linkAddr);
+        } else {
+            throw new IllegalArgumentException("Non-IPv4 link address, conversion failed.");
+        }
+
+        if (proto.hasGateway()) {
+            builder.setGateway(InetAddresses.parseNumericAddress(proto.getGateway()));
+        }
+
+        final List<InetAddress> dnsServers = new ArrayList<>();
+        for (String dnsServer : proto.getDnsServersList()) {
+            dnsServers.add(InetAddresses.parseNumericAddress(dnsServer));
+        }
+        builder.setDnsServers(dnsServers);
+
+        // Filter out empty search domains.
+        final String domains = proto.getSearchDomainsList().stream()
+                .filter(domain -> !domain.isEmpty())
+                .collect(Collectors.joining(","));
+        if (!domains.isEmpty()) {
+            builder.setDomains(domains);
+        }
+
         return builder.build();
     }
 }
