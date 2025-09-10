@@ -23,15 +23,20 @@ import android.net.EthernetPortSelector;
 import android.net.InetAddresses;
 import android.net.LinkAddress;
 import android.net.MacAddress;
+import android.net.StaticIpConfiguration;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.EthernetPortSelectorProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.LinkAddressProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverrideProto;
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.StaticIpv4ConfigurationProto;
+
+import java.net.InetAddress;
 
 /**
  * Static util methods for {@link ProtoConfig}.
+ * Note that conversion methods are responsible of doing null check on arguments.
  */
 public class ProtoConfigUtils {
     private static final String TAG = "ProtoConfigUtils";
@@ -142,5 +147,30 @@ public class ProtoConfigUtils {
         } else {
             throw new IllegalArgumentException("No MAC address or interface is found.");
         }
+    }
+
+    /**
+     * Converts an {@link StaticIpConfiguration} object to a corresponding.
+     * {@link StaticIpv4ConfigurationProto} object.
+     */
+    public static StaticIpv4ConfigurationProto convertStaticIpConfigurationToProto(
+            StaticIpConfiguration config) {
+        requireNonNull(config, "Static IP configuration cannot be null.");
+        final StaticIpv4ConfigurationProto.Builder builder =
+                StaticIpv4ConfigurationProto.newBuilder();
+        builder.setAddress(convertLinkAddressToProto(config.getIpAddress()));
+        if (config.getGateway() != null) {
+            builder.setGateway(config.getGateway().getHostAddress());
+        }
+        for (InetAddress inetAddr : config.getDnsServers()) {
+            builder.addDnsServers(inetAddr.getHostAddress());
+        }
+        if (config.getDomains() != null) {
+            for (String domain : config.getDomains().split(",")) {
+                if (domain.isEmpty()) continue;
+                builder.addSearchDomains(domain);
+            }
+        }
+        return builder.build();
     }
 }
