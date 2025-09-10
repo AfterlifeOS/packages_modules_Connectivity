@@ -16,6 +16,7 @@
 
 package com.android.net.module.util.netlink;
 
+import static android.system.OsConstants.AF_INET6;
 import static android.system.OsConstants.AF_UNSPEC;
 
 import static com.android.net.module.util.NetworkStackConstants.ETHER_ADDR_LEN;
@@ -53,6 +54,7 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
     public static final short IFLA_MTU       = 4;
     public static final short IFLA_INET6_ADDR_GEN_MODE = 8;
     public static final short IFLA_AF_SPEC = 26;
+    public static final short IFLA_INET6_FLAGS = 1;
 
     public static final short IN6_ADDR_GEN_MODE_NONE = 1;
 
@@ -60,6 +62,8 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
     private static final int IFNAMSIZ = 16;
     // The default value of MTU, which means the MTU is unspecified.
     private static final int DEFAULT_MTU = 0;
+    // The default value of IPv6 link attribute flags.
+    private static final int DEFAULT_IFLA_INET6_FLAGS = 0;
 
     @NonNull
     private final StructIfinfoMsg mIfinfomsg;
@@ -68,6 +72,24 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
     private final MacAddress mHardwareAddress;
     @Nullable
     private final String mInterfaceName;
+
+    // IPv6 operational flags for the interface, from the IFLA_INET6_FLAGS netlink attribute.
+    // also see inet6_dev.if_flags in if_inet6.h
+    private final int mInet6Flags;
+
+    /**
+     * Creates an {@link RtNetlinkLinkMessage} instance.
+     *
+     * @return A new {@link RtNetlinkLinkMessage} instance, or {@code null} if the input arguments
+     *         are invalid.
+     */
+    @Nullable
+    public static RtNetlinkLinkMessage build(@NonNull StructNlMsgHdr nlmsghdr,
+            @NonNull StructIfinfoMsg ifinfomsg, int mtu, @Nullable MacAddress hardwareAddress,
+            @Nullable String interfaceName) {
+        return RtNetlinkLinkMessage.build(nlmsghdr, ifinfomsg, mtu, hardwareAddress, interfaceName,
+                DEFAULT_IFLA_INET6_FLAGS);
+    }
 
     /**
      * Creates an {@link RtNetlinkLinkMessage} instance.
@@ -80,13 +102,14 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
      * @param mtu The Maximum Transmission Unit (MTU) value for the link.
      * @param hardwareAddress The hardware address (MAC address) of the link. May be {@code null}.
      * @param interfaceName The name of the interface. May be {@code null}.
+     * @param inet6Flags IPv6 operational flags for the interface.
      * @return A new {@link RtNetlinkLinkMessage} instance, or {@code null} if the input arguments
      *         are invalid.
      */
     @Nullable
     public static RtNetlinkLinkMessage build(@NonNull StructNlMsgHdr nlmsghdr,
             @NonNull StructIfinfoMsg ifinfomsg, int mtu, @Nullable MacAddress hardwareAddress,
-            @Nullable String interfaceName) {
+            @Nullable String interfaceName, int inet6Flags) {
         if (mtu < 0) {
             return null;
         }
@@ -96,17 +119,19 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
         }
 
         nlmsghdr.nlmsg_len = calculateMessageLength(mtu, hardwareAddress, interfaceName);
-        return new RtNetlinkLinkMessage(nlmsghdr, ifinfomsg, mtu, hardwareAddress, interfaceName);
+        return new RtNetlinkLinkMessage(nlmsghdr, ifinfomsg, mtu, hardwareAddress, interfaceName,
+                inet6Flags);
     }
 
     private RtNetlinkLinkMessage(@NonNull StructNlMsgHdr nlmsghdr,
             @NonNull StructIfinfoMsg ifinfomsg, int mtu, @Nullable MacAddress hardwareAddress,
-            @Nullable String interfaceName) {
+            @Nullable String interfaceName, int inet6Flags) {
         super(nlmsghdr);
         mIfinfomsg = ifinfomsg;
         mMtu = mtu;
         mHardwareAddress = hardwareAddress;
         mInterfaceName = interfaceName;
+        mInet6Flags = inet6Flags;
     }
 
     public int getMtu() {
@@ -126,6 +151,10 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
     @NonNull
     public String getInterfaceName() {
         return mInterfaceName;
+    }
+
+    public int getInet6Flags() {
+        return mInet6Flags;
     }
 
     /**
@@ -171,7 +200,42 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
             return null;
         }
 
-        return new RtNetlinkLinkMessage(header, ifinfoMsg, mtu, hardwareAddress, interfaceName);
+        /*
+         * IFLA_AF_SPEC:
+         *   Contains nested attributes for address family specific attributes.
+         *   Each address family may create a attribute with the address family
+         *   number as type and create its own attribute structure in it.
+         *
+         *   Example:
+         *   [IFLA_AF_SPEC] = {
+         *       [AF_INET] = {
+         *           [IFLA_INET_CONF] = ...,
+         *       },
+         *       [AF_INET6] = {
+         *           [IFLA_INET6_FLAGS] = ...,
+         *           [IFLA_INET6_CONF] = ...,
+         *       }
+         *   }
+         */
+        int inet6Flags = DEFAULT_IFLA_INET6_FLAGS;
+        byteBuffer.position(baseOffset);
+        nlAttr = StructNlAttr.findNextAttrOfType(IFLA_AF_SPEC, byteBuffer);
+        if (nlAttr != null) {
+            final StructNlAttr ipv6ConfigAttrs = StructNlAttr.findNextAttrOfType(
+                    (short) AF_INET6,
+                    nlAttr.getValueAsByteBuffer());
+            if (ipv6ConfigAttrs != null) {
+                final StructNlAttr inet6FlagsAttr = StructNlAttr.findNextAttrOfType(
+                        IFLA_INET6_FLAGS,
+                        ipv6ConfigAttrs.getValueAsByteBuffer());
+                if (inet6FlagsAttr != null) {
+                    inet6Flags = inet6FlagsAttr.getValueAsInt(DEFAULT_IFLA_INET6_FLAGS);
+                }
+            }
+        }
+
+        return new RtNetlinkLinkMessage(header, ifinfoMsg, mtu, hardwareAddress, interfaceName,
+                inet6Flags);
     }
 
     /**
@@ -368,7 +432,8 @@ public class RtNetlinkLinkMessage extends NetlinkMessage {
                 + "Ifinfomsg{" + mIfinfomsg + "}, "
                 + "Hardware Address{" + mHardwareAddress + "}, "
                 + "MTU{" + mMtu + "}, "
-                + "Ifname{" + mInterfaceName + "} "
+                + "Ifname{" + mInterfaceName + "}, "
+                + "IFLA_INET6_FLAGS{" + mInet6Flags + "} "
                 + "}";
     }
 }
