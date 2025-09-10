@@ -23,15 +23,24 @@ import android.net.EthernetPortSelector;
 import android.net.InetAddresses;
 import android.net.LinkAddress;
 import android.net.MacAddress;
+import android.net.StaticIpConfiguration;
 import android.text.TextUtils;
 import android.util.Log;
 
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.EthernetPortSelectorProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.LinkAddressProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverrideProto;
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.StaticIpv4ConfigurationProto;
+
+import java.net.Inet4Address;
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Static util methods for {@link ProtoConfig}.
+ * Note that conversion methods are responsible of doing null check on arguments.
  */
 public class ProtoConfigUtils {
     private static final String TAG = "ProtoConfigUtils";
@@ -142,5 +151,71 @@ public class ProtoConfigUtils {
         } else {
             throw new IllegalArgumentException("No MAC address or interface is found.");
         }
+    }
+
+    /**
+     * Converts an {@link StaticIpConfiguration} object to a corresponding.
+     * {@link StaticIpv4ConfigurationProto} object.
+     */
+    public static StaticIpv4ConfigurationProto convertStaticIpConfigurationToProto(
+            StaticIpConfiguration config) {
+        requireNonNull(config, "Static IP configuration cannot be null.");
+        final StaticIpv4ConfigurationProto.Builder builder =
+                StaticIpv4ConfigurationProto.newBuilder();
+        builder.setAddress(convertLinkAddressToProto(config.getIpAddress()));
+        if (config.getGateway() != null) {
+            builder.setGateway(config.getGateway().getHostAddress());
+        }
+        for (InetAddress inetAddr : config.getDnsServers()) {
+            builder.addDnsServers(inetAddr.getHostAddress());
+        }
+        if (config.getDomains() != null) {
+            for (String domain : config.getDomains().split(",")) {
+                if (domain.isEmpty()) continue;
+                builder.addSearchDomains(domain);
+            }
+        }
+        return builder.build();
+    }
+
+    /**
+     * Extracts static IP configuration from a {@link StaticIpv4ConfigurationProto} proto object and
+     * converts it to a corresponding {@link StaticIpConfiguration} framework object.
+     *
+     * @throws IllegalArgumentException if the {@code proto} does not contain a valid IPv4 address,
+     * or any gateway/DNS server address is invalid.
+     */
+    public static StaticIpConfiguration convertStaticIpConfigurationFromProto(
+            StaticIpv4ConfigurationProto proto) {
+        requireNonNull(proto, "Static IP configuration proto object cannot be null.");
+
+        final StaticIpConfiguration.Builder builder = new StaticIpConfiguration.Builder();
+
+        final LinkAddress linkAddr = convertLinkAddressFromProto(proto.getAddress());
+        if (linkAddr.getAddress() instanceof Inet4Address) {
+            builder.setIpAddress(linkAddr);
+        } else {
+            throw new IllegalArgumentException("Non-IPv4 link address, conversion failed.");
+        }
+
+        if (proto.hasGateway()) {
+            builder.setGateway(InetAddresses.parseNumericAddress(proto.getGateway()));
+        }
+
+        final List<InetAddress> dnsServers = new ArrayList<>();
+        for (String dnsServer : proto.getDnsServersList()) {
+            dnsServers.add(InetAddresses.parseNumericAddress(dnsServer));
+        }
+        builder.setDnsServers(dnsServers);
+
+        // Filter out empty search domains.
+        final String domains = proto.getSearchDomainsList().stream()
+                .filter(domain -> !domain.isEmpty())
+                .collect(Collectors.joining(","));
+        if (!domains.isEmpty()) {
+            builder.setDomains(domains);
+        }
+
+        return builder.build();
     }
 }

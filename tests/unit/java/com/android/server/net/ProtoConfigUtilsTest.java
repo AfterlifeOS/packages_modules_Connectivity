@@ -24,18 +24,27 @@ import static org.junit.Assert.assertTrue;
 
 import android.net.EthernetConfiguration;
 import android.net.EthernetPortSelector;
+import android.net.InetAddresses;
 import android.net.LinkAddress;
 import android.net.MacAddress;
+import android.net.StaticIpConfiguration;
 import android.os.Build;
 
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.EthernetPortSelectorProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.LinkAddressProto;
 import com.android.server.network.configstore.proto.NetworkConfigStoreProto.MeteredOverrideProto;
+import com.android.server.network.configstore.proto.NetworkConfigStoreProto.StaticIpv4ConfigurationProto;
 import com.android.testutils.DevSdkIgnoreRule;
 import com.android.testutils.DevSdkIgnoreRunner;
 
+import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+
+import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Unit tests for {@link ProtoConfigUtils}
@@ -48,6 +57,15 @@ public class ProtoConfigUtilsTest {
     private static final int PREFIX_LENGTH = 24;
     private static final String IFACE_NAME = "eth0";
     private static final MacAddress MAC_ADDR = MacAddress.fromString("aa:bb:cc:dd:ee:11");
+    private static final String GATEWAY_ADDRESS = "192.168.1.1";
+    private static final String DOMAIN1 = "aexample.com";
+    private static final String DOMAIN2 = "test.net";
+    private static final String DNS_IP_ADDR_1 = "1.2.3.4";
+    private static final String DNS_IP_ADDR_2 = "5.6.7.8";
+
+    private static final ArrayList<InetAddress> DNS_SERVERS = new ArrayList<>(List.of(
+            InetAddresses.parseNumericAddress(DNS_IP_ADDR_1),
+            InetAddresses.parseNumericAddress(DNS_IP_ADDR_2)));
 
     @Test
     public void testconvertMeteredOverrideToProto() {
@@ -149,5 +167,78 @@ public class ProtoConfigUtilsTest {
 
         assertThrows(IllegalArgumentException.class, () ->
                 ProtoConfigUtils.convertPortSelectorFromProto(emptyProto));
+    }
+
+    @Test
+    public void testConvertStaticIpConfigurationToProto() {
+        final StaticIpConfiguration staticIpConfig = new StaticIpConfiguration.Builder()
+                .setIpAddress(new LinkAddress(LINK_ADDRESS_STRING))
+                .setGateway(InetAddresses.parseNumericAddress(GATEWAY_ADDRESS))
+                .setDnsServers(DNS_SERVERS)
+                .setDomains(DOMAIN1 + "," + DOMAIN2)
+                .build();
+
+        final StaticIpv4ConfigurationProto proto =
+                ProtoConfigUtils.convertStaticIpConfigurationToProto(staticIpConfig);
+
+        assertNotNull(proto);
+        assertTrue(proto.hasAddress());
+        Assert.assertEquals(IP_ADDRESS_STRING, proto.getAddress().getAddress());
+        Assert.assertEquals(PREFIX_LENGTH, proto.getAddress().getPrefixLength());
+
+        assertTrue(proto.hasGateway());
+        Assert.assertEquals(GATEWAY_ADDRESS, proto.getGateway());
+
+        Assert.assertEquals(2, proto.getDnsServersCount());
+        Assert.assertEquals(Arrays.asList(DNS_IP_ADDR_1, DNS_IP_ADDR_2),
+                proto.getDnsServersList());
+
+        Assert.assertEquals(2, proto.getSearchDomainsCount());
+        Assert.assertEquals(Arrays.asList(DOMAIN1, DOMAIN2),
+                proto.getSearchDomainsList());
+    }
+
+    @Test
+    public void testConvertStaticIpConfigurationToProto_nullInput() {
+        assertThrows("Static IP configuration cannot be null.",
+                NullPointerException.class, () -> {
+                    ProtoConfigUtils.convertStaticIpConfigurationToProto(null);
+                });
+    }
+
+    @Test
+    public void testConvertProtoToStaticIpConfiguration() {
+        LinkAddressProto linkAddrProto =
+                LinkAddressProto.newBuilder()
+                        .setAddress(IP_ADDRESS_STRING)
+                        .setPrefixLength(PREFIX_LENGTH)
+                        .build();
+        StaticIpv4ConfigurationProto staticIpConfigProto =
+                StaticIpv4ConfigurationProto.newBuilder()
+                        .setAddress(linkAddrProto)
+                        .addDnsServers(DNS_IP_ADDR_1)
+                        .addDnsServers(DNS_IP_ADDR_2)
+                        .addSearchDomains(DOMAIN1)
+                        .addSearchDomains(DOMAIN2)
+                        .build();
+
+        StaticIpConfiguration actualConfig =
+                ProtoConfigUtils.convertStaticIpConfigurationFromProto(staticIpConfigProto);
+
+        StaticIpConfiguration expectedConfig = new StaticIpConfiguration.Builder()
+                .setIpAddress(new LinkAddress(LINK_ADDRESS_STRING))
+                .setDnsServers(DNS_SERVERS)
+                .setDomains(DOMAIN1 + "," + DOMAIN2)
+                .build();
+
+        assertEquals(expectedConfig, actualConfig);
+    }
+
+    @Test
+    public void testConvertProtoToStaticIpConfiguration_nullInput() {
+        assertThrows("Static IP configuration proto object cannot be null.",
+                NullPointerException.class, () -> {
+                    ProtoConfigUtils.convertStaticIpConfigurationFromProto(null);
+                });
     }
 }
