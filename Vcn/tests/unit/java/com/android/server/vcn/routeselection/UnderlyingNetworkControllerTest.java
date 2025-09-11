@@ -71,6 +71,7 @@ import androidx.test.runner.AndroidJUnit4;
 import com.android.server.vcn.TelephonySubscriptionTracker.TelephonySubscriptionSnapshot;
 import com.android.server.vcn.VcnContext;
 import com.android.server.vcn.VcnNetworkProvider;
+import com.android.server.vcn.metrics.VcnMetrics;
 import com.android.server.vcn.routeselection.UnderlyingNetworkController.Dependencies;
 import com.android.server.vcn.routeselection.UnderlyingNetworkController.NetworkBringupCallback;
 import com.android.server.vcn.routeselection.UnderlyingNetworkController.UnderlyingNetworkControllerCallback;
@@ -100,6 +101,7 @@ public class UnderlyingNetworkControllerTest {
     private static final int INITIAL_SUB_ID_1 = 1;
     private static final int INITIAL_SUB_ID_2 = 2;
     private static final int UPDATED_SUB_ID = 3;
+    private static final int GATEWAY_CONNECTION_ID = 1234;
 
     private static final Set<Integer> INITIAL_SUB_IDS =
             new ArraySet<>(Arrays.asList(INITIAL_SUB_ID_1, INITIAL_SUB_ID_2));
@@ -164,6 +166,7 @@ public class UnderlyingNetworkControllerTest {
     @Mock private UnderlyingNetworkControllerCallback mNetworkControllerCb;
     @Mock private NetworkEvaluatorCallback mEvaluatorCallback;
     @Mock private Network mNetwork;
+    @Mock private VcnMetrics mVcnMetrics;
 
     @Spy private Dependencies mDependencies = new Dependencies();
 
@@ -218,11 +221,13 @@ public class UnderlyingNetworkControllerTest {
         doReturn(mNetworkEvaluator)
                 .when(mDependencies)
                 .newUnderlyingNetworkEvaluator(any(), any(), any(), any(), any(), any(), any());
+        doReturn(mVcnMetrics).when(mDependencies).newVcnMetrics();
 
         mUnderlyingNetworkController =
                 new UnderlyingNetworkController(
                         mVcnContext,
                         VcnGatewayConnectionConfigTest.buildTestConfig(),
+                        GATEWAY_CONNECTION_ID,
                         SUB_GROUP,
                         mSubscriptionSnapshot,
                         mNetworkControllerCb,
@@ -268,6 +273,7 @@ public class UnderlyingNetworkControllerTest {
         new UnderlyingNetworkController(
                 vcnContext,
                 VcnGatewayConnectionConfigTest.buildTestConfig(),
+                GATEWAY_CONNECTION_ID,
                 SUB_GROUP,
                 mSubscriptionSnapshot,
                 mNetworkControllerCb);
@@ -320,6 +326,7 @@ public class UnderlyingNetworkControllerTest {
         new UnderlyingNetworkController(
                 mVcnContext,
                 VcnGatewayConnectionConfigTest.buildTestConfig(networkTemplates),
+                GATEWAY_CONNECTION_ID,
                 SUB_GROUP,
                 mSubscriptionSnapshot,
                 mNetworkControllerCb);
@@ -361,6 +368,7 @@ public class UnderlyingNetworkControllerTest {
         new UnderlyingNetworkController(
                 mVcnContext,
                 VcnGatewayConnectionConfigTest.buildTestConfig(networkTemplates),
+                GATEWAY_CONNECTION_ID,
                 SUB_GROUP,
                 mSubscriptionSnapshot,
                 mNetworkControllerCb);
@@ -515,6 +523,7 @@ public class UnderlyingNetworkControllerTest {
                 .unregisterNetworkCallback(any(NetworkBringupCallback.class));
         verify(mConnectivityManager)
                 .unregisterNetworkCallback(any(UnderlyingNetworkListener.class));
+        verify(mVcnMetrics).logValidatedUnderlyingNetworkCount(eq(GATEWAY_CONNECTION_ID), eq(0));
     }
 
     private static UnderlyingNetworkRecord getTestNetworkRecord(
@@ -780,6 +789,7 @@ public class UnderlyingNetworkControllerTest {
         new UnderlyingNetworkController(
                 mVcnContext,
                 VcnGatewayConnectionConfigTest.buildTestConfig(networkTemplates),
+                GATEWAY_CONNECTION_ID,
                 SUB_GROUP,
                 mSubscriptionSnapshot,
                 mNetworkControllerCb,
@@ -832,6 +842,24 @@ public class UnderlyingNetworkControllerTest {
         verify(mNetworkControllerCb, never())
                 .onSelectedUnderlyingNetworkChanged(eq(expectedEvaluator.getNetworkRecord()));
         verify(expectedEvaluator, never()).setIsSelected(eq(true), any(), any(), any(), any());
+    }
+
+    @Test
+    public void testValidatedUnderlyingNetworkCountsLogged() {
+        final List<VcnUnderlyingNetworkTemplate> networkTemplates = new ArrayList();
+        networkTemplates.add(CELL_TEMPLATE_DUN);
+        networkTemplates.add(CELL_TEMPLATE_CBS);
+
+        // Bring up CBS network
+        UnderlyingNetworkListener cb = setupControllerAndGetNetworkListener(networkTemplates);
+        bringupNetworkAndGetEvaluator(cb, CBS_NETWORK_CAPABILITIES, networkTemplates);
+
+        verify(mVcnMetrics).logValidatedUnderlyingNetworkCount(eq(GATEWAY_CONNECTION_ID), eq(1));
+
+        // Bring up DUN network
+        bringupNetworkAndGetEvaluator(cb, DUN_NETWORK_CAPABILITIES, networkTemplates);
+
+        verify(mVcnMetrics).logValidatedUnderlyingNetworkCount(eq(GATEWAY_CONNECTION_ID), eq(2));
     }
 
     @Test
