@@ -136,7 +136,8 @@ static jboolean com_android_net_module_util_BpfMap_nativeFindMapEntry(JNIEnv *en
     return throwIfNotEnoent(env, "nativeFindMapEntry", ret, errno);
 }
 
-static jint com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU() {
+static jint com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU(JNIEnv *env,
+                                                                          jclass clazz) {
     const int pfSocket = socket(AF_KEY, SOCK_RAW | SOCK_CLOEXEC, PF_KEY_V2);
     if (pfSocket < 0) return -errno;
     // On Linux close() will always close the fd, any error it returns is a previous pending error.
@@ -196,7 +197,6 @@ static const JNINativeMethod gBpfMapMethods[] = {
         (void*) com_android_net_module_util_BpfMap_nativeGetNextMapKey },
     { "nativeFindMapEntry", "(I[B[B)Z",
         (void*) com_android_net_module_util_BpfMap_nativeFindMapEntry },
-    // CriticalNative
     { "nativeSynchronizeKernelRCU", "()I",
         (void*) com_android_net_module_util_BpfMap_nativeSynchronizeKernelRCU },
 

@@ -28,7 +28,6 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.annotation.RequiresApi;
 
-import dalvik.annotation.optimization.CriticalNative;
 import dalvik.annotation.optimization.FastNative;
 
 import java.util.NoSuchElementException;
@@ -304,6 +303,5 @@ public class BpfMap<K extends Struct, V extends Struct> implements IBpfMap<K, V>
     private native boolean nativeFindMapEntry(int fd, byte[] key, byte[] value)
             throws ErrnoException;
 
-    @CriticalNative
     private static native int nativeSynchronizeKernelRCU();
 }
