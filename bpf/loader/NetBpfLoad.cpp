@@ -824,7 +824,7 @@ static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<
     vector<char> btfData;
     struct btf *btf = NULL;
     auto btfGuard = base::make_scope_guard([&btf] { if (btf) btf__free(btf); });
-    if (isAtLeastKernelVersion(4, 19, 0) && !bpfCmdFixupIsNeeded) {
+    if (isAtLeastKernelVersion(4, 19, 0)) {
         // On Linux Kernels older than 4.18 BPF_BTF_LOAD command doesn't exist.
         ret = elfObj.readSectionByName(".BTF", btfData);
         if (ret) {
@@ -1398,7 +1398,7 @@ static bool loadObject(const unsigned int bpfloader_ver,
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
-    bool libbpf = !bpfCmdFixupIsNeeded && (isAtLeast25Q3 || USE_LIBBPF);
+    bool libbpf = isAtLeast25Q3 || USE_LIBBPF;
     if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
     if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {
@@ -1885,8 +1885,10 @@ static int doLoad(char** argv, char * const envp[]) {
             if (next || errno != ENOENT) return 35;
             if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 36;
             // implies Android S with 4.14 or 4.19 kernel
-            ALOGW("Enabling bpfCmdFixupIsNeeded.");
-            bpfCmdFixupIsNeeded = true;
+            ALOGW("Detected kernel with invalid BPF UAPI - disabling mainline use of eBPF.");
+            // leave a flag that we're 'done'
+            if (!createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 43;  // same as below
+            return 0;
         }
     } else {  // implies S/T with 4.9 kernel
         // nothing we can do.
@@ -1908,7 +1910,7 @@ static int doLoad(char** argv, char * const envp[]) {
         unique_fd map(createMap(BPF_MAP_TYPE_ARRAY, sizeof(int), sizeof(int), 2, 0));
 
         int zero = 0;
-        int kernel_bugs = bpfCmdFixupIsNeeded;
+        int kernel_bugs = 0;
         if (writeToMapEntry(map, &zero, &kernel_bugs, BPF_ANY)) {
             ALOGE("Failure to write into index 0 of kernel bugs array.");
             return 38;
