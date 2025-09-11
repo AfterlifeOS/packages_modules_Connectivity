@@ -1076,20 +1076,15 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
             return -EINVAL;
         }
 
-        unsigned min_kver = cs[i].prog_def->min_kver;
-        unsigned max_kver = cs[i].prog_def->max_kver;
-        ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kernelVer:%x)",
-             i, cs[i].prog_def->name(), min_kver, max_kver, kernelVer);
-        if (kernelVer < min_kver) continue;
-        if (kernelVer >= max_kver) continue;
+        ALOGD("cs[%d].name:%s kver in [%x,%x) bpfloader ver in [0x%05x,0x%05x)",
+              i, cs[i].prog_def->name(),
+              cs[i].prog_def->min_kver, cs[i].prog_def->max_kver,
+              cs[i].prog_def->bpfloader_min_ver, cs[i].prog_def->bpfloader_max_ver);
 
-        unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
-        unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
-
-        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)",
-              i, cs[i].prog_def->name(), bpfMinVer, bpfMaxVer);
-        if (bpfloader_ver < bpfMinVer) continue;
-        if (bpfloader_ver >= bpfMaxVer) continue;
+        if (kernelVer < cs[i].prog_def->min_kver) continue;
+        if (kernelVer >= cs[i].prog_def->max_kver) continue;
+        if (bpfloader_ver < cs[i].prog_def->bpfloader_min_ver) continue;
+        if (bpfloader_ver >= cs[i].prog_def->bpfloader_max_ver) continue;
 
         bool reuse = false;
         if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
