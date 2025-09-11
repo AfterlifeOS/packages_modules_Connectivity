@@ -5889,6 +5889,11 @@ public class ConnectivityService extends IConnectivityManager.Stub
             wakeupModifyInterface(iface, nai, false);
         }
         nai.networkMonitor().notifyNetworkDisconnected();
+        if (!nai.getCaptivePortalDelegateUids().isEmpty()) {
+            final Set<Integer> oldDelegateBypassUids = getAllCaptivePortalDelegateUids();
+            nai.clearCaptivePortalDelegateUids();
+            updateAllVpnForDelegateUid(oldDelegateBypassUids, getAllCaptivePortalDelegateUids());
+        }
         mNetworkAgentInfos.remove(nai);
         if (mDeps.isShortNetworkSuspensionEnforced(mContext)) {
             // Remove the message to disconnect the network if it's in suspended state for too long,
@@ -6819,6 +6824,21 @@ public class ConnectivityService extends IConnectivityManager.Stub
         }
     }
 
+    private Set<Integer> getAllCaptivePortalDelegateUids() {
+        final Set<Integer> uids = new ArraySet<>();
+        forEachNetworkAgentInfo(nai -> uids.addAll(nai.getCaptivePortalDelegateUids()));
+        return uids;
+    }
+
+    private void updateAllVpnForDelegateUid(Set<Integer> oldDelegateBypassUids,
+            Set<Integer> newDelegateBypassUids) {
+        forEachNetworkAgentInfo(vpnNai -> {
+            if (!vpnNai.isVPN()) return;
+            updateVpnFiltering(vpnNai.linkProperties, vpnNai.linkProperties, vpnNai,
+                    oldDelegateBypassUids, newDelegateBypassUids);
+        });
+    }
+
     public class CaptivePortalImpl extends ICaptivePortal.Stub implements IBinder.DeathRecipient {
         private final Network mNetwork;
         // Binder object to track the lifetime of the setDelegateUid caller for cleanup purposes.
@@ -6872,7 +6892,22 @@ public class ConnectivityService extends IConnectivityManager.Stub
             }
         }
 
+        private int updateDelegateUid(@NonNull NetworkAgentInfo nai, int uid) {
+            if (nai.isCurrentUidDelegate(this, uid)) {
+                return 0;
+            }
+            // TODO: consider using exceptions instead of errnos.
+            final int errno = nai.removeCaptivePortalDelegateUid(this);
+            if (errno != 0) return errno;
+
+            // If uid == INVALID_UID, we are done.
+            if (uid == INVALID_UID) return 0;
+
+            return nai.setCaptivePortalDelegateUid(this, uid);
+        }
+
         private int handleSetDelegateUid(int uid, @NonNull final IBinder callerBinder) {
+            ensureRunningOnConnectivityServiceThread();
             if (mDelegateUidCaller == null) {
                 mDelegateUidCaller = callerBinder;
                 try {
@@ -6884,7 +6919,6 @@ public class ConnectivityService extends IConnectivityManager.Stub
                     return ENOTCONN;
                 }
             }
-
             final NetworkAgentInfo nai = getNetworkAgentInfoForNetwork(mNetwork);
             if (nai == null) return ENOENT; // network does not exist anymore.
             if (nai.isDestroyed()) return ENOENT; // network has already been destroyed.
@@ -6892,16 +6926,13 @@ public class ConnectivityService extends IConnectivityManager.Stub
             // TODO: consider allowing the uid to bypass VPN on all networks before V.
             if (!mDeps.isAtLeastV()) return EOPNOTSUPP;
 
-            // Check whether there has already been a delegate UID configured, if so, perform
-            // cleanup and disallow bypassing VPN for that UID if no other caller is delegating
-            // this UID.
-            // TODO: consider using exceptions instead of errnos.
-            final int errno = nai.removeCaptivePortalDelegateUid(this);
-            if (errno != 0) return errno;
-
-            // If uid == INVALID_UID, we are done.
-            if (uid == INVALID_UID) return 0;
-            return nai.setCaptivePortalDelegateUid(this, uid);
+            final Set<Integer> oldDelegateBypassUids = getAllCaptivePortalDelegateUids();
+            int ret = updateDelegateUid(nai, uid);
+            // updateDelegateUid() updates mCaptivePortalDelegateUids even if it returns non-zero
+            // value. Therefore, we need to call updateAllVpnForDelegateUid regardless of the
+            // returned value.
+            updateAllVpnForDelegateUid(oldDelegateBypassUids, getAllCaptivePortalDelegateUids());
+            return ret;
         }
 
         @Override
@@ -10189,7 +10220,10 @@ public class ConnectivityService extends IConnectivityManager.Stub
 
         // update filtering rules, need to happen after the interface update so netd knows about the
         // new interface (the interface name -> index map becomes initialized)
-        updateVpnFiltering(newLp, oldLp, networkAgent);
+        if (networkAgent.isVPN()) {
+            Set<Integer> delegateBypassUids = getAllCaptivePortalDelegateUids();
+            updateVpnFiltering(newLp, oldLp, networkAgent, delegateBypassUids, delegateBypassUids);
+        }
 
         updateIngressToVpnAddressFiltering(newLp, oldLp, networkAgent);
 
@@ -10783,7 +10817,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
     }
 
     private void updateVpnFiltering(@NonNull LinkProperties newLp, @Nullable LinkProperties oldLp,
-            @NonNull NetworkAgentInfo nai) {
+            @NonNull NetworkAgentInfo nai, Set<Integer> oldDelegateBypassUids,
+            Set<Integer> newDelegateBypassUids) {
         final String oldIface = getVpnIsolationInterface(nai, nai.networkCapabilities, oldLp);
         final String newIface = getVpnIsolationInterface(nai, nai.networkCapabilities, newLp);
         final boolean wasFiltering = requiresVpnAllowRule(nai, oldLp, oldIface);
@@ -10794,7 +10829,8 @@ public class ConnectivityService extends IConnectivityManager.Stub
             return;
         }
 
-        if (Objects.equals(oldIface, newIface) && (wasFiltering == needsFiltering)) {
+        if (Objects.equals(oldIface, newIface) && (wasFiltering == needsFiltering)
+                && oldDelegateBypassUids.equals(newDelegateBypassUids)) {
             // Nothing changed.
             return;
         }
@@ -10810,10 +10846,12 @@ public class ConnectivityService extends IConnectivityManager.Stub
         // make eBPF support two allowlisted interfaces so here new rules can be added before the
         // old rules are being removed.
         if (wasFiltering) {
-            mPermissionMonitor.onVpnUidRangesRemoved(oldIface, ranges, vpnAppUid);
+            mPermissionMonitor.onVpnUidRangesRemoved(oldIface, ranges, vpnAppUid,
+                    oldDelegateBypassUids);
         }
         if (needsFiltering) {
-            mPermissionMonitor.onVpnUidRangesAdded(newIface, ranges, vpnAppUid);
+            mPermissionMonitor.onVpnUidRangesAdded(newIface, ranges, vpnAppUid,
+                    newDelegateBypassUids);
         }
     }
 
@@ -11565,10 +11603,11 @@ public class ConnectivityService extends IConnectivityManager.Stub
             // to be removed will never overlap with the new range to be added.
             if (wasFiltering && !prevRanges.isEmpty()) {
                 mPermissionMonitor.onVpnUidRangesRemoved(oldIface, prevRanges,
-                        prevNc.getOwnerUid());
+                        prevNc.getOwnerUid(), getAllCaptivePortalDelegateUids());
             }
             if (shouldFilter && !newRanges.isEmpty()) {
-                mPermissionMonitor.onVpnUidRangesAdded(newIface, newRanges, newNc.getOwnerUid());
+                mPermissionMonitor.onVpnUidRangesAdded(newIface, newRanges, newNc.getOwnerUid(),
+                        getAllCaptivePortalDelegateUids());
             }
         } catch (Exception e) {
             // Never crash!

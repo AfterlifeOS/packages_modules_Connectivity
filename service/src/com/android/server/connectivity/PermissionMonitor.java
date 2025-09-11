@@ -1076,14 +1076,14 @@ public class PermissionMonitor {
      * @param vpnAppUid The uid of the VPN app
      */
     public synchronized void onVpnUidRangesAdded(@Nullable String iface, Set<UidRange> rangesToAdd,
-            int vpnAppUid) {
+            int vpnAppUid, Set<Integer> delegatedBypassUids) {
         // Calculate the list of new app uids under the VPN due to the new UID ranges and update
         // Netd about them. Because mAllApps only contains appIds instead of uids, the result might
         // be an overestimation if an app is not installed on the user on which the VPN is running,
         // but that's safe: if an app is not installed, it cannot receive any packets, so dropping
         // packets to that UID is fine.
         final Set<Integer> changedUids = intersectUids(rangesToAdd, mAllApps);
-        removeBypassingUids(changedUids, vpnAppUid);
+        removeBypassingUids(changedUids, vpnAppUid, delegatedBypassUids);
         updateVpnUidsInterfaceRules(iface, changedUids, true /* add */);
         if (mVpnInterfaceUidRanges.containsKey(iface)) {
             mVpnInterfaceUidRanges.get(iface).addAll(rangesToAdd);
@@ -1101,11 +1101,11 @@ public class PermissionMonitor {
      * @param vpnAppUid The uid of the VPN app
      */
     public synchronized void onVpnUidRangesRemoved(@Nullable String iface,
-            Set<UidRange> rangesToRemove, int vpnAppUid) {
+            Set<UidRange> rangesToRemove, int vpnAppUid, Set<Integer> delegatedBypassUids) {
         // Calculate the list of app uids that are no longer under the VPN due to the removed UID
         // ranges and update Netd about them.
         final Set<Integer> changedUids = intersectUids(rangesToRemove, mAllApps);
-        removeBypassingUids(changedUids, vpnAppUid);
+        removeBypassingUids(changedUids, vpnAppUid, delegatedBypassUids);
         updateVpnUidsInterfaceRules(iface, changedUids, false /* add */);
         Set<UidRange> existingRanges = mVpnInterfaceUidRanges.getOrDefault(iface, null);
         if (existingRanges == null) {
@@ -1201,8 +1201,10 @@ public class PermissionMonitor {
      * @param uids The list of uids to operate on
      * @param vpnAppUid The uid of the VPN app
      */
-    private void removeBypassingUids(Set<Integer> uids, int vpnAppUid) {
+    private void removeBypassingUids(Set<Integer> uids, int vpnAppUid,
+            Set<Integer> delegateBypassUids) {
         uids.remove(vpnAppUid);
+        uids.removeAll(delegateBypassUids);
         uids.removeIf(this::hasRestrictedNetworksPermission);
     }
 

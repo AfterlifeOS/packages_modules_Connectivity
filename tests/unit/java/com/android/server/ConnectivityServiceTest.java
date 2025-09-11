@@ -5072,67 +5072,141 @@ public class ConnectivityServiceTest {
 
     @Test
     @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    public void testCaptivePortalApp_SetDelegateUid() throws Exception {
-        final TestNetworkCallback captivePortalCallback = new TestNetworkCallback();
-        final NetworkRequest captivePortalRequest = new NetworkRequest.Builder()
-                .addCapability(NET_CAPABILITY_CAPTIVE_PORTAL).build();
-        mCm.registerNetworkCallback(captivePortalRequest, captivePortalCallback);
+    public void testCaptivePortalApp_SetDelegateUidWithVpn() throws Exception {
+        LinkProperties lp = new LinkProperties();
+        InOrder inOrder = inOrder(mMockNetd, mBpfNetMaps);
+        lp.setInterfaceName("tun0");
+        lp.addRoute(new RouteInfo(new IpPrefix(Inet4Address.ANY, 0), null));
+        lp.addRoute(new RouteInfo(new IpPrefix(Inet6Address.ANY, 0), RTN_UNREACHABLE));
+        // The uid range needs to cover the test app so the network is visible to it.
+        final Set<UidRange> vpnRange = Collections.singleton(PRIMARY_UIDRANGE);
+        mMockVpn.establish(lp, VPN_UID, vpnRange);
+        assertVpnUidRangesUpdated(true, vpnRange, VPN_UID);
+        // A connected VPN should have interface rules set up. There are two expected invocations,
+        // one during the VPN initial connection, one during the VPN LinkProperties update.
+        ArgumentCaptor<int[]> uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(2)).addUidInterfaceRules(eq("tun0"), uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getAllValues().get(0), APP1_UID, APP2_UID);
+        assertContainsExactly(uidCaptor.getAllValues().get(1), APP1_UID, APP2_UID);
 
+
+        // bring up Wi-Fi with captive portal
+        final TestNetworkCallback wifiCaptivePortalCallback = new TestNetworkCallback();
+        mCm.registerNetworkCallback(
+                new NetworkRequest.Builder()
+                        .addCapability(NET_CAPABILITY_CAPTIVE_PORTAL)
+                        .addTransportType(TRANSPORT_WIFI)
+                        .build(),
+                wifiCaptivePortalCallback);
         mWiFiAgent = new TestNetworkAgentWrapper(TRANSPORT_WIFI);
         mWiFiAgent.connectWithCaptivePortal(TEST_REDIRECT_URL, false);
-        captivePortalCallback.expectAvailableCallbacksUnvalidated(mWiFiAgent);
-
-        final Intent signInIntent = startCaptivePortalApp(mWiFiAgent);
-        final CaptivePortal captivePortal = signInIntent
+        wifiCaptivePortalCallback.expectAvailableCallbacksUnvalidated(mWiFiAgent);
+        mCm.unregisterNetworkCallback(wifiCaptivePortalCallback);
+        final Intent wifiSignInIntent = startCaptivePortalApp(mWiFiAgent);
+        final CaptivePortal wificaptivePortal = wifiSignInIntent
                 .getParcelableExtra(ConnectivityManager.EXTRA_CAPTIVE_PORTAL);
 
-        InOrder inOrder = inOrder(mMockNetd);
+        // bring up ethernet with captive portal
+        final TestNetworkCallback ethernetCaptivePortalCallback = new TestNetworkCallback();
+        mCm.registerNetworkCallback(
+                new NetworkRequest.Builder()
+                        .addCapability(NET_CAPABILITY_CAPTIVE_PORTAL)
+                        .addTransportType(TRANSPORT_ETHERNET)
+                        .build(),
+                ethernetCaptivePortalCallback);
+        mEthernetAgent = new TestNetworkAgentWrapper(TRANSPORT_ETHERNET);
+        mEthernetAgent.connectWithCaptivePortal(TEST_REDIRECT_URL, false);
+        ethernetCaptivePortalCallback.expectAvailableCallbacksUnvalidated(mEthernetAgent);
+        mCm.unregisterNetworkCallback(ethernetCaptivePortalCallback);
+        final Intent ethernetSignInIntent = startCaptivePortalApp(mEthernetAgent);
+        final CaptivePortal ethernetCaptivePortal = ethernetSignInIntent
+                .getParcelableExtra(ConnectivityManager.EXTRA_CAPTIVE_PORTAL);
 
-        // Add the UID and check that it's added to the bypass list.
-        FakeOutcomeReceiver or = new FakeOutcomeReceiver();
-        captivePortal.setDelegateUid(APP2_UID, r -> r.run(), or);
+        // Set delegate UID
+        FakeOutcomeReceiver<Void, ServiceSpecificException> or = new FakeOutcomeReceiver<>();
+        wificaptivePortal.setDelegateUid(APP1_UID, Runnable::run, or);
         or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP2_UID,
-                mWiFiAgent.getNetwork().netId);
-
-        // Remove the UID and check that it's removed from the list.
-        or = new FakeOutcomeReceiver();
-        captivePortal.setDelegateUid(Process.INVALID_UID, r -> r.run(), or);
-        or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
-                mWiFiAgent.getNetwork().netId);
-
-        // Add the UID again.
-        or = new FakeOutcomeReceiver();
-        captivePortal.setDelegateUid(APP2_UID, r -> r.run(), or);
-        or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP2_UID,
-                mWiFiAgent.getNetwork().netId);
-
-        // Add the UID again. Nothing should change.
-        or = new FakeOutcomeReceiver();
-        captivePortal.setDelegateUid(APP2_UID, r -> r.run(), or);
-        or.awaitOutcome();
-        // BUG: the code should not call into netd.
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
-                mWiFiAgent.getNetwork().netId);
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP2_UID,
-                mWiFiAgent.getNetwork().netId);
-
-        // Add another UID again. The old UID should be removed and the new one added.
-        or = new FakeOutcomeReceiver();
-        captivePortal.setDelegateUid(APP1_UID, r -> r.run(), or);
-        or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP2_UID,
-                mWiFiAgent.getNetwork().netId);
         inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
                 mWiFiAgent.getNetwork().netId);
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP1_UID, APP2_UID);
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(1)).addUidInterfaceRules(eq("tun0"), uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP2_UID);
 
+        // Add and remove delegate UID from another client for same UID should not trigger any VPN
+        // rule update.
+        or = new FakeOutcomeReceiver<>();
+        ethernetCaptivePortal.setDelegateUid(APP1_UID, Runnable::run, or);
+        or.awaitOutcome();
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
+                mEthernetAgent.getNetwork().netId);
+        inOrder.verify(mBpfNetMaps, never()).addUidInterfaceRules(any(), any());
+        inOrder.verify(mBpfNetMaps, never()).removeUidInterfaceRules(any());
+
+        or = new FakeOutcomeReceiver<>();
+        ethernetCaptivePortal.setDelegateUid(INVALID_UID, Runnable::run, or);
+        or.awaitOutcome();
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP1_UID,
+                mEthernetAgent.getNetwork().netId);
+        inOrder.verify(mBpfNetMaps, never()).addUidInterfaceRules(any(), any());
+        inOrder.verify(mBpfNetMaps, never()).removeUidInterfaceRules(any());
+
+        // Disconnect VPN
+        mMockVpn.disconnect();
+        waitForIdle();
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP2_UID);
+
+        // Reconnect VPN
+        mMockVpn.establish(lp, VPN_UID, vpnRange);
+        assertVpnUidRangesUpdated(true, vpnRange, VPN_UID);
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(2)).addUidInterfaceRules(eq("tun0"), uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getAllValues().get(0), APP2_UID);
+        assertContainsExactly(uidCaptor.getAllValues().get(1), APP2_UID);
+
+        // Remove delegate UID
+        or = new FakeOutcomeReceiver<>();
+        wificaptivePortal.setDelegateUid(Process.INVALID_UID, Runnable::run, or);
+        or.awaitOutcome();
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP1_UID,
+                mWiFiAgent.getNetwork().netId);
+        inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP2_UID);
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(1)).addUidInterfaceRules(eq("tun0"), uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP1_UID, APP2_UID);
+
+        // Add back delegate UID
+        or = new FakeOutcomeReceiver<>();
+        wificaptivePortal.setDelegateUid(APP1_UID, Runnable::run, or);
+        or.awaitOutcome();
+        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
+                mWiFiAgent.getNetwork().netId);
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP1_UID, APP2_UID);
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(1)).addUidInterfaceRules(eq("tun0"), uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP2_UID);
+
+        // Wi-Fi network go away should trigger VPN rule being cleaned up.
         mWiFiAgent.disconnect();
+        waitForIdle();
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP2_UID);
+        uidCaptor = ArgumentCaptor.forClass(int[].class);
+        inOrder.verify(mBpfNetMaps, times(1)).addUidInterfaceRules(eq("tun0"), uidCaptor.capture());
+        assertContainsExactly(uidCaptor.getValue(), APP1_UID, APP2_UID);
 
-        // TODO: check VPN interface filtering rules, see
-        // testFullyRoutedVpnResultsInInterfaceFilteringRules
+        mMockVpn.disconnect();
+        waitForIdle();
     }
+
 
     @Test
     public void testAvoidOrIgnoreCaptivePortals() throws Exception {

@@ -30,16 +30,29 @@ import android.net.NetworkRequest
 import android.net.NetworkStack
 import android.os.Build
 import android.os.Bundle
+import android.os.ConditionVariable
+import android.os.OutcomeReceiver
+import android.os.ServiceSpecificException
 import androidx.test.filters.SmallTest
+import com.android.testutils.DevSdkIgnoreRule
 import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo
 import com.android.testutils.DevSdkIgnoreRunner
 import com.android.testutils.TestableNetworkCallback
+import kotlin.test.DefaultAsserter.assertTrue
 import kotlin.test.assertEquals
+import kotlin.test.assertTrue
+import kotlin.test.fail
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.anyInt
+import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.never
 import org.mockito.Mockito.verify
+
+private const val APP1_UID = 10001
+private const val APP2_UID = 10002
+private const val TIMEOUT_MS = 2_000L
 
 @DevSdkIgnoreRunner.MonitorThreadLeak
 @RunWith(DevSdkIgnoreRunner::class)
@@ -48,7 +61,113 @@ import org.mockito.Mockito.verify
 class CSCaptivePortalAppTest : CSTest() {
     private val WIFI_IFACE = "wifi0"
     private val TEST_REDIRECT_URL = "http://example.com/firstPath"
-    private val TIMEOUT_MS = 2_000L
+
+    @get:Rule val ignoreRule = DevSdkIgnoreRule()
+
+    private class FakeOutcomeReceiver<R, E : Throwable> : OutcomeReceiver<R, E> {
+        private val mCv = ConditionVariable()
+        private var mError: E? = null
+
+        override fun onResult(result: R) {
+            mCv.open()
+        }
+
+        override fun onError(error: E) {
+            mError = error
+            mCv.open()
+        }
+
+        fun awaitOutcome() {
+            assertTrue(
+                "OutcomeReceiver did not receive outcome after $TIMEOUT_MS ms",
+                    mCv.block(TIMEOUT_MS)
+            )
+            if (mError != null) {
+                fail("OutcomeReceiver got: " + mError!!.message)
+            }
+        }
+    }
+
+    /**
+     * Helper extension function to reduce boilerplate in the test.
+     */
+    private fun CaptivePortal.setDelegateUidAndAwait(uid: Int) {
+        val or = FakeOutcomeReceiver<Void, ServiceSpecificException>()
+        this.setDelegateUid(uid, CSTestExecutor, or)
+        or.awaitOutcome()
+    }
+
+    @Test
+    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    fun testCaptivePortalApp_SetDelegateUid() {
+        val captivePortalCallback = TestableNetworkCallback()
+        val captivePortalRequest = NetworkRequest.Builder()
+                .addCapability(NET_CAPABILITY_CAPTIVE_PORTAL).build()
+        cm.registerNetworkCallback(captivePortalRequest, captivePortalCallback)
+        val wifiAgent = Agent(WIFI_IFACE, TRANSPORT_WIFI, NET_CAPABILITY_INTERNET)
+        wifiAgent.connectWithCaptivePortal(TEST_REDIRECT_URL)
+        captivePortalCallback.expectAvailableCallbacksUnvalidated(wifiAgent)
+
+        val signInIntent = startCaptivePortalApp(wifiAgent)
+        val captivePortal = signInIntent.getParcelableExtra(
+                EXTRA_CAPTIVE_PORTAL,
+                CaptivePortal::class.java
+        )!!
+
+        val inOrder = inOrder(netd)
+
+        // Add the UID and check that it's added to the bypass list.
+        captivePortal.setDelegateUidAndAwait(APP2_UID)
+        inOrder.verify(netd).networkAllowBypassVpnOnNetwork(
+            true /* allow */,
+            APP2_UID,
+            wifiAgent.network.netId
+        )
+
+        // Remove the UID and check that it's removed from the list.
+        captivePortal.setDelegateUidAndAwait(android.os.Process.INVALID_UID)
+        inOrder.verify(netd).networkAllowBypassVpnOnNetwork(
+            false /* allow */,
+            APP2_UID,
+            wifiAgent.network.netId
+        )
+
+        // Add the UID again.
+        captivePortal.setDelegateUidAndAwait(APP2_UID)
+        inOrder.verify(netd).networkAllowBypassVpnOnNetwork(
+            true /* allow */,
+            APP2_UID,
+            wifiAgent.network.netId
+        )
+
+        // Add the UID again. Nothing should change.
+        captivePortal.setDelegateUidAndAwait(APP2_UID)
+        inOrder.verify(netd, never()).networkAllowBypassVpnOnNetwork(
+            false /* allow */,
+            APP2_UID,
+            wifiAgent.network.netId
+        )
+        inOrder.verify(netd, never()).networkAllowBypassVpnOnNetwork(
+            true /* allow */,
+            APP2_UID,
+            wifiAgent.network.netId
+        )
+
+        // Add another UID again. The old UID should be removed and the new one added.
+        captivePortal.setDelegateUidAndAwait(APP1_UID)
+        inOrder.verify(netd).networkAllowBypassVpnOnNetwork(
+            false /* allow */,
+            APP2_UID,
+            wifiAgent.network.netId
+        )
+        inOrder.verify(netd).networkAllowBypassVpnOnNetwork(
+            true /* allow */,
+            APP1_UID,
+            wifiAgent.network.netId
+        )
+
+        wifiAgent.disconnect()
+    }
 
     @Test
     fun testCaptivePortalApp_Reevaluate_Nopermission() {
