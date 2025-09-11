@@ -949,7 +949,7 @@ public class PermissionMonitorTest {
         final Set<UidRange> vpnRange2 = Set.of(new UidRange(MOCK_UID12, MOCK_UID12));
 
         // When VPN is connected, expect a rule to be set up for user app MOCK_UID11
-        mPermissionMonitor.onVpnUidRangesAdded(ifName, vpnRange1, VPN_UID);
+        mPermissionMonitor.onVpnUidRangesAdded(ifName, vpnRange1, VPN_UID, Set.of());
         verify(mBpfNetMaps).addUidInterfaceRules(eq(ifName), aryEq(new int[]{MOCK_UID11}));
 
         reset(mBpfNetMaps);
@@ -964,15 +964,15 @@ public class PermissionMonitorTest {
 
         // During VPN uid update (vpnRange1 -> vpnRange2), ConnectivityService first deletes the
         // old UID rules then adds the new ones. Expect netd to be updated
-        mPermissionMonitor.onVpnUidRangesRemoved(ifName, vpnRange1, VPN_UID);
+        mPermissionMonitor.onVpnUidRangesRemoved(ifName, vpnRange1, VPN_UID, Set.of());
         verify(mBpfNetMaps).removeUidInterfaceRules(aryEq(new int[] {MOCK_UID11}));
-        mPermissionMonitor.onVpnUidRangesAdded(ifName, vpnRange2, VPN_UID);
+        mPermissionMonitor.onVpnUidRangesAdded(ifName, vpnRange2, VPN_UID, Set.of());
         verify(mBpfNetMaps).addUidInterfaceRules(eq(ifName), aryEq(new int[]{MOCK_UID12}));
 
         reset(mBpfNetMaps);
 
         // When VPN is disconnected, expect rules to be torn down
-        mPermissionMonitor.onVpnUidRangesRemoved(ifName, vpnRange2, VPN_UID);
+        mPermissionMonitor.onVpnUidRangesRemoved(ifName, vpnRange2, VPN_UID, Set.of());
         verify(mBpfNetMaps).removeUidInterfaceRules(aryEq(new int[] {MOCK_UID12}));
     }
 
@@ -1000,7 +1000,7 @@ public class PermissionMonitorTest {
         onUserAddedWithInstalledPackageList(MOCK_USER2, pkgs);
         final Set<UidRange> vpnRange = Set.of(UidRange.createForUser(MOCK_USER1),
                 UidRange.createForUser(MOCK_USER2));
-        mPermissionMonitor.onVpnUidRangesAdded(ifName, vpnRange, VPN_UID);
+        mPermissionMonitor.onVpnUidRangesAdded(ifName, vpnRange, VPN_UID, Set.of());
 
         // Newly-installed package should have uid rules added
         addPackageForUsers(new UserHandle[]{MOCK_USER1, MOCK_USER2}, MOCK_PACKAGE1, MOCK_APPID1);
@@ -1023,6 +1023,36 @@ public class PermissionMonitorTest {
     @EnableCompatChanges(RESTRICT_LOCAL_NETWORK)
     public void testUidFilteringDuringPackageInstallAndUninstallWithWildcard() throws Exception {
         doTestUidFilteringDuringPackageInstallAndUninstall(null /* ifName */);
+    }
+
+    @Test
+    public void testUidFilteringWithDelegatedBypassUids() throws Exception {
+        final String ifName = "tun0";
+        final int delegatedUid = MOCK_UID12;
+        final List<PackageInfo> pkgs = List.of(
+                buildPackageInfo(SYSTEM_PACKAGE1, SYSTEM_APP_UID11, CHANGE_NETWORK_STATE,
+                        CONNECTIVITY_USE_RESTRICTED_NETWORKS),
+                buildPackageInfo(MOCK_PACKAGE1, MOCK_UID11),
+                buildPackageInfo(MOCK_PACKAGE2, delegatedUid),
+                buildPackageInfo(SYSTEM_PACKAGE2, VPN_UID));
+        initialize();
+        onUserAddedWithInstalledPackageList(MOCK_USER1, pkgs);
+
+        final Set<UidRange> vpnRange = Set.of(UidRange.createForUser(MOCK_USER1));
+
+        // When VPN is connected, expect a rule to be set up for user app MOCK_UID11, but not for
+        // delegatedUid.
+        final Set<Integer> delegatedUids = Set.of(delegatedUid);
+        mPermissionMonitor.onVpnUidRangesAdded(ifName, vpnRange, VPN_UID, delegatedUids);
+        verify(mBpfNetMaps).addUidInterfaceRules(eq(ifName), aryEq(new int[]{MOCK_UID11}));
+        verify(mBpfNetMaps, never()).addUidInterfaceRules(eq(ifName),
+                aryEq(new int[]{delegatedUid}));
+
+        // When VPN is disconnected, expect rules to be torn down for MOCK_UID11 and still no rule
+        // for delegatedUid.
+        mPermissionMonitor.onVpnUidRangesRemoved(ifName, vpnRange, VPN_UID, delegatedUids);
+        verify(mBpfNetMaps).removeUidInterfaceRules(aryEq(new int[]{MOCK_UID11}));
+        verify(mBpfNetMaps, never()).removeUidInterfaceRules(aryEq(new int[]{delegatedUid}));
     }
 
     @Test
