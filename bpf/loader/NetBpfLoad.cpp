@@ -1827,19 +1827,36 @@ static int doLoad(char** argv, char * const envp[]) {
         if (!writeFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 25;
     }
 
+    // Create all the pin subdirectories
+    // (this must be done first to allow create_location and pin_subdir functionality,
+    //  which could otherwise fail with ENOENT during object pinning or renaming,
+    //  due to ordering issues)
+    if (!createDir("/sys/fs/bpf/tethering")) return 26;
+    // This is technically T+ but S also needs it for the 'mainline_done' file.
+    if (!createDir("/sys/fs/bpf/netd_shared")) return 27;
+
+    if (isAtLeastT) {
+        if (!createDir("/sys/fs/bpf/netd_readonly")) return 28;
+        if (!createDir("/sys/fs/bpf/net_shared")) return 29;
+        if (!createDir("/sys/fs/bpf/net_private")) return 30;
+
+        // This one is primarily meant for triggering genfscon rules.
+        if (!createDir("/sys/fs/bpf/loader")) return 31;
+    }
+
     if (runningAsRoot) {  // implies U QPR3+ and kernel 4.14+
         // There should not be any programs or maps yet
         errno = 0;
         uint32_t progId = bpfGetNextProgId(0);  // expect 0 with errno == ENOENT
         if (progId || errno != ENOENT) {
             ALOGE("bpfGetNextProgId(zero) returned %u (errno %d)", progId, errno);
-            return 26;
+            return 32;
         }
         errno = 0;
         uint32_t mapId = bpfGetNextMapId(0);  // expect 0 with errno == ENOENT
         if (mapId || errno != ENOENT) {
             ALOGE("bpfGetNextMapId(zero) returned %u (errno %d)", mapId, errno);
-            return 27;
+            return 33;
         }
     } else if (isAtLeastKernelVersion(4, 14, 0)) {  // implies S through U QPR2
         // bpfGetNext{Prog,Map}Id require 4.14+
@@ -1852,7 +1869,7 @@ static int doLoad(char** argv, char * const envp[]) {
             if (!next && errno == ENOENT) break;
             if (next <= mapId) {
                 ALOGE("bpfGetNextMapId(%u) returned %u errno %d", mapId, next, errno);
-                return 28;
+                return 34;
             }
             mapId = next;
         }
@@ -1865,31 +1882,14 @@ static int doLoad(char** argv, char * const envp[]) {
             // which causes bpfGetNextMapId to behave as bpfGetNextProgId,
             // and thus it should return 0 with errno == ENOENT.
             ALOGE("bpfGetNextMapId(final %d) returned %d errno %d", mapId, next, errno);
-            if (next || errno != ENOENT) return 29;
-            if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 30;
+            if (next || errno != ENOENT) return 35;
+            if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 36;
             // implies Android S with 4.14 or 4.19 kernel
             ALOGW("Enabling bpfCmdFixupIsNeeded.");
             bpfCmdFixupIsNeeded = true;
         }
     } else {  // implies S/T with 4.9 kernel
         // nothing we can do.
-    }
-
-    // Create all the pin subdirectories
-    // (this must be done first to allow create_location and pin_subdir functionality,
-    //  which could otherwise fail with ENOENT during object pinning or renaming,
-    //  due to ordering issues)
-    if (!createDir("/sys/fs/bpf/tethering")) return 31;
-    // This is technically T+ but S also needs it for the 'mainline_done' file.
-    if (!createDir("/sys/fs/bpf/netd_shared")) return 32;
-
-    if (isAtLeastT) {
-        if (!createDir("/sys/fs/bpf/netd_readonly")) return 33;
-        if (!createDir("/sys/fs/bpf/net_shared")) return 34;
-        if (!createDir("/sys/fs/bpf/net_private")) return 35;
-
-        // This one is primarily meant for triggering genfscon rules.
-        if (!createDir("/sys/fs/bpf/loader")) return 36;
     }
 
     // Load all ELF objects, create programs and maps, and pin them
