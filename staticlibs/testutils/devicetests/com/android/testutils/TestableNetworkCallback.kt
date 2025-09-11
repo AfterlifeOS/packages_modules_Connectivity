@@ -17,6 +17,7 @@
 package com.android.testutils
 
 import android.net.ConnectivityManager.NetworkCallback
+import android.net.ConnectivityManager.NetworkCallback.FLAG_NONE
 import android.net.LinkProperties
 import android.net.LocalNetworkInfo
 import android.net.Network
@@ -67,8 +68,9 @@ open class TestableNetworkCallback private constructor(
     val callbackTracker: TestableCallback<Event> = TestableCallback(
         defaultCallbackTimeoutMs,
         defaultCallbackNoEventTimeoutMs
-    )
-) : NetworkCallback(), Expectable<Event> by callbackTracker {
+    ),
+    private val flags: Int
+) : NetworkCallback(flags), Expectable<Event> by callbackTracker {
     val mark get() = history.mark
 
     sealed class Event {
@@ -223,19 +225,22 @@ open class TestableNetworkCallback private constructor(
      *                   make sure the loopers are drained before asserting no callback, since
      *                   one of them may cause a callback to be called. @see ConnectivityServiceTest
      *                   for such an example.
+     * @param flags the NetworkCallback#FLAG_*
      */
     @JvmOverloads
     constructor(
         timeoutMs: Long = DEFAULT_TIMEOUT,
         noCallbackTimeoutMs: Long = DEFAULT_NO_CALLBACK_TIMEOUT,
         waiterFunc: Runnable = NOOP, // "() -> Unit" would forbid calling with a void func from Java
-        logTag: String = DEFAULT_TAG
+        logTag: String = DEFAULT_TAG,
+        flags: Int = FLAG_NONE,
     ) : this(
         timeoutMs,
         noCallbackTimeoutMs,
         waiterFunc,
         logTag,
-        TestableCallback(timeoutMs, noCallbackTimeoutMs)
+        TestableCallback(timeoutMs, noCallbackTimeoutMs),
+        flags
     )
 
     fun createLinkedCopy() = TestableNetworkCallback(
@@ -243,7 +248,8 @@ open class TestableNetworkCallback private constructor(
         defaultNoEventTimeoutMs,
         waiterFunc,
         logTag,
-        callbackTracker
+        callbackTracker,
+        flags
     )
 
     // The last available network, or null if any network was lost since the last call to
