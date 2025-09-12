@@ -158,7 +158,24 @@ ASSERT_STRING_EQUAL(XT_BPF_DENYLIST_PROG_PATH,  BPF_NETD_PATH "prog_netd_skfilte
 #define LOCAL_NET_ACCESS_MAP_PATH BPF_NETD_PATH "map_netd_local_net_access_map"
 #define LOCAL_NET_BLOCKED_UID_MAP_PATH BPF_NETD_PATH "map_netd_local_net_blocked_uid_map"
 
+#define L4S_INGRESS_ETHER_PROG_PATH   BPF_NETD_PATH "prog_netd_schedcls_ingress_accecn_eth"
+#define L4S_EGRESS_ETHER_PROG_PATH    BPF_NETD_PATH "prog_netd_schedcls_egress_accecn_eth"
+#define L4S_INGRESS_RAWIP_PROG_PATH   BPF_NETD_PATH "prog_netd_schedcls_ingress_accecn_rawip"
+#define L4S_EGRESS_RAWIP_PROG_PATH    BPF_NETD_PATH "prog_netd_schedcls_egress_accecn_rawip"
+#define L4S_OPTIONS_SOCKOPS_PROG_PATH BPF_NETD_PATH "prog_netd_sockops_accecn_option"
+
+#define L4S_ACCECN_CE_MAP_PATH        BPF_NETD_PATH "map_netd_l4s_accecn_ce_map"
+#define L4S_ACCECN_BYTE_MAP_PATH      BPF_NETD_PATH "map_netd_l4s_accecn_byte_map"
+#define L4S_ACCECN_MSS_MAP_PATH       BPF_NETD_PATH "map_netd_l4s_accecn_mss_map"
+
 #endif // __cplusplus
+
+typedef struct {
+    uint64_t ceb;
+    uint64_t e0b;
+    uint64_t e1b;
+} EcnByteCounters;
+STRUCT_SIZE(EcnByteCounters, 3 * 8);  // 24
 
 // LINT.IfChange(match_type)
 enum UidOwnerMatchType : uint32_t {
