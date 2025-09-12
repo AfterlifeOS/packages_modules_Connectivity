@@ -25,6 +25,7 @@ import android.net.ConnectivityManager.ACTION_CAPTIVE_PORTAL_SIGN_IN
 import android.net.ConnectivityManager.EXTRA_CAPTIVE_PORTAL
 import android.net.NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL
 import android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET
+import android.net.NetworkCapabilities.TRANSPORT_ETHERNET
 import android.net.NetworkCapabilities.TRANSPORT_WIFI
 import android.net.NetworkRequest
 import android.net.NetworkStack
@@ -35,12 +36,12 @@ import android.os.OutcomeReceiver
 import android.os.ServiceSpecificException
 import androidx.test.filters.SmallTest
 import com.android.testutils.DevSdkIgnoreRule
+import com.android.testutils.DevSdkIgnoreRule.IgnoreAfter
 import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo
 import com.android.testutils.DevSdkIgnoreRunner
 import com.android.testutils.TestableNetworkCallback
 import kotlin.test.DefaultAsserter.assertTrue
 import kotlin.test.assertEquals
-import kotlin.test.assertTrue
 import kotlin.test.fail
 import org.junit.Rule
 import org.junit.Test
@@ -60,6 +61,7 @@ private const val TIMEOUT_MS = 2_000L
 @IgnoreUpTo(Build.VERSION_CODES.R)
 class CSCaptivePortalAppTest : CSTest() {
     private val WIFI_IFACE = "wifi0"
+    private val ETHERNET_IFACE = "eth0"
     private val TEST_REDIRECT_URL = "http://example.com/firstPath"
 
     @get:Rule val ignoreRule = DevSdkIgnoreRule()
@@ -97,23 +99,43 @@ class CSCaptivePortalAppTest : CSTest() {
         or.awaitOutcome()
     }
 
-    @Test
-    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    fun testCaptivePortalApp_SetDelegateUid() {
+    private fun connectToNetworkWithPortal(
+        iface: String,
+        transportType: Int
+    ): Pair<CSAgentWrapper, CaptivePortal> {
         val captivePortalCallback = TestableNetworkCallback()
         val captivePortalRequest = NetworkRequest.Builder()
-                .addCapability(NET_CAPABILITY_CAPTIVE_PORTAL).build()
+            .addTransportType(transportType)
+            .addCapability(NET_CAPABILITY_CAPTIVE_PORTAL).build()
         cm.registerNetworkCallback(captivePortalRequest, captivePortalCallback)
-        val wifiAgent = Agent(WIFI_IFACE, TRANSPORT_WIFI, NET_CAPABILITY_INTERNET)
-        wifiAgent.connectWithCaptivePortal(TEST_REDIRECT_URL)
-        captivePortalCallback.expectAvailableCallbacksUnvalidated(wifiAgent)
+        val agent = Agent(iface, transportType, NET_CAPABILITY_INTERNET)
+        agent.connectWithCaptivePortal(TEST_REDIRECT_URL)
+        captivePortalCallback.expectAvailableCallbacksUnvalidated(agent)
 
-        val signInIntent = startCaptivePortalApp(wifiAgent)
-        val captivePortal = signInIntent.getParcelableExtra(
-                EXTRA_CAPTIVE_PORTAL,
-                CaptivePortal::class.java
+        val signInIntent = startCaptivePortalApp(agent)
+        val captivePortal: CaptivePortal = signInIntent.getParcelableExtra(
+            EXTRA_CAPTIVE_PORTAL
         )!!
 
+        cm.unregisterNetworkCallback(captivePortalCallback)
+
+        return Pair(agent, captivePortal)
+    }
+
+    private fun connectToWifiWithPortal(iface: String = WIFI_IFACE):
+            Pair<CSAgentWrapper, CaptivePortal> {
+        return connectToNetworkWithPortal(iface, TRANSPORT_WIFI)
+    }
+
+    private fun connectToEthernetWithPortal(iface: String = ETHERNET_IFACE):
+            Pair<CSAgentWrapper, CaptivePortal> {
+        return connectToNetworkWithPortal(iface, TRANSPORT_ETHERNET)
+    }
+
+    @Test
+    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    fun testCaptivePortalApp_SetDelegateUidForVAndAbove() {
+        val (wifiAgent, captivePortal) = connectToWifiWithPortal()
         val inOrder = inOrder(netd)
 
         // Add the UID and check that it's added to the bypass list.
@@ -167,6 +189,44 @@ class CSCaptivePortalAppTest : CSTest() {
         )
 
         wifiAgent.disconnect()
+    }
+
+    @Test
+    @IgnoreAfter(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    fun testCaptivePortalApp_SetDelegateUidForUAndBelow() {
+        val (wifiAgent, captivePortal) = connectToWifiWithPortal(WIFI_IFACE)
+        val inOrder = inOrder(netd)
+
+        // Add the UID and check that it's added to the bypass list.
+        captivePortal.setDelegateUidAndAwait(APP2_UID)
+        inOrder.verify(netd).networkSetProtectAllow(APP2_UID)
+
+        // Remove the UID and check that it's removed from the list.
+        captivePortal.setDelegateUidAndAwait(android.os.Process.INVALID_UID)
+        inOrder.verify(netd).networkSetProtectDeny(APP2_UID)
+
+        // Add the UID again.
+        captivePortal.setDelegateUidAndAwait(APP2_UID)
+        inOrder.verify(netd).networkSetProtectAllow(APP2_UID)
+
+        // Add another UID again. The old UID should be removed and the new one added.
+        captivePortal.setDelegateUidAndAwait(APP1_UID)
+        inOrder.verify(netd).networkSetProtectDeny(APP2_UID)
+        inOrder.verify(netd).networkSetProtectAllow(APP1_UID)
+
+        // Launch another captive portal app on a different network with the same APP1_UID.
+        val (ethernetAgent, captivePortal2) = connectToEthernetWithPortal()
+
+        // Netd API should not be called because APP1_UID is already in the allow list.
+        captivePortal2.setDelegateUidAndAwait(APP1_UID)
+        inOrder.verify(netd, never()).networkSetProtectAllow(anyInt())
+
+        // Netd API should not be called because APP1_UID is still in the allow list.
+        captivePortal.setDelegateUidAndAwait(android.os.Process.INVALID_UID)
+        inOrder.verify(netd, never()).networkSetProtectDeny(anyInt())
+
+        wifiAgent.disconnect()
+        ethernetAgent.disconnect()
     }
 
     @Test
