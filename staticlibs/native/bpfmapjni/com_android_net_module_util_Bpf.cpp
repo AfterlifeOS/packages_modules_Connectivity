@@ -61,7 +61,7 @@ static jint com_android_net_module_util_BpfMap_nativeBpfFdGet(JNIEnv *env, jclas
         return -1;
     }
 
-    if (bpf::isAtLeastKernelVersion(4, 14, 0)) {
+    if (bpf::isAtLeastKernelVersion(4, 14)) {
         // These likely fail with -1 and set errno to EINVAL on <4.14
         if (bpf::bpfGetFdKeySize(fd) != keySize) {
             jniThrowErrnoException(env, "nativeBpfFdGet KeySize", EBADFD);

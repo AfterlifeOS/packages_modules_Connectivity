@@ -81,14 +81,14 @@ static constexpr unsigned minSupportedKernelVer =
     #error "__ANDROID_API__ is pre-R"
 #endif
 
-static inline bool isAtLeastKernelVersion(unsigned major, unsigned minor, unsigned sub) {
+static inline bool isAtLeastKernelVersion(unsigned major, unsigned minor, unsigned sub = 0) {
     unsigned k = KVER(major, minor, sub);
     if (k <= minSupportedKernelVer) return true;
     return kernelVer >= k;
 }
 
 static inline bool isKernelVersion(unsigned major, unsigned minor) {
-    return isAtLeastKernelVersion(major, minor, 0) && !isAtLeastKernelVersion(major, minor + 1, 0);
+    return isAtLeastKernelVersion(major, minor) && !isAtLeastKernelVersion(major, minor + 1);
 }
 
 static inline bool __unused isLtsKernel() {

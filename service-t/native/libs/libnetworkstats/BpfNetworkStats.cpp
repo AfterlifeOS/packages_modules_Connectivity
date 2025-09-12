@@ -120,7 +120,7 @@ int bpfGetIfaceStatsInternal(const char* iface, StatsValue* stats,
     // specific iface
     int64_t unknownIfaceBytesTotal = 0;
 
-    if (isAtLeastKernelVersion(5, 10, 0)) {
+    if (isAtLeastKernelVersion(5, 10)) {
         // On 5.10+ bulk lookup api returns values for free, so just use forAll(f(K,V))
         auto res = ifaceStatsMap.forAll(
             [iface, stats, ifindex2name, &unknownIfaceBytesTotal, &ifaceStatsMap](const uint32_t& key, const StatsValue& value) {
