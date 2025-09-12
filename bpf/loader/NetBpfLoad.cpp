@@ -66,10 +66,6 @@
 #include "bpf/BpfUtils.h"
 #include "bpf_map_def.h"
 
-// The following matches bpf_helpers.h, which is only for inclusion in bpf code
-#define BPFLOADER_MAINLINE_S_VERSION 42u
-#define BPFLOADER_MAINLINE_25Q2_VERSION 47u
-
 using android::base::borrowed_fd;
 using android::base::EndsWith;
 using android::base::GetIntProperty;
@@ -1598,16 +1594,16 @@ static int doLoad(char** argv, char * const envp[]) {
     const bool has_platform_netbpfload_rc = exists("/system/etc/init/netbpfload.rc");
 
     // Version of Network BpfLoader depends on the Android OS version
-    unsigned int bpfloader_ver = BPFLOADER_MAINLINE_S_VERSION;  // [42u]
-    if (isAtLeastT) ++bpfloader_ver;     // [43] BPFLOADER_MAINLINE_T_VERSION
-    if (isAtLeastU) ++bpfloader_ver;     // [44] BPFLOADER_MAINLINE_U_VERSION
-    if (runningAsRoot) ++bpfloader_ver;  // [45] BPFLOADER_MAINLINE_U_QPR3_VERSION
-    if (isAtLeastV) ++bpfloader_ver;     // [46] BPFLOADER_MAINLINE_V_VERSION
-    if (isAtLeast25Q2) ++bpfloader_ver;  // [47] BPFLOADER_MAINLINE_25Q2_VERSION
-    if (isAtLeast25Q3) ++bpfloader_ver;  // [48] BPFLOADER_MAINLINE_25Q3_VERSION
-    if (isAtLeast25Q4) ++bpfloader_ver;  // [49] BPFLOADER_MAINLINE_25Q4_VERSION
-    if (isAtLeast26Q1) ++bpfloader_ver;  // [50] BPFLOADER_MAINLINE_26Q1_VERSION
-    if (isAtLeast26Q2) ++bpfloader_ver;  // [51] BPFLOADER_MAINLINE_26Q2_VERSION
+    unsigned int bpfloader_ver = BPFLOADER_MAINLINE_S_VERSION;
+    if (isAtLeastT)    bpfloader_ver = BPFLOADER_MAINLINE_T_VERSION;
+    if (isAtLeastU)    bpfloader_ver = BPFLOADER_MAINLINE_U_VERSION;
+    if (runningAsRoot) bpfloader_ver = BPFLOADER_MAINLINE_U_QPR3_VERSION;
+    if (isAtLeastV)    bpfloader_ver = BPFLOADER_MAINLINE_V_VERSION;
+    if (isAtLeast25Q2) bpfloader_ver = BPFLOADER_MAINLINE_25Q2_VERSION;
+    if (isAtLeast25Q3) bpfloader_ver = BPFLOADER_MAINLINE_25Q3_VERSION;
+    if (isAtLeast25Q4) bpfloader_ver = BPFLOADER_MAINLINE_25Q4_VERSION;
+    if (isAtLeast26Q1) bpfloader_ver = BPFLOADER_MAINLINE_26Q1_VERSION;
+    if (isAtLeast26Q2) bpfloader_ver = BPFLOADER_MAINLINE_26Q2_VERSION;
 
     ALOGI("NetBpfLoad v0.%u (%s) api:%d/%d kver:%07x (%s) libbpf: v%u.%u "
           "uid:%d rc:%d%d",
