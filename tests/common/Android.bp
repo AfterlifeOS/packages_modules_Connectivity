@@ -77,7 +77,10 @@ java_genrule {
 
 android_library {
     name: "ConnectivityCoverageTestsLib",
-    min_sdk_version: "30",
+    min_sdk_version: select(release_flag("RELEASE_DEPRECATE_MAINLINE_R_SUPPORT"), {
+        true: "31",
+        default: "30",
+    }),
     static_libs: [
         "ConnectivityUnitTestsLib",
         "NetdStaticLibTestsLib",
@@ -93,8 +96,10 @@ android_library {
 
 android_test {
     name: "ConnectivityCoverageTests",
-    // Tethering started on SDK 30
-    min_sdk_version: "30",
+    min_sdk_version: select(release_flag("RELEASE_DEPRECATE_MAINLINE_R_SUPPORT"), {
+        true: "31",
+        default: "30",
+    }),
     test_suites: [
         "general-tests",
         "mts-tethering",
