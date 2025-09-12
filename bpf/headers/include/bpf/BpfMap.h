@@ -37,6 +37,8 @@ using base::unique_fd;
 using std::function;
 
 #ifdef BPF_MAP_MAKE_VISIBLE_FOR_TESTING
+#undef BPFMAP_VERBOSE
+#define BPFMAP_VERBOSE
 #undef BPFMAP_VERBOSE_ABORT
 #define BPFMAP_VERBOSE_ABORT
 #endif
@@ -59,6 +61,7 @@ void Abort(int __unused error, const char* __unused fmt, ...) {
     abort();
 }
 
+#define ERROR_FROM_ERRNO(f) ErrnoErrorf("BpfMap::" f "() failed")
 
 // This is a class wrapper for eBPF maps. The eBPF map is a special in-kernel
 // data structure that stores data in <Key, Value> pairs. It can be read/write
@@ -111,25 +114,19 @@ class BpfMapRO {
 
     Result<Key> getFirstKey() const {
         Key firstKey;
-        if (getFirstMapKey(mMapFd, &firstKey)) {
-            return ErrnoErrorf("BpfMap::getFirstKey() failed");
-        }
+        if (getFirstMapKey(mMapFd, &firstKey)) return ERROR_FROM_ERRNO("getFirstKey");
         return firstKey;
     }
 
     Result<Key> getNextKey(const Key& key) const {
         Key nextKey;
-        if (getNextMapKey(mMapFd, &key, &nextKey)) {
-            return ErrnoErrorf("BpfMap::getNextKey() failed");
-        }
+        if (getNextMapKey(mMapFd, &key, &nextKey)) return ERROR_FROM_ERRNO("getNextKey");
         return nextKey;
     }
 
     Result<Value> readValue(const Key& key) const {
         Value value;
-        if (findMapEntry(mMapFd, &key, &value)) {
-            return ErrnoErrorf("BpfMap::readValue() failed");
-        }
+        if (findMapEntry(mMapFd, &key, &value)) return ERROR_FROM_ERRNO("readValue");
         return value;
     }
 
@@ -182,7 +179,7 @@ class BpfMapRO {
                 uint32_t count = N; // how many to fetch (and possibly delete)
                 int rv = batchLookupAndMaybeDelete(mMapFd, first ? NULL : &batch, &batch, &keys, &values, &count, del);
                 if (rv && errno == ENOSPC) break;  // not enough space for full HASH bucket, go around the *outer* loop
-                if (rv && errno != ENOENT) return ErrnoErrorf("BpfMap::doBulkLookupAndMaybeDelete() failed");
+                if (rv && errno != ENOENT) return ERROR_FROM_ERRNO("doBulkLookupAndMaybeDelete");
                 // count is now how many *were* fetched (and possibly delete)
                 for (unsigned i = 0; i < count; ++i) f(keys[i], values[i]);
                 if (rv) return {};  // ENOENT -> success
@@ -327,9 +324,7 @@ class BpfMapRW : public BpfMapRO<Key, Value> {
     }
 
     Result<void> writeValue(const Key& key, const Value& value, uint64_t flags) {
-        if (writeToMapEntry(mMapFd, &key, &value, flags)) {
-            return ErrnoErrorf("BpfMap::writeValue() failed");
-        }
+        if (writeToMapEntry(mMapFd, &key, &value, flags)) return ERROR_FROM_ERRNO("writeValue");
         return {};
     }
 
@@ -341,7 +336,7 @@ class BpfMapRW : public BpfMapRO<Key, Value> {
         if (map_flags & BPF_F_RDONLY) Abort(0, "map_flags is read-only");
         mMapFd.reset(createMap(map_type, sizeof(Key), sizeof(Value), max_entries,
                                map_flags));
-        if (!mMapFd.ok()) return ErrnoErrorf("BpfMap::resetMap() failed");
+        if (!mMapFd.ok()) return ERROR_FROM_ERRNO("resetMap");
         abortOnMismatch(/* writable */ true);
         return {};
     }
@@ -361,9 +356,7 @@ class BpfMap : public BpfMapRW<Key, Value> {
     using BpfMapRW<Key, Value>::readValue;
 
     Result<void> deleteValue(const Key& key) {
-        if (deleteMapEntry(mMapFd, &key)) {
-            return ErrnoErrorf("BpfMap::deleteValue() failed");
-        }
+        if (deleteMapEntry(mMapFd, &key)) return ERROR_FROM_ERRNO("deleteValue");
         return {};
     }
 
@@ -371,7 +364,7 @@ class BpfMap : public BpfMapRW<Key, Value> {
         if (isAtLeastKernelVersion(5, 4, 0)) {
             Value value;
             if (!findAndDeleteMapEntry(mMapFd, &key, &value)) return value;
-            if (errno == ENOENT) return ErrnoErrorf("BpfMap::readAndDeleteValue() failed");
+            if (errno == ENOENT) return ERROR_FROM_ERRNO("readAndDeleteValue");
         };
 
         // fallback path in case of weird error and for pre-5.4 kernels
@@ -383,9 +376,11 @@ class BpfMap : public BpfMapRW<Key, Value> {
         // We already have the data, not clear what to do on delete failure...
         // Let's just log something...
         // (but ignore ENOENT in case we're racing against someone else)
+#ifdef BPFMAP_VERBOSE
         if (res.error().code() != ENOENT)
             ALOGE("BpfMap::readAndDeleteValue(): read but failed to delete data %s",
                   strerror(res.error().code()));
+#endif
         return v;
     }
 
@@ -400,7 +395,9 @@ class BpfMap : public BpfMapRW<Key, Value> {
             if (!res.ok()) {
                 // Someone else could have deleted the key, so ignore ENOENT
                 if (res.error().code() == ENOENT) continue;
+#ifdef BPFMAP_VERBOSE
                 ALOGE("Failed to delete data %s", strerror(res.error().code()));
+#endif
                 return res.error();
             }
         }
