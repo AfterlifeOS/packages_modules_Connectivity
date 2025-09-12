@@ -50,6 +50,11 @@ const BpfMapRO<uint32_t, StatsValue>& getIfaceStatsMap() {
     return ifaceStatsMap;
 }
 
+#ifndef __ILP32__
+static_assert(std::atomic<IfaceValue>::is_always_lock_free,
+              "Error: 16-byte IfaceValue is not lock-free on this platform!");
+#endif
+
 static constexpr unsigned cacheSize = 1024;  // see 'iface_index_name_map' bpf map size
 static IfaceValue cache[cacheSize];
 
