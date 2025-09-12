@@ -208,7 +208,6 @@ _Static_assert(_Alignof(struct bpf_prog_def) == 4, "_Alignof struct bpf_prog_def
 #define BPFLOADER_MAINLINE_S_VERSION      3100u // Android S (31)
 #define BPFLOADER_MAINLINE_T_VERSION      3300u // Android T (33)
 #define BPFLOADER_MAINLINE_U_VERSION      3400u // Android U (34)
-#define BPFLOADER_MAINLINE_U_QPR3_VERSION 3403u // Android U QPR3
 #define BPFLOADER_MAINLINE_V_VERSION      3500u // Android V (35)
 #define BPFLOADER_MAINLINE_25Q2_VERSION   3600u // Android 25Q2 (36.0)
 #define BPFLOADER_MAINLINE_25Q3_VERSION   3601u // Android 25Q3 (36.0+)

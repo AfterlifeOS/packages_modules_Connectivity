@@ -1597,7 +1597,6 @@ static int doLoad(char** argv, char * const envp[]) {
     unsigned int bpfloader_ver = BPFLOADER_MAINLINE_S_VERSION;
     if (isAtLeastT)    bpfloader_ver = BPFLOADER_MAINLINE_T_VERSION;
     if (isAtLeastU)    bpfloader_ver = BPFLOADER_MAINLINE_U_VERSION;
-    if (runningAsRoot) bpfloader_ver = BPFLOADER_MAINLINE_U_QPR3_VERSION;
     if (isAtLeastV)    bpfloader_ver = BPFLOADER_MAINLINE_V_VERSION;
     if (isAtLeast25Q2) bpfloader_ver = BPFLOADER_MAINLINE_25Q2_VERSION;
     if (isAtLeast25Q3) bpfloader_ver = BPFLOADER_MAINLINE_25Q3_VERSION;
