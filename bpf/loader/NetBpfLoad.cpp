@@ -90,6 +90,11 @@ using std::vector;
 namespace android {
 namespace bpf {
 
+// This verifies the macro and the C++ api are in sync, and that they're compile time known.
+constexpr auto useLibBpf = COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF;
+static_assert(std::is_same<decltype(useLibBpf), const bool>::value, "useLibBpf must be a boolean.");
+static_assert(useLibBpf == com::android::tethering::readonly::flags::use_libbpf(), "useLibBpf flag mismatch");
+
 // Due to support for RiscV not yet having been released,
 // there is no minimum supported api level for it.
 //
@@ -1389,16 +1394,11 @@ static bool loadObject(const unsigned int bpfloader_ver,
     return true;
 }
 
-#ifndef COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF
-#error "COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF must be defined"
-#endif
-#define USE_LIBBPF COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF
-
 #define APEXROOT "/apex/com.android.tethering"
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
-    bool libbpf = isAtLeast25Q3 || USE_LIBBPF;
+    bool libbpf = isAtLeast25Q3 || useLibBpf;
     if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
     if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {
