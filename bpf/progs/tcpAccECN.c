@@ -33,13 +33,11 @@
 #include <linux/tcp.h>
 #include <stdint.h>
 
-// The resulting .o needs to load on Android 26Q2+
+// The resulting maps/programs need to load on Android 26Q2+
+#undef BPFLOADER_MIN_VER
 #define BPFLOADER_MIN_VER BPFLOADER_MAINLINE_26Q2_VERSION
-#define BPF_OBJ_NAME "tcpAccECN"
-#define DEFAULT_BPF_PIN_SUBDIR "netd_shared"
 
 #include "bpf_net_helpers.h"
-#include "tcpAccECN.h"
 
 #define TCP_FLAGS_OFF 12
 #define IP4_TCP_FLAGS_OFF (sizeof(struct iphdr) + TCP_FLAGS_OFF)

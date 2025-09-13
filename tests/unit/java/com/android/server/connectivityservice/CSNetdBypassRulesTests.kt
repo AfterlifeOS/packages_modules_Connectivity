@@ -36,10 +36,12 @@ import androidx.test.filters.SmallTest
 import com.android.server.ConnectivityService.CaptivePortalImpl
 import com.android.server.connectivity.NetworkAgentInfo
 import com.android.server.connectivity.QosCallbackTracker
+import com.android.testutils.DevSdkIgnoreRule
 import com.android.testutils.DevSdkIgnoreRule.IgnoreUpTo
 import com.android.testutils.DevSdkIgnoreRunner
 import com.android.testutils.postAndWait
 import kotlin.test.assertEquals
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.mockito.ArgumentMatchers.eq
@@ -50,8 +52,6 @@ import org.mockito.Mockito.doThrow
 import org.mockito.Mockito.inOrder
 import org.mockito.Mockito.mock
 import org.mockito.Mockito.never
-import org.mockito.Mockito.verify
-import org.mockito.Mockito.`when`
 
 private const val TEST_UID = 101
 private const val TEST_TIMEOUT_MS = 500L
@@ -59,9 +59,11 @@ private const val TEST_TIMEOUT_MS = 500L
 @DevSdkIgnoreRunner.MonitorThreadLeak
 @RunWith(DevSdkIgnoreRunner::class)
 @SmallTest
-@IgnoreUpTo(Build.VERSION_CODES.R)
+@IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
 class CSNetdBypassRulesTests : CSTest() {
     private val TEST_LINGER_DELAY_MS = 400
+
+    @get:Rule val ignoreRule = DevSdkIgnoreRule()
 
     private val caller = mock(CaptivePortalImpl::class.java)
     private val na = mock(INetworkAgent::class.java)

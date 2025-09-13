@@ -25,6 +25,7 @@ import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -33,6 +34,8 @@ import android.net.IpSecManager;
 
 import androidx.test.filters.SmallTest;
 import androidx.test.runner.AndroidJUnit4;
+
+import com.android.server.vcn.metrics.VcnMetrics;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -97,22 +100,6 @@ public class VcnGatewayConnectionDisconnectedStateTest extends VcnGatewayConnect
     }
 
     @Test
-    public void testTeardown() throws Exception {
-        mGatewayConnection.teardownAsynchronously();
-        mTestLooper.dispatchAll();
-
-        // Verify that sending a non-quitting disconnect request does not unset the isQuitting flag
-        mGatewayConnection.sendDisconnectRequestedAndAcquireWakelock("TEST", false);
-        mTestLooper.dispatchAll();
-
-        assertNull(mGatewayConnection.getCurrentState());
-        verify(mIpSecSvc).deleteTunnelInterface(eq(TEST_IPSEC_TUNNEL_RESOURCE_ID), any());
-        verifySafeModeTimeoutAlarmAndGetCallback(true /* expectCanceled */);
-        assertTrue(mGatewayConnection.isQuitting());
-        verify(mGatewayStatusCallback).onQuit();
-    }
-
-    @Test
     public void testNonTeardownDisconnectRequest() throws Exception {
         mGatewayConnection.sendDisconnectRequestedAndAcquireWakelock("TEST", false);
         mTestLooper.dispatchAll();
@@ -120,6 +107,39 @@ public class VcnGatewayConnectionDisconnectedStateTest extends VcnGatewayConnect
         assertEquals(mGatewayConnection.mDisconnectedState, mGatewayConnection.getCurrentState());
         assertFalse(mGatewayConnection.isQuitting());
         verify(mGatewayStatusCallback, never()).onQuit();
+        verify(mVcnMetrics, never()).logVcnGatewayTeardown(anyInt(), anyInt());
         // No safe mode timer changes expected.
+    }
+
+    @Test
+    public void testTeardownDisconnectRequest() throws Exception {
+        mGatewayConnection.sendDisconnectRequestedAndAcquireWakelock("TEST", true);
+        mTestLooper.dispatchAll();
+
+        assertNull(mGatewayConnection.getCurrentState());
+        verify(mIpSecSvc).deleteTunnelInterface(eq(TEST_IPSEC_TUNNEL_RESOURCE_ID), any());
+        verifySafeModeTimeoutAlarmAndGetCallback(true /* expectCanceled */);
+        assertTrue(mGatewayConnection.isQuitting());
+        verify(mGatewayStatusCallback).onQuit();
+        verify(mVcnMetrics).logVcnGatewayTeardown(anyInt(), anyInt());
+    }
+
+    @Test
+    public void testTeardown_subsequentNonTeardown_stillIsQuitting() throws Exception {
+        mGatewayConnection.teardownAsynchronously();
+        mTestLooper.dispatchAll();
+        assertEquals(
+                mGatewayConnection.getTeardownReason(),
+                VcnMetrics.GATEWAY_TEARDOWN_REASON_REQUESTED);
+
+        // Verify that sending a non-quitting disconnect request does not unset the isQuitting flag
+        mGatewayConnection.sendDisconnectRequestedAndAcquireWakelock("TEST", false);
+        mTestLooper.dispatchAll();
+
+        assertNull(mGatewayConnection.getCurrentState());
+        assertTrue(mGatewayConnection.isQuitting());
+        assertEquals(
+                mGatewayConnection.getTeardownReason(),
+                VcnMetrics.GATEWAY_TEARDOWN_REASON_REQUESTED);
     }
 }

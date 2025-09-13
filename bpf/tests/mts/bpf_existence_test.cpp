@@ -20,9 +20,10 @@
 #include <set>
 #include <string>
 
-#include <android-base/properties.h>
-#include <android/api-level.h>
+// Pretend we're in an APEX so we don't assume minimum support kernel version in the test
+#define __ANDROID_APEX__
 #include <bpf/BpfUtils.h>
+#undef __ANDROID_APEX__
 
 #include <gtest/gtest.h>
 
@@ -38,6 +39,9 @@ using android::bpf::isAtLeastU;
 using android::bpf::isAtLeastV;
 using android::bpf::isAtLeast25Q2;
 using android::bpf::isAtLeast25Q4;
+using android::bpf::isAtLeast26Q2;
+
+static_assert(!android::bpf::minSupportedKernelVer, "bpf_existence_test must not assume min kver");
 
 #define PLATFORM "/sys/fs/bpf/"
 #define TETHERING "/sys/fs/bpf/tethering/"
@@ -160,6 +164,22 @@ static const set<string> MAINLINE_FOR_25Q2_PLUS = {
     NETD "map_netd_local_net_blocked_uid_map",
 };
 
+// Provided by *current* mainline module for 26Q2+ devices
+static const set<string> MAINLINE_FOR_26Q2_PLUS = {
+    NETD "map_netd_l4s_accecn_byte_map",
+    NETD "map_netd_l4s_accecn_ce_map",
+    NETD "map_netd_l4s_accecn_mss_map",
+};
+
+// Provided by *current* mainline module for 26Q2+ devices with 6.1+ kernels
+static const set<string> MAINLINE_FOR_26Q2_6_1_PLUS = {
+    NETD "prog_netd_schedcls_egress_accecn_eth",
+    NETD "prog_netd_schedcls_egress_accecn_rawip",
+    NETD "prog_netd_schedcls_ingress_accecn_eth",
+    NETD "prog_netd_schedcls_ingress_accecn_rawip",
+    NETD "prog_netd_sockops_accecn_option",
+};
+
 static void addAll(set<string>& a, const set<string>& b) {
     a.insert(b.begin(), b.end());
 }
@@ -214,6 +234,9 @@ TEST_F(BpfExistenceTest, TestPrograms) {
     DO_EXPECT(isAtLeast25Q2, MAINLINE_FOR_25Q2_PLUS);
 
     if (isAtLeast25Q4) ASSERT_TRUE(isAtLeastKernelVersion(5, 10, 0));
+
+    DO_EXPECT(isAtLeast26Q2, MAINLINE_FOR_26Q2_PLUS);
+    DO_EXPECT(isAtLeast26Q2 && isAtLeastKernelVersion(6, 1, 0), MAINLINE_FOR_26Q2_6_1_PLUS);
 
     for (const auto& file : mustExist) {
         EXPECT_EQ(0, access(file.c_str(), R_OK)) << file << " does not exist";

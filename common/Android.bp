@@ -64,6 +64,8 @@ aconfig_declarations {
 cc_aconfig_library {
     name: "libtetheringflags",
     aconfig_declarations: "tethering.readonly.flags",
+    mode: "force-read-only",
+    shared: { enabled: false },
     min_sdk_version: "30",
     apex_available: [
         "com.android.tethering",

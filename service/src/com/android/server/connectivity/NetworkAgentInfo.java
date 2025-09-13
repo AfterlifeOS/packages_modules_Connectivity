@@ -1687,6 +1687,13 @@ public class NetworkAgentInfo implements NetworkRanker.Scoreable {
      */
     public int setCaptivePortalDelegateUid(@NonNull final CaptivePortalImpl caller, int uid) {
         HandlerUtils.ensureRunningOnHandlerThread(mHandler);
+        if (!mConnServiceDeps.isAtLeastV()) {
+            // For Android U and below, only update the map and return. The connectivity service
+            // will handle the bypass rules configuration.
+            // per network bypass (setAllowBypassVpnOnNetwork) is only available on V+.
+            mCaptivePortalDelegateUids.put(caller, uid);
+            return 0;
+        }
         int errorCode = setAllowBypassVpnOnNetwork(true /* allow */, uid, network.netId);
         if (errorCode != 0 && errorCode != EEXIST) return errorCode;
         if (errorCode == EEXIST) {
@@ -1723,6 +1730,13 @@ public class NetworkAgentInfo implements NetworkRanker.Scoreable {
      */
     public int removeCaptivePortalDelegateUid(@NonNull final CaptivePortalImpl caller) {
         HandlerUtils.ensureRunningOnHandlerThread(mHandler);
+        if (!mConnServiceDeps.isAtLeastV()) {
+            // For Android U and below, only update the map and return. The connectivity service
+            // will handle the bypass rules configuration.
+            // per network bypass (setAllowBypassVpnOnNetwork) is only available on V+.
+            mCaptivePortalDelegateUids.remove(caller);
+            return 0;
+        }
         final Integer maybeDelegateUid = mCaptivePortalDelegateUids.remove(caller);
         if (maybeDelegateUid == null) return 0;
         if (mCaptivePortalDelegateUids.values().contains(maybeDelegateUid)) return 0;

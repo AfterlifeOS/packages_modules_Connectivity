@@ -16,18 +16,47 @@
 
 package com.android.server.vcn.metrics;
 
+import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED;
+import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_INTERNAL_ERROR;
+import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_NETWORK_AGENT_UNWANTED;
 import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_NONE;
+import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_REQUESTED;
+import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_UNSPECIFIED;
+
+import android.annotation.IntDef;
+
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 
 /** Utility class for logging VCN metrics. */
 public class VcnMetrics {
+    /** @hide */
+    @Retention(RetentionPolicy.SOURCE)
+    @IntDef(
+            prefix = {"GATEWAY_TEARDOWN_REASON_"},
+            value = {
+                GATEWAY_TEARDOWN_REASON_NONE,
+                GATEWAY_TEARDOWN_REASON_INTERNAL_ERROR,
+                GATEWAY_TEARDOWN_REASON_NETWORK_AGENT_UNWANTED,
+                GATEWAY_TEARDOWN_REASON_REQUESTED
+            })
+    public @interface GatewayTeardownReason {}
 
-    private static final int GATEWAY_TEARDOWN_REASON_NONE =
+    public static final int GATEWAY_TEARDOWN_REASON_NONE =
             VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_NONE;
+    public static final int GATEWAY_TEARDOWN_REASON_INTERNAL_ERROR =
+            VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_INTERNAL_ERROR;
+    public static final int GATEWAY_TEARDOWN_REASON_NETWORK_AGENT_UNWANTED =
+            VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_NETWORK_AGENT_UNWANTED;
+    public static final int GATEWAY_TEARDOWN_REASON_REQUESTED =
+            VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_REQUESTED;
+    public static final int GATEWAY_TEARDOWN_REASON_UNSPECIFIED =
+            VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_UNSPECIFIED;
 
     /** Log an atom when a VcnGatewayConnection has entered safe mode. */
     public void logEnterSafeMode(int gatewayConnectionId) {
         VcnStatsLog.write(
-                VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED,
+                VCN_GATEWAY_CONNECTION_STATE_CHANGED,
                 gatewayConnectionId,
                 GATEWAY_TEARDOWN_REASON_NONE,
                 true /* isInSafeMode */);
@@ -42,6 +71,18 @@ public class VcnMetrics {
                 false /* isInSafeMode */);
     }
 
+    /**
+     * Log an atom when a VcnGatewayConnection has been torn down with reason. It will also reset
+     * other VcnGatewayConnection related states i.e. safemode.
+     */
+    public void logVcnGatewayTeardown(int gatewayConnectionId, @GatewayTeardownReason int reason) {
+        VcnStatsLog.write(
+                VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED,
+                gatewayConnectionId,
+                reason,
+                false /* isInSafeMode */);
+    }
+
     /** Log an atom when VCN network is connected. */
     public void logVcnNetworkConnected(int gatewayConnectionId, int networkId) {
         VcnStatsLog.write(
@@ -52,7 +93,10 @@ public class VcnMetrics {
                 false /* isValidated */);
     }
 
-    /** Log an atom when VCN network is being torn down. */
+    /**
+     * Log an atom when VCN network is being torn down. It will also reset other state related to
+     * the network i.e. validated.
+     */
     public void logVcnNetworkNotConnected(int gatewayConnectionId, int networkId) {
         VcnStatsLog.write(
                 VcnStatsLog.VCN_NETWORK_STATE_CHANGED,

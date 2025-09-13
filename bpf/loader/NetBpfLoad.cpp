@@ -90,6 +90,11 @@ using std::vector;
 namespace android {
 namespace bpf {
 
+// This verifies the macro and the C++ api are in sync, and that they're compile time known.
+constexpr auto useLibBpf = COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF;
+static_assert(std::is_same<decltype(useLibBpf), const bool>::value, "useLibBpf must be a boolean.");
+static_assert(useLibBpf == com::android::tethering::readonly::flags::use_libbpf(), "useLibBpf flag mismatch");
+
 // Due to support for RiscV not yet having been released,
 // there is no minimum supported api level for it.
 //
@@ -824,7 +829,7 @@ static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<
     vector<char> btfData;
     struct btf *btf = NULL;
     auto btfGuard = base::make_scope_guard([&btf] { if (btf) btf__free(btf); });
-    if (isAtLeastKernelVersion(4, 19, 0) && !bpfCmdFixupIsNeeded) {
+    if (isAtLeastKernelVersion(4, 19, 0)) {
         // On Linux Kernels older than 4.18 BPF_BTF_LOAD command doesn't exist.
         ret = elfObj.readSectionByName(".BTF", btfData);
         if (ret) {
@@ -1076,20 +1081,15 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
             return -EINVAL;
         }
 
-        unsigned min_kver = cs[i].prog_def->min_kver;
-        unsigned max_kver = cs[i].prog_def->max_kver;
-        ALOGD("cs[%d].name:%s min_kver:%x .max_kver:%x (kernelVer:%x)",
-             i, cs[i].prog_def->name(), min_kver, max_kver, kernelVer);
-        if (kernelVer < min_kver) continue;
-        if (kernelVer >= max_kver) continue;
+        ALOGD("cs[%d].name:%s kver in [%x,%x) bpfloader ver in [0x%05x,0x%05x)",
+              i, cs[i].prog_def->name(),
+              cs[i].prog_def->min_kver, cs[i].prog_def->max_kver,
+              cs[i].prog_def->bpfloader_min_ver, cs[i].prog_def->bpfloader_max_ver);
 
-        unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
-        unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
-
-        ALOGD("cs[%d].name:%s requires bpfloader version [0x%05x,0x%05x)",
-              i, cs[i].prog_def->name(), bpfMinVer, bpfMaxVer);
-        if (bpfloader_ver < bpfMinVer) continue;
-        if (bpfloader_ver >= bpfMaxVer) continue;
+        if (kernelVer < cs[i].prog_def->min_kver) continue;
+        if (kernelVer >= cs[i].prog_def->max_kver) continue;
+        if (bpfloader_ver < cs[i].prog_def->bpfloader_min_ver) continue;
+        if (bpfloader_ver >= cs[i].prog_def->bpfloader_max_ver) continue;
 
         bool reuse = false;
         if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
@@ -1394,16 +1394,11 @@ static bool loadObject(const unsigned int bpfloader_ver,
     return true;
 }
 
-#ifndef COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF
-#error "COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF must be defined"
-#endif
-#define USE_LIBBPF COM_ANDROID_TETHERING_READONLY_FLAGS_USE_LIBBPF
-
 #define APEXROOT "/apex/com.android.tethering"
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
-    bool libbpf = !bpfCmdFixupIsNeeded && (isAtLeast25Q3 || USE_LIBBPF);
+    bool libbpf = isAtLeast25Q3 || useLibBpf;
     if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
     if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {
@@ -1832,19 +1827,36 @@ static int doLoad(char** argv, char * const envp[]) {
         if (!writeFile("/proc/sys/net/core/bpf_jit_kallsyms", "1\n")) return 25;
     }
 
+    // Create all the pin subdirectories
+    // (this must be done first to allow create_location and pin_subdir functionality,
+    //  which could otherwise fail with ENOENT during object pinning or renaming,
+    //  due to ordering issues)
+    if (!createDir("/sys/fs/bpf/tethering")) return 26;
+    // This is technically T+ but S also needs it for the 'mainline_done' file.
+    if (!createDir("/sys/fs/bpf/netd_shared")) return 27;
+
+    if (isAtLeastT) {
+        if (!createDir("/sys/fs/bpf/netd_readonly")) return 28;
+        if (!createDir("/sys/fs/bpf/net_shared")) return 29;
+        if (!createDir("/sys/fs/bpf/net_private")) return 30;
+
+        // This one is primarily meant for triggering genfscon rules.
+        if (!createDir("/sys/fs/bpf/loader")) return 31;
+    }
+
     if (runningAsRoot) {  // implies U QPR3+ and kernel 4.14+
         // There should not be any programs or maps yet
         errno = 0;
         uint32_t progId = bpfGetNextProgId(0);  // expect 0 with errno == ENOENT
         if (progId || errno != ENOENT) {
             ALOGE("bpfGetNextProgId(zero) returned %u (errno %d)", progId, errno);
-            return 26;
+            return 32;
         }
         errno = 0;
         uint32_t mapId = bpfGetNextMapId(0);  // expect 0 with errno == ENOENT
         if (mapId || errno != ENOENT) {
             ALOGE("bpfGetNextMapId(zero) returned %u (errno %d)", mapId, errno);
-            return 27;
+            return 33;
         }
     } else if (isAtLeastKernelVersion(4, 14, 0)) {  // implies S through U QPR2
         // bpfGetNext{Prog,Map}Id require 4.14+
@@ -1857,7 +1869,7 @@ static int doLoad(char** argv, char * const envp[]) {
             if (!next && errno == ENOENT) break;
             if (next <= mapId) {
                 ALOGE("bpfGetNextMapId(%u) returned %u errno %d", mapId, next, errno);
-                return 28;
+                return 34;
             }
             mapId = next;
         }
@@ -1870,31 +1882,16 @@ static int doLoad(char** argv, char * const envp[]) {
             // which causes bpfGetNextMapId to behave as bpfGetNextProgId,
             // and thus it should return 0 with errno == ENOENT.
             ALOGE("bpfGetNextMapId(final %d) returned %d errno %d", mapId, next, errno);
-            if (next || errno != ENOENT) return 29;
-            if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 30;
+            if (next || errno != ENOENT) return 35;
+            if (isAtLeastT || isAtLeastKernelVersion(4, 20, 0)) return 36;
             // implies Android S with 4.14 or 4.19 kernel
-            ALOGW("Enabling bpfCmdFixupIsNeeded.");
-            bpfCmdFixupIsNeeded = true;
+            ALOGW("Detected kernel with invalid BPF UAPI - disabling mainline use of eBPF.");
+            // leave a flag that we're 'done'
+            if (!createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 43;  // same as below
+            return 0;
         }
     } else {  // implies S/T with 4.9 kernel
         // nothing we can do.
-    }
-
-    // Create all the pin subdirectories
-    // (this must be done first to allow create_location and pin_subdir functionality,
-    //  which could otherwise fail with ENOENT during object pinning or renaming,
-    //  due to ordering issues)
-    if (!createDir("/sys/fs/bpf/tethering")) return 31;
-    // This is technically T+ but S also needs it for the 'mainline_done' file.
-    if (!createDir("/sys/fs/bpf/netd_shared")) return 32;
-
-    if (isAtLeastT) {
-        if (!createDir("/sys/fs/bpf/netd_readonly")) return 33;
-        if (!createDir("/sys/fs/bpf/net_shared")) return 34;
-        if (!createDir("/sys/fs/bpf/net_private")) return 35;
-
-        // This one is primarily meant for triggering genfscon rules.
-        if (!createDir("/sys/fs/bpf/loader")) return 36;
     }
 
     // Load all ELF objects, create programs and maps, and pin them
@@ -1913,7 +1910,7 @@ static int doLoad(char** argv, char * const envp[]) {
         unique_fd map(createMap(BPF_MAP_TYPE_ARRAY, sizeof(int), sizeof(int), 2, 0));
 
         int zero = 0;
-        int kernel_bugs = bpfCmdFixupIsNeeded;
+        int kernel_bugs = 0;
         if (writeToMapEntry(map, &zero, &kernel_bugs, BPF_ANY)) {
             ALOGE("Failure to write into index 0 of kernel bugs array.");
             return 38;

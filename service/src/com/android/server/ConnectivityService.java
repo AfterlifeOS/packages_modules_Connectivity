@@ -128,9 +128,9 @@ import static android.net.connectivity.ConnectivityCompatChanges.ENABLE_SELF_CER
 import static android.net.connectivity.ConnectivityCompatChanges.NETWORK_BLOCKED_WITHOUT_INTERNET_PERMISSION;
 import static android.os.Process.INVALID_UID;
 import static android.os.Process.VPN_UID;
+import static android.system.OsConstants.EIO;
 import static android.system.OsConstants.ENOENT;
 import static android.system.OsConstants.ENOTCONN;
-import static android.system.OsConstants.EOPNOTSUPP;
 import static android.system.OsConstants.ETH_P_ALL;
 import static android.system.OsConstants.IPPROTO_TCP;
 import static android.system.OsConstants.IPPROTO_UDP;
@@ -5892,7 +5892,11 @@ public class ConnectivityService extends IConnectivityManager.Stub
         if (!nai.getCaptivePortalDelegateUids().isEmpty()) {
             final Set<Integer> oldDelegateBypassUids = getAllCaptivePortalDelegateUids();
             nai.clearCaptivePortalDelegateUids();
-            updateAllVpnForDelegateUid(oldDelegateBypassUids, getAllCaptivePortalDelegateUids());
+            final Set<Integer> newDelegateBypassUids = getAllCaptivePortalDelegateUids();
+            if (!mDeps.isAtLeastV()) {
+                updateGlobalAllowBypassVpn(oldDelegateBypassUids, newDelegateBypassUids);
+            }
+            updateAllVpnForDelegateUid(oldDelegateBypassUids, newDelegateBypassUids);
         }
         mNetworkAgentInfos.remove(nai);
         if (mDeps.isShortNetworkSuspensionEnforced(mContext)) {
@@ -6839,6 +6843,26 @@ public class ConnectivityService extends IConnectivityManager.Stub
         });
     }
 
+    private int updateGlobalAllowBypassVpn(@NonNull Set<Integer> oldDelegateBypassUids,
+            @NonNull Set<Integer> newDelegateBypassUids) {
+        // this method is for U- and V+ must use per network VPN bypass.
+        CompareResult<Integer> diff = new CompareResult<>(oldDelegateBypassUids,
+                newDelegateBypassUids);
+        try {
+            for (Integer uid : diff.removed) {
+                mNetd.networkSetProtectDeny(uid);
+            }
+            for (Integer uid : diff.added) {
+                mNetd.networkSetProtectAllow(uid);
+            }
+        } catch (RemoteException e) {
+            return EIO;
+        } catch (ServiceSpecificException e) {
+            return e.errorCode;
+        }
+        return 0;
+    }
+
     public class CaptivePortalImpl extends ICaptivePortal.Stub implements IBinder.DeathRecipient {
         private final Network mNetwork;
         // Binder object to track the lifetime of the setDelegateUid caller for cleanup purposes.
@@ -6923,15 +6947,18 @@ public class ConnectivityService extends IConnectivityManager.Stub
             if (nai == null) return ENOENT; // network does not exist anymore.
             if (nai.isDestroyed()) return ENOENT; // network has already been destroyed.
 
-            // TODO: consider allowing the uid to bypass VPN on all networks before V.
-            if (!mDeps.isAtLeastV()) return EOPNOTSUPP;
-
             final Set<Integer> oldDelegateBypassUids = getAllCaptivePortalDelegateUids();
             int ret = updateDelegateUid(nai, uid);
             // updateDelegateUid() updates mCaptivePortalDelegateUids even if it returns non-zero
             // value. Therefore, we need to call updateAllVpnForDelegateUid regardless of the
             // returned value.
-            updateAllVpnForDelegateUid(oldDelegateBypassUids, getAllCaptivePortalDelegateUids());
+            final Set<Integer> newDelegateBypassUids = getAllCaptivePortalDelegateUids();
+            if (!mDeps.isAtLeastV()) {
+                // Before V, we need to update protect VPN rules globally instead of per network.
+                // TODO: think about proper error handling.
+                ret = updateGlobalAllowBypassVpn(oldDelegateBypassUids, newDelegateBypassUids);
+            }
+            updateAllVpnForDelegateUid(oldDelegateBypassUids, newDelegateBypassUids);
             return ret;
         }
 

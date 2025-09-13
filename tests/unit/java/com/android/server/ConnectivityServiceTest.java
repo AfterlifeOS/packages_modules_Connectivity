@@ -5071,7 +5071,6 @@ public class ConnectivityServiceTest {
     }
 
     @Test
-    @IgnoreUpTo(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     public void testCaptivePortalApp_SetDelegateUidWithVpn() throws Exception {
         LinkProperties lp = new LinkProperties();
         InOrder inOrder = inOrder(mMockNetd, mBpfNetMaps);
@@ -5126,8 +5125,12 @@ public class ConnectivityServiceTest {
         FakeOutcomeReceiver<Void, ServiceSpecificException> or = new FakeOutcomeReceiver<>();
         wificaptivePortal.setDelegateUid(APP1_UID, Runnable::run, or);
         or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
-                mWiFiAgent.getNetwork().netId);
+        if (SdkLevel.isAtLeastV()) {
+            inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
+                    mWiFiAgent.getNetwork().netId);
+        } else {
+            inOrder.verify(mMockNetd).networkSetProtectAllow(APP1_UID);
+        }
         uidCaptor = ArgumentCaptor.forClass(int[].class);
         inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
         assertContainsExactly(uidCaptor.getValue(), APP1_UID, APP2_UID);
@@ -5140,16 +5143,24 @@ public class ConnectivityServiceTest {
         or = new FakeOutcomeReceiver<>();
         ethernetCaptivePortal.setDelegateUid(APP1_UID, Runnable::run, or);
         or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
-                mEthernetAgent.getNetwork().netId);
+        if (SdkLevel.isAtLeastV()) {
+            inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
+                    mEthernetAgent.getNetwork().netId);
+        } else {
+            inOrder.verify(mMockNetd, never()).networkSetProtectAllow(APP1_UID);
+        }
         inOrder.verify(mBpfNetMaps, never()).addUidInterfaceRules(any(), any());
         inOrder.verify(mBpfNetMaps, never()).removeUidInterfaceRules(any());
 
         or = new FakeOutcomeReceiver<>();
         ethernetCaptivePortal.setDelegateUid(INVALID_UID, Runnable::run, or);
         or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP1_UID,
-                mEthernetAgent.getNetwork().netId);
+        if (SdkLevel.isAtLeastV()) {
+            inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP1_UID,
+                    mEthernetAgent.getNetwork().netId);
+        } else {
+            inOrder.verify(mMockNetd, never()).networkSetProtectDeny(APP1_UID);
+        }
         inOrder.verify(mBpfNetMaps, never()).addUidInterfaceRules(any(), any());
         inOrder.verify(mBpfNetMaps, never()).removeUidInterfaceRules(any());
 
@@ -5172,8 +5183,12 @@ public class ConnectivityServiceTest {
         or = new FakeOutcomeReceiver<>();
         wificaptivePortal.setDelegateUid(Process.INVALID_UID, Runnable::run, or);
         or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP1_UID,
-                mWiFiAgent.getNetwork().netId);
+        if (SdkLevel.isAtLeastV()) {
+            inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(false, APP1_UID,
+                    mWiFiAgent.getNetwork().netId);
+        } else {
+            inOrder.verify(mMockNetd).networkSetProtectDeny(APP1_UID);
+        }
         inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
         assertContainsExactly(uidCaptor.getValue(), APP2_UID);
         uidCaptor = ArgumentCaptor.forClass(int[].class);
@@ -5184,8 +5199,12 @@ public class ConnectivityServiceTest {
         or = new FakeOutcomeReceiver<>();
         wificaptivePortal.setDelegateUid(APP1_UID, Runnable::run, or);
         or.awaitOutcome();
-        inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
-                mWiFiAgent.getNetwork().netId);
+        if (SdkLevel.isAtLeastV()) {
+            inOrder.verify(mMockNetd).networkAllowBypassVpnOnNetwork(true, APP1_UID,
+                    mWiFiAgent.getNetwork().netId);
+        } else {
+            inOrder.verify(mMockNetd).networkSetProtectAllow(APP1_UID);
+        }
         uidCaptor = ArgumentCaptor.forClass(int[].class);
         inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
         assertContainsExactly(uidCaptor.getValue(), APP1_UID, APP2_UID);
@@ -5196,6 +5215,9 @@ public class ConnectivityServiceTest {
         // Wi-Fi network go away should trigger VPN rule being cleaned up.
         mWiFiAgent.disconnect();
         waitForIdle();
+        if (!SdkLevel.isAtLeastV()) {
+            inOrder.verify(mMockNetd).networkSetProtectDeny(APP1_UID);
+        }
         uidCaptor = ArgumentCaptor.forClass(int[].class);
         inOrder.verify(mBpfNetMaps, times(1)).removeUidInterfaceRules(uidCaptor.capture());
         assertContainsExactly(uidCaptor.getValue(), APP2_UID);

@@ -33,10 +33,13 @@ namespace android {
 namespace bpf {
 
 using base::Result;
+using base::ResultError;
 using base::unique_fd;
 using std::function;
 
 #ifdef BPF_MAP_MAKE_VISIBLE_FOR_TESTING
+#undef BPFMAP_VERBOSE
+#define BPFMAP_VERBOSE
 #undef BPFMAP_VERBOSE_ABORT
 #define BPFMAP_VERBOSE_ABORT
 #endif
@@ -59,6 +62,24 @@ void Abort(int __unused error, const char* __unused fmt, ...) {
     abort();
 }
 
+// We care about enabling SSO on 64-bit platforms
+// It turns out that our string implementation can SSO optimize 22 characters + (23rd) trailing NULL
+//
+// 32-bit userspace is obsolete, and SSO would require shortening the errors more than is reasonable
+//
+// For the curious: the initial u8 is a 7+1 bitfield and stores strlen * 2 + (is_short_flag=0),
+// though newer versions (_LIBCPP_ABI_VERSION >= 2), reverse the order
+#ifndef __ILP32__
+static_assert(sizeof(std::string) == 24);
+#endif
+
+// Our string implementation, on 64-bit platforms can fit up to 22 characters with SSO
+// The common case (ENOENT) shouldn't require heap memory allocation nor string formatting
+// Other errors will return (string argument passed to ErrnoErrorf) + ": " + strerror(errno)
+#define ERROR_FROM_ERRNO(f) ({ \
+  static_assert(__builtin_strlen(f ": ENOENT") <= 22, "ERROR_FROM_ERRNO - arg string too long"); \
+  (errno == ENOENT) ? ResultError(f ": ENOENT", ENOENT) : ErrnoErrorf("BpfMap::" f "() failed"); \
+})
 
 // This is a class wrapper for eBPF maps. The eBPF map is a special in-kernel
 // data structure that stores data in <Key, Value> pairs. It can be read/write
@@ -111,25 +132,19 @@ class BpfMapRO {
 
     Result<Key> getFirstKey() const {
         Key firstKey;
-        if (getFirstMapKey(mMapFd, &firstKey)) {
-            return ErrnoErrorf("BpfMap::getFirstKey() failed");
-        }
+        if (getFirstMapKey(mMapFd, &firstKey)) return ERROR_FROM_ERRNO("getFirstKey");
         return firstKey;
     }
 
     Result<Key> getNextKey(const Key& key) const {
         Key nextKey;
-        if (getNextMapKey(mMapFd, &key, &nextKey)) {
-            return ErrnoErrorf("BpfMap::getNextKey() failed");
-        }
+        if (getNextMapKey(mMapFd, &key, &nextKey)) return ERROR_FROM_ERRNO("getNextKey");
         return nextKey;
     }
 
     Result<Value> readValue(const Key& key) const {
         Value value;
-        if (findMapEntry(mMapFd, &key, &value)) {
-            return ErrnoErrorf("BpfMap::readValue() failed");
-        }
+        if (findMapEntry(mMapFd, &key, &value)) return ERROR_FROM_ERRNO("readValue");
         return value;
     }
 
@@ -156,7 +171,7 @@ class BpfMapRO {
 
     // ~16KiB initial stack usage seems reasonable
     static constexpr int BATCHSIZE = 16384 / (sizeof(Key) + sizeof(Value));
-    static_assert(BATCHSIZE >= 256, "consider Key/Value size, whether incr mem limit, decr batch req");
+    static_assert(BATCHSIZE >= 64, "consider Key/Value size, whether incr mem limit, decr batch req");
     static_assert(BATCHSIZE * sizeof(Key) + BATCHSIZE * sizeof(Value) <= 16384);
 
     Result<void> doBulkLookupAndMaybeDelete(bool del, const function<void(const Key &, const Value &)> &f) const {
@@ -169,7 +184,7 @@ class BpfMapRO {
         // is almost always enough for a bucket (which is what you'd expect, it's not a good
         // hashtable if there's lots of items in a single bucket)
         //
-        // Since we start with 256+ we shouldn't ever actually need to increase N...
+        // Since we start with 64+ we shouldn't ever actually need to increase N...
         // Also note that the 'true' condition is not really an infinite loop,
         // as we'll blow up the stack and crash instead of looping infinitely.
         // But that also shouldn't happen cause it would imply/require a ridiculously
@@ -182,7 +197,7 @@ class BpfMapRO {
                 uint32_t count = N; // how many to fetch (and possibly delete)
                 int rv = batchLookupAndMaybeDelete(mMapFd, first ? NULL : &batch, &batch, &keys, &values, &count, del);
                 if (rv && errno == ENOSPC) break;  // not enough space for full HASH bucket, go around the *outer* loop
-                if (rv && errno != ENOENT) return ErrnoErrorf("BpfMap::doBulkLookupAndMaybeDelete() failed");
+                if (rv && errno != ENOENT) return ERROR_FROM_ERRNO("bulkLookup&Del");
                 // count is now how many *were* fetched (and possibly delete)
                 for (unsigned i = 0; i < count; ++i) f(keys[i], values[i]);
                 if (rv) return {};  // ENOENT -> success
@@ -327,9 +342,7 @@ class BpfMapRW : public BpfMapRO<Key, Value> {
     }
 
     Result<void> writeValue(const Key& key, const Value& value, uint64_t flags) {
-        if (writeToMapEntry(mMapFd, &key, &value, flags)) {
-            return ErrnoErrorf("BpfMap::writeValue() failed");
-        }
+        if (writeToMapEntry(mMapFd, &key, &value, flags)) return ERROR_FROM_ERRNO("writeValue");
         return {};
     }
 
@@ -341,7 +354,7 @@ class BpfMapRW : public BpfMapRO<Key, Value> {
         if (map_flags & BPF_F_RDONLY) Abort(0, "map_flags is read-only");
         mMapFd.reset(createMap(map_type, sizeof(Key), sizeof(Value), max_entries,
                                map_flags));
-        if (!mMapFd.ok()) return ErrnoErrorf("BpfMap::resetMap() failed");
+        if (!mMapFd.ok()) return ERROR_FROM_ERRNO("resetMap");
         abortOnMismatch(/* writable */ true);
         return {};
     }
@@ -361,9 +374,7 @@ class BpfMap : public BpfMapRW<Key, Value> {
     using BpfMapRW<Key, Value>::readValue;
 
     Result<void> deleteValue(const Key& key) {
-        if (deleteMapEntry(mMapFd, &key)) {
-            return ErrnoErrorf("BpfMap::deleteValue() failed");
-        }
+        if (deleteMapEntry(mMapFd, &key)) return ERROR_FROM_ERRNO("deleteValue");
         return {};
     }
 
@@ -371,7 +382,7 @@ class BpfMap : public BpfMapRW<Key, Value> {
         if (isAtLeastKernelVersion(5, 4, 0)) {
             Value value;
             if (!findAndDeleteMapEntry(mMapFd, &key, &value)) return value;
-            if (errno == ENOENT) return ErrnoErrorf("BpfMap::readAndDeleteValue() failed");
+            if (errno == ENOENT) return ERROR_FROM_ERRNO("read&DeleteVal");
         };
 
         // fallback path in case of weird error and for pre-5.4 kernels
@@ -383,9 +394,11 @@ class BpfMap : public BpfMapRW<Key, Value> {
         // We already have the data, not clear what to do on delete failure...
         // Let's just log something...
         // (but ignore ENOENT in case we're racing against someone else)
+#ifdef BPFMAP_VERBOSE
         if (res.error().code() != ENOENT)
             ALOGE("BpfMap::readAndDeleteValue(): read but failed to delete data %s",
                   strerror(res.error().code()));
+#endif
         return v;
     }
 
@@ -400,7 +413,9 @@ class BpfMap : public BpfMapRW<Key, Value> {
             if (!res.ok()) {
                 // Someone else could have deleted the key, so ignore ENOENT
                 if (res.error().code() == ENOENT) continue;
+#ifdef BPFMAP_VERBOSE
                 ALOGE("Failed to delete data %s", strerror(res.error().code()));
+#endif
                 return res.error();
             }
         }
