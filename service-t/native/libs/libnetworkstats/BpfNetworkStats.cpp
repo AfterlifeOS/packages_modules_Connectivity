@@ -50,21 +50,38 @@ const BpfMapRO<uint32_t, StatsValue>& getIfaceStatsMap() {
     return ifaceStatsMap;
 }
 
-#ifndef __ILP32__
+static constexpr unsigned cacheSize = 1024;  // see 'iface_index_name_map' bpf map size
+
+#if !defined(__ILP32__) && !defined(__riscv)
 static_assert(std::atomic<IfaceValue>::is_always_lock_free,
               "Error: 16-byte IfaceValue is not lock-free on this platform!");
+#define CACHE_IS_ATOMIC
+static std::atomic<IfaceValue> cache[cacheSize];
+#else
+static IfaceValue cache[cacheSize];
 #endif
 
-static constexpr unsigned cacheSize = 1024;  // see 'iface_index_name_map' bpf map size
-static IfaceValue cache[cacheSize];
 
 static inline const IfaceValue& updateCache(unsigned i, const IfaceValue &v) {
-    if (i < cacheSize) cache[i] = v;
+    if (i < cacheSize) {
+#ifdef CACHE_IS_ATOMIC
+        cache[i].store(v, std::memory_order_relaxed);
+#else
+        cache[i] = v;
+#endif
+    }
     return v;
 }
 
 Result<IfaceValue> ifindex2name(const uint32_t ifindex) {
-    if (ifindex < cacheSize && cache[ifindex].name[0]) return cache[ifindex];
+    if (ifindex < cacheSize) {
+#ifdef CACHE_IS_ATOMIC
+        IfaceValue c = cache[ifindex].load(std::memory_order_relaxed);
+#else
+        IfaceValue c = cache[ifindex];
+#endif
+        if (c.name[0]) return c;
+    }
 
     Result<IfaceValue> v = getIfaceIndexNameMap().readValue(ifindex);
     if (v.ok()) return updateCache(ifindex, v.value());
@@ -118,7 +135,7 @@ int bpfGetIfaceStatsInternal(const char* iface, StatsValue* stats,
     // specific iface
     int64_t unknownIfaceBytesTotal = 0;
 
-    if (isAtLeastKernelVersion(5, 10, 0)) {
+    if (isAtLeastKernelVersion(5, 10)) {
         // On 5.10+ bulk lookup api returns values for free, so just use forAll(f(K,V))
         auto res = ifaceStatsMap.forAll(
             [iface, stats, ifindex2name, &unknownIfaceBytesTotal, &ifaceStatsMap](const uint32_t& key, const StatsValue& value) {

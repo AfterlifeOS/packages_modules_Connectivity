@@ -107,7 +107,7 @@ class BpfMapRO {
   protected:
     void abortOnMismatch(bool writable) const {
         if (!mMapFd.ok()) Abort(errno, "mMapFd %d is not valid", mMapFd.get());
-        if (isAtLeastKernelVersion(4, 14, 0)) {
+        if (isAtLeastKernelVersion(4, 14)) {
             int flags = bpfGetFdMapFlags(mMapFd);
             if (flags < 0) Abort(errno, "bpfGetFdMapFlags fail: flags=%d", flags);
             if (flags & BPF_F_WRONLY) Abort(0, "map is write-only (flags=0x%X)", flags);
@@ -228,7 +228,7 @@ class BpfMapRO {
     // Does not allow early termination (via f erroring out) - may be implemented with bulk api
     Result<void> forAll(const function<void(const Key &)> &f) const {
         // No kernel bpfmap bulk lookup api which doesn't return both keys & values.
-        if (isAtLeastKernelVersion(5, 10, 0)) return doBulkLookupAndMaybeDelete(/*delete*/ false,
+        if (isAtLeastKernelVersion(5, 10)) return doBulkLookupAndMaybeDelete(/*delete*/ false,
             [&f](const Key &key, const Value &) {
                 f(key);
             }
@@ -258,7 +258,7 @@ class BpfMapRO {
 
     // Does not allow early termination (via f erroring out) - maybe implemented with bulk api
     Result<void> forAll(const function<void(const Key &, const Value &)> &f) const {
-        if (isAtLeastKernelVersion(5, 10, 0)) return doBulkLookupAndMaybeDelete(/*delete*/ false, f);
+        if (isAtLeastKernelVersion(5, 10)) return doBulkLookupAndMaybeDelete(/*delete*/ false, f);
         return iterate(
             [&f](const Key &key, const Value &value) -> Result<void> {
                 f(key, value);
@@ -379,7 +379,7 @@ class BpfMap : public BpfMapRW<Key, Value> {
     }
 
     Result<Value> readAndDeleteValue(const Key& key) {
-        if (isAtLeastKernelVersion(5, 4, 0)) {
+        if (isAtLeastKernelVersion(5, 4)) {
             Value value;
             if (!findAndDeleteMapEntry(mMapFd, &key, &value)) return value;
             if (errno == ENOENT) return ERROR_FROM_ERRNO("read&DeleteVal");
@@ -423,7 +423,7 @@ class BpfMap : public BpfMapRW<Key, Value> {
 
     // Does not allow early termination (via f erroring out) - maybe implemented with bulk api
     Result<void> consume(const std::function<void(const Key&, const Value&)>& f) {
-        if (isAtLeastKernelVersion(5, 10, 0)) return doBulkLookupAndMaybeDelete(/*delete*/true, f);
+        if (isAtLeastKernelVersion(5, 10)) return doBulkLookupAndMaybeDelete(/*delete*/true, f);
         Result<Key> curKey = getFirstKey();
         while (curKey.ok()) {
             const Result<Key> &nextKey = getNextKey(curKey.value());

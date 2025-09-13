@@ -32,7 +32,6 @@ using std::set;
 using std::string;
 
 using android::bpf::isAtLeastKernelVersion;
-using android::bpf::isAtLeastR;
 using android::bpf::isAtLeastS;
 using android::bpf::isAtLeastT;
 using android::bpf::isAtLeastU;
@@ -203,7 +202,7 @@ TEST_F(BpfExistenceTest, TestPrograms) {
     ASSERT_TRUE(isAtLeastS);  // Q & R are no longer supported by mainline
 
     // S requires Linux Kernel 4.9+ and thus requires eBPF support.
-    if (isAtLeastS) ASSERT_TRUE(isAtLeastKernelVersion(4, 9, 0));
+    if (isAtLeastS) ASSERT_TRUE(isAtLeastKernelVersion(4, 9));
 
     // on S without a new enough DnsResolver apex, NetBpfLoad doesn't get triggered,
     // and thus no mainline programs get loaded.
@@ -215,28 +214,28 @@ TEST_F(BpfExistenceTest, TestPrograms) {
 
     // T still only requires Linux Kernel 4.9+.
     DO_EXPECT(isAtLeastT, MAINLINE_FOR_T_PLUS);
-    DO_EXPECT(isAtLeastT && isAtLeastKernelVersion(4, 14, 0), MAINLINE_FOR_T_4_14_PLUS);
-    DO_EXPECT(isAtLeastT && isAtLeastKernelVersion(4, 19, 0), MAINLINE_FOR_T_4_19_PLUS);
-    DO_EXPECT(isAtLeastT && isAtLeastKernelVersion(5, 10, 0), MAINLINE_FOR_T_5_10_PLUS);
-    DO_EXPECT(isAtLeastT && isAtLeastKernelVersion(5, 15, 0), MAINLINE_FOR_T_5_15_PLUS);
+    DO_EXPECT(isAtLeastT && isAtLeastKernelVersion(4, 14), MAINLINE_FOR_T_4_14_PLUS);
+    DO_EXPECT(isAtLeastT && isAtLeastKernelVersion(4, 19), MAINLINE_FOR_T_4_19_PLUS);
+    DO_EXPECT(isAtLeastT && isAtLeastKernelVersion(5, 10), MAINLINE_FOR_T_5_10_PLUS);
+    DO_EXPECT(isAtLeastT && isAtLeastKernelVersion(5, 15), MAINLINE_FOR_T_5_15_PLUS);
 
     // U requires Linux Kernel 4.14+, but nothing (as yet) added or removed in U.
-    if (isAtLeastU) ASSERT_TRUE(isAtLeastKernelVersion(4, 14, 0));
+    if (isAtLeastU) ASSERT_TRUE(isAtLeastKernelVersion(4, 14));
     DO_EXPECT(isAtLeastU, MAINLINE_FOR_U_PLUS);
-    DO_EXPECT(isAtLeastU && isAtLeastKernelVersion(5, 10, 0), MAINLINE_FOR_U_5_10_PLUS);
+    DO_EXPECT(isAtLeastU && isAtLeastKernelVersion(5, 10), MAINLINE_FOR_U_5_10_PLUS);
 
     // V requires Linux Kernel 4.19+, but nothing (as yet) added or removed in V.
-    if (isAtLeastV) ASSERT_TRUE(isAtLeastKernelVersion(4, 19, 0));
+    if (isAtLeastV) ASSERT_TRUE(isAtLeastKernelVersion(4, 19));
     DO_EXPECT(isAtLeastV, MAINLINE_FOR_V_PLUS);
-    DO_EXPECT(isAtLeastV && isAtLeastKernelVersion(5, 4, 0), MAINLINE_FOR_V_5_4_PLUS);
+    DO_EXPECT(isAtLeastV && isAtLeastKernelVersion(5, 4), MAINLINE_FOR_V_5_4_PLUS);
 
-    if (isAtLeast25Q2) ASSERT_TRUE(isAtLeastKernelVersion(5, 4, 0));
+    if (isAtLeast25Q2) ASSERT_TRUE(isAtLeastKernelVersion(5, 4));
     DO_EXPECT(isAtLeast25Q2, MAINLINE_FOR_25Q2_PLUS);
 
-    if (isAtLeast25Q4) ASSERT_TRUE(isAtLeastKernelVersion(5, 10, 0));
+    if (isAtLeast25Q4) ASSERT_TRUE(isAtLeastKernelVersion(5, 10));
 
     DO_EXPECT(isAtLeast26Q2, MAINLINE_FOR_26Q2_PLUS);
-    DO_EXPECT(isAtLeast26Q2 && isAtLeastKernelVersion(6, 1, 0), MAINLINE_FOR_26Q2_6_1_PLUS);
+    DO_EXPECT(isAtLeast26Q2 && isAtLeastKernelVersion(6, 1), MAINLINE_FOR_26Q2_6_1_PLUS);
 
     for (const auto& file : mustExist) {
         EXPECT_EQ(0, access(file.c_str(), R_OK)) << file << " does not exist";

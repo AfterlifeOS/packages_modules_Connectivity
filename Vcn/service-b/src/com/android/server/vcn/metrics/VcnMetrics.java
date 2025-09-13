@@ -16,7 +16,6 @@
 
 package com.android.server.vcn.metrics;
 
-import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED;
 import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_INTERNAL_ERROR;
 import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_NETWORK_AGENT_UNWANTED;
 import static com.android.server.vcn.metrics.VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED__GW_TEARDOWN_REASON__GATEWAY_TEARDOWN_REASON_NONE;
@@ -56,7 +55,7 @@ public class VcnMetrics {
     /** Log an atom when a VcnGatewayConnection has entered safe mode. */
     public void logEnterSafeMode(int gatewayConnectionId) {
         VcnStatsLog.write(
-                VCN_GATEWAY_CONNECTION_STATE_CHANGED,
+                VcnStatsLog.VCN_GATEWAY_CONNECTION_STATE_CHANGED,
                 gatewayConnectionId,
                 GATEWAY_TEARDOWN_REASON_NONE,
                 true /* isInSafeMode */);
@@ -124,5 +123,13 @@ public class VcnMetrics {
                 networkId,
                 true /* isConnected */,
                 false /* isValidated */);
+    }
+
+    /**
+     * Log an atom about number of validated underlying network available for VCN network selection.
+     */
+    public void logValidatedUnderlyingNetworkCount(int gatewayConnectionId, int count) {
+        VcnStatsLog.write(
+                VcnStatsLog.VCN_UNDERLYING_NETWORKS_STATE_CHANGED, gatewayConnectionId, count);
     }
 }

@@ -56,6 +56,7 @@ import com.android.internal.annotations.VisibleForTesting.Visibility;
 import com.android.modules.utils.HandlerExecutor;
 import com.android.server.vcn.TelephonySubscriptionTracker.TelephonySubscriptionSnapshot;
 import com.android.server.vcn.VcnContext;
+import com.android.server.vcn.metrics.VcnMetrics;
 import com.android.server.vcn.routeselection.UnderlyingNetworkEvaluator.NetworkEvaluatorCallback;
 
 import java.util.ArrayList;
@@ -105,19 +106,31 @@ public class UnderlyingNetworkController {
     @Nullable private UnderlyingNetworkRecord mCurrentRecord;
     @Nullable private UnderlyingNetworkRecord.Builder mRecordInProgress;
 
+    private final int mGatewayConnectionId;
+    private final VcnMetrics mVcnMetrics;
+
     public UnderlyingNetworkController(
             @NonNull VcnContext vcnContext,
             @NonNull VcnGatewayConnectionConfig connectionConfig,
+            int gatewayConnectionId,
             @NonNull ParcelUuid subscriptionGroup,
             @NonNull TelephonySubscriptionSnapshot snapshot,
             @NonNull UnderlyingNetworkControllerCallback cb) {
-        this(vcnContext, connectionConfig, subscriptionGroup, snapshot, cb, new Dependencies());
+        this(
+                vcnContext,
+                connectionConfig,
+                gatewayConnectionId,
+                subscriptionGroup,
+                snapshot,
+                cb,
+                new Dependencies());
     }
 
     @VisibleForTesting(visibility = Visibility.PRIVATE)
     UnderlyingNetworkController(
             @NonNull VcnContext vcnContext,
             @NonNull VcnGatewayConnectionConfig connectionConfig,
+            int gatewayConnectionId,
             @NonNull ParcelUuid subscriptionGroup,
             @NonNull TelephonySubscriptionSnapshot snapshot,
             @NonNull UnderlyingNetworkControllerCallback cb,
@@ -128,6 +141,8 @@ public class UnderlyingNetworkController {
         mLastSnapshot = Objects.requireNonNull(snapshot, "Missing snapshot");
         mCb = Objects.requireNonNull(cb, "Missing cb");
         mDeps = Objects.requireNonNull(deps, "Missing deps");
+        mGatewayConnectionId = gatewayConnectionId;
+        mVcnMetrics = mDeps.newVcnMetrics();
 
         mHandler = new Handler(mVcnContext.getLooper());
 
@@ -468,6 +483,9 @@ public class UnderlyingNetworkController {
                 .getContext()
                 .getSystemService(TelephonyManager.class)
                 .unregisterTelephonyCallback(mActiveDataSubIdListener);
+
+        // Log empty validated network count left, as a clean up state.
+        mVcnMetrics.logValidatedUnderlyingNetworkCount(mGatewayConnectionId, 0);
     }
 
     private TreeSet<UnderlyingNetworkEvaluator> getSortedUnderlyingNetworks() {
@@ -489,6 +507,7 @@ public class UnderlyingNetworkController {
         }
 
         TreeSet<UnderlyingNetworkEvaluator> sorted = getSortedUnderlyingNetworks();
+        mVcnMetrics.logValidatedUnderlyingNetworkCount(mGatewayConnectionId, sorted.size());
 
         UnderlyingNetworkEvaluator candidateEvaluator = sorted.isEmpty() ? null : sorted.first();
         UnderlyingNetworkRecord candidate =
@@ -734,7 +753,9 @@ public class UnderlyingNetworkController {
     }
 
     @VisibleForTesting(visibility = Visibility.PRIVATE)
+    /* External dependencies, for injection in tests */
     public static class Dependencies {
+        /** Builds a new UnderlyingNetworkEvaluator. */
         public UnderlyingNetworkEvaluator newUnderlyingNetworkEvaluator(
                 @NonNull VcnContext vcnContext,
                 @NonNull Network network,
@@ -751,6 +772,11 @@ public class UnderlyingNetworkController {
                     lastSnapshot,
                     carrierConfig,
                     evaluatorCallback);
+        }
+
+        /** Builds a new VcnMetrics. */
+        public VcnMetrics newVcnMetrics() {
+            return new VcnMetrics();
         }
     }
 }

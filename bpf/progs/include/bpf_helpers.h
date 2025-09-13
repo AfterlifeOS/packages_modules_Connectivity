@@ -6,37 +6,6 @@
 
 #include "bpf_map_def.h"
 
-// Android Mainline BpfLoader when running on Android S (sdk=31)
-// Note: this value (and the following +1u's) are hardcoded in NetBpfLoad.cpp
-#define BPFLOADER_MAINLINE_S_VERSION 42u
-
-// Android Mainline BpfLoader when running on Android T (sdk=33)
-#define BPFLOADER_MAINLINE_T_VERSION (BPFLOADER_MAINLINE_S_VERSION + 1u)
-
-// Android Mainline BpfLoader when running on Android U (sdk=34)
-#define BPFLOADER_MAINLINE_U_VERSION (BPFLOADER_MAINLINE_T_VERSION + 1u)
-
-// Android Mainline BpfLoader when running on Android U QPR3
-#define BPFLOADER_MAINLINE_U_QPR3_VERSION (BPFLOADER_MAINLINE_U_VERSION + 1u)
-
-// Android Mainline BpfLoader when running on Android V (sdk=35)
-#define BPFLOADER_MAINLINE_V_VERSION (BPFLOADER_MAINLINE_U_QPR3_VERSION + 1u)
-
-// Android Mainline BpfLoader when running on Android 25Q2 (sdk=36 aka 36.0)
-#define BPFLOADER_MAINLINE_25Q2_VERSION (BPFLOADER_MAINLINE_V_VERSION + 1u)
-
-// Android Mainline BpfLoader when running on Android 25Q3 (sdk 36.0+)
-#define BPFLOADER_MAINLINE_25Q3_VERSION (BPFLOADER_MAINLINE_25Q2_VERSION + 1u)
-
-// Android Mainline BpfLoader when running on Android 25Q4 (sdk 36.1)
-#define BPFLOADER_MAINLINE_25Q4_VERSION (BPFLOADER_MAINLINE_25Q3_VERSION + 1u)
-
-// Android Mainline BpfLoader when running on Android 26Q1 (sdk 36.1+)
-#define BPFLOADER_MAINLINE_26Q1_VERSION (BPFLOADER_MAINLINE_25Q4_VERSION + 1u)
-
-// Android Mainline BpfLoader when running on Android 26Q2 (sdk 37.0)
-#define BPFLOADER_MAINLINE_26Q2_VERSION (BPFLOADER_MAINLINE_26Q1_VERSION + 1u)
-
 /* You should #define BPFLOADER_{MIN/MAX}_VER before #include "bpf_helpers.h"
  * to change which bpfloaders will process the resulting .o file.
  */

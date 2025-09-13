@@ -12645,7 +12645,7 @@ public class ConnectivityServiceTest {
             boolean includeLocationSensitiveInfo) {
         final NetworkCapabilities netCap = new NetworkCapabilities().setOwnerUid(ownerUid);
 
-        return mService.createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+        return mService.createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                 netCap, includeLocationSensitiveInfo, Process.myUid(), callerUid,
                 mContext.getPackageName(), getAttributionTag())
                 .getOwnerUid();
@@ -12659,7 +12659,7 @@ public class ConnectivityServiceTest {
         final NetworkCapabilities netCap =
                 new NetworkCapabilities().setTransportInfo(transportInfo);
 
-        mService.createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+        mService.createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                 netCap, includeLocationSensitiveInfo, Process.myPid(), callerUid,
                 mContext.getPackageName(), getAttributionTag());
         if (shouldMakeCopyWithLocationSensitiveFieldsParcelable) {
@@ -12817,7 +12817,7 @@ public class ConnectivityServiceTest {
         final NetworkCapabilities netCap =
                 new NetworkCapabilities().setTransportInfo(transportInfo);
 
-        mService.createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+        mService.createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                 netCap, false /* includeLocationSensitiveInfoInTransportInfo */,
                 Process.myPid(), Process.myUid(),
                 mContext.getPackageName(), getAttributionTag());
@@ -12836,7 +12836,7 @@ public class ConnectivityServiceTest {
         final NetworkCapabilities netCap =
                 new NetworkCapabilities().setTransportInfo(transportInfo);
 
-        mService.createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+        mService.createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                 netCap, false /* includeLocationSensitiveInfoInTransportInfo */,
                 Process.myPid(), Process.myUid(),
                 mContext.getPackageName(), getAttributionTag());
@@ -12856,7 +12856,7 @@ public class ConnectivityServiceTest {
         final NetworkCapabilities netCap =
                 new NetworkCapabilities().setTransportInfo(transportInfo);
 
-        mService.createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+        mService.createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                 netCap, false /* includeLocationSensitiveInfoInTransportInfo */,
                 Process.myPid(), Process.myUid(),
                 mContext.getPackageName(), getAttributionTag());
@@ -12875,7 +12875,7 @@ public class ConnectivityServiceTest {
         final NetworkCapabilities netCap =
                 new NetworkCapabilities().setTransportInfo(transportInfo);
 
-        mService.createWithLocationInfoSanitizedIfNecessaryWhenParceled(
+        mService.createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
                 netCap, false /* includeLocationSensitiveInfoInTransportInfo */,
                 Process.myPid(), Process.myUid(),
                 mContext.getPackageName(), getAttributionTag());
@@ -17698,8 +17698,9 @@ public class ConnectivityServiceTest {
         nc.setSubscriptionIds(subIds);
 
         final NetworkCapabilities result =
-                mService.networkCapabilitiesRestrictedForCallerPermissions(
-                        nc, Process.myPid(), Process.myUid());
+                mService.createWithSensitiveInfoSanitizedIfNecessaryWhenParceled(
+                        nc, false /* includeLocationSensitiveInfo */, Process.myPid(),
+                        Process.myUid(), mContext.getPackageName(), getAttributionTag());
         assertEquals(subIds, result.getSubscriptionIds());
     }
 
