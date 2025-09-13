@@ -819,8 +819,7 @@ static enum bpf_map_type sanitizeMapType(enum bpf_map_type type) {
     return type;
 }
 
-static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<unique_fd>& mapFds,
-                      const unsigned int bpfloader_ver) {
+static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<unique_fd>& mapFds) {
     int ret = 0;
     vector<char> btfData;
     struct btf *btf = NULL;
@@ -843,14 +842,14 @@ static int createMaps(ElfObject& elfObj, vector<struct bpf_map_def>& md, vector<
     }
 
     for (unsigned i = 0; i < md.size(); i++) {
-        if (bpfloader_ver < md[i].bpfloader_min_ver) {
+        if (api_level_full < md[i].bpfloader_min_ver) {
             ALOGD("skipping map %s which requires bpfloader min ver 0x%05x", md[i].name(),
                   md[i].bpfloader_min_ver);
             mapFds.push_back(unique_fd());
             continue;
         }
 
-        if (bpfloader_ver >= md[i].bpfloader_max_ver) {
+        if (api_level_full >= md[i].bpfloader_max_ver) {
             ALOGD("skipping map %s which requires bpfloader max ver 0x%05x", md[i].name(),
                   md[i].bpfloader_max_ver);
             mapFds.push_back(unique_fd());
@@ -1032,8 +1031,7 @@ static int pinProg(const borrowed_fd& fd, const struct bpf_prog_def& progDef) {
     return 0;
 }
 
-static int validateProg(const borrowed_fd& fd, const char* const progPinLoc,
-                        const unsigned int bpfloader_ver) {
+static int validateProg(const borrowed_fd& fd, const char* const progPinLoc) {
     if (!isAtLeastKernelVersion(4, 14)) {
         return 0;
     }
@@ -1059,15 +1057,14 @@ static int validateProg(const borrowed_fd& fd, const char* const progPinLoc,
     }
     ALOGI("prog %s id %d len jit:%d xlat:%d", progPinLoc, progId, jitLen, xlatLen);
 
-    if (!jitLen && bpfloader_ver >= BPFLOADER_MAINLINE_25Q2_VERSION) {
+    if (!jitLen && api_level_full >= BPFLOADER_MAINLINE_25Q2_VERSION) {
         ALOGE("Kernel eBPF JIT failure for %s", progPinLoc);
         return -ENOTSUP;
     }
     return 0;
 }
 
-static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const string& license,
-                            const unsigned int bpfloader_ver) {
+static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const string& license) {
     for (int i = 0; i < (int)cs.size(); i++) {
         unique_fd& fd = cs[i].prog_fd;
         int ret;
@@ -1084,8 +1081,8 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
 
         if (kernelVer < cs[i].prog_def->min_kver) continue;
         if (kernelVer >= cs[i].prog_def->max_kver) continue;
-        if (bpfloader_ver < cs[i].prog_def->bpfloader_min_ver) continue;
-        if (bpfloader_ver >= cs[i].prog_def->bpfloader_max_ver) continue;
+        if (api_level_full < cs[i].prog_def->bpfloader_min_ver) continue;
+        if (api_level_full >= cs[i].prog_def->bpfloader_max_ver) continue;
 
         bool reuse = false;
         if (access(cs[i].prog_def->pin_location, F_OK) == 0) {
@@ -1148,15 +1145,14 @@ static int loadCodeSections(ElfObject& elfObj, vector<codeSection>& cs, const st
             ret = pinProg(fd, cs[i].prog_def.value());
             if (ret) return ret;
         }
-        ret = validateProg(fd, cs[i].prog_def->pin_location, bpfloader_ver);
+        ret = validateProg(fd, cs[i].prog_def->pin_location);
         if (ret) return ret;
     }
 
     return 0;
 }
 
-static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md,
-                           const unsigned int bpfloader_ver) {
+static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf_map_def>& md) {
     for (unsigned i = 0; i < md.size(); i++) {
         struct bpf_map* m = bpf_object__find_map_by_name(obj, md[i].name());
         if (!m) {
@@ -1164,9 +1160,9 @@ static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf
             return -1;
         }
 
-        if (bpfloader_ver < md[i].bpfloader_min_ver || bpfloader_ver >= md[i].bpfloader_max_ver) {
+        if (api_level_full < md[i].bpfloader_min_ver || api_level_full >= md[i].bpfloader_max_ver) {
             ALOGD("skipping map %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
-                  md[i].name(), bpfloader_ver,
+                  md[i].name(), api_level_full,
                   md[i].bpfloader_min_ver, md[i].bpfloader_max_ver);
             bpf_map__set_autocreate(m, false);
             continue;
@@ -1191,8 +1187,7 @@ static int prepareLoadMaps(const struct bpf_object* obj, const vector<struct bpf
     return 0;
 }
 
-static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs,
-                            const unsigned int bpfloader_ver) {
+static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSection>& cs) {
     for (int i = 0; i < (int)cs.size(); i++) {
         if (!cs[i].prog_def.has_value()) {
             ALOGE("[%d] missing program definition! bad bpf.o build?", i);
@@ -1214,11 +1209,11 @@ static int prepareLoadProgs(const struct bpf_object* obj, const vector<codeSecti
             continue;
         }
 
-        unsigned bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
-        unsigned bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
-        if (bpfloader_ver < bpfMinVer || bpfloader_ver >= bpfMaxVer) {
+        int bpfMinVer = cs[i].prog_def->bpfloader_min_ver;
+        int bpfMaxVer = cs[i].prog_def->bpfloader_max_ver;
+        if (api_level_full < bpfMinVer || api_level_full >= bpfMaxVer) {
             ALOGD("skipping prog %s: bpfloader 0x%05x is outside required range [0x%05x, 0x%05x)",
-                  cs[i].prog_def->name(), bpfloader_ver, bpfMinVer, bpfMaxVer);
+                  cs[i].prog_def->name(), api_level_full, bpfMinVer, bpfMaxVer);
             bpf_program__set_autoload(prog, false);
             continue;
         }
@@ -1257,7 +1252,7 @@ static int pinMaps(const struct bpf_object* obj, const vector<struct bpf_map_def
 }
 
 static int pinProgs(const struct bpf_object * obj,
-                    const vector<codeSection>& cs, const unsigned int bpfloader_ver) {
+                    const vector<codeSection>& cs) {
     int ret;
 
     for (int i = 0; i < (int)cs.size(); i++) {
@@ -1279,13 +1274,13 @@ static int pinProgs(const struct bpf_object * obj,
         int fd = bpf_program__fd(prog);
         ret = pinProg(fd, cs[i].prog_def.value());
         if (ret) return ret;
-        ret = validateProg(fd, cs[i].prog_def->pin_location, bpfloader_ver);
+        ret = validateProg(fd, cs[i].prog_def->pin_location);
         if (ret) return ret;
     }
     return 0;
 }
 
-static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloader_ver) {
+static int loadProgByLibbpf(const char* const elfPath) {
     ElfObject elfObj(elfPath);
     vector<struct bpf_map_def> md;
     vector<codeSection> cs;
@@ -1301,13 +1296,13 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = elfObj.readSectionByName(".android_maps", md);
     if (ret) return ret;
 
-    ret = prepareLoadMaps(obj, md, bpfloader_ver);
+    ret = prepareLoadMaps(obj, md);
     if (ret) return ret;
 
     ret = readCodeSections(elfObj, cs);
     if (ret && ret != -ENOENT) return ret;
 
-    ret = prepareLoadProgs(obj, cs, bpfloader_ver);
+    ret = prepareLoadProgs(obj, cs);
     if (ret) return ret;
 
     ret = bpf_object__load(obj);
@@ -1318,13 +1313,13 @@ static int loadProgByLibbpf(const char* const elfPath, const unsigned int bpfloa
     ret = pinMaps(obj, md);
     if (ret) return ret;
 
-    ret = pinProgs(obj, cs, bpfloader_ver);
+    ret = pinProgs(obj, cs);
     if (ret) return ret;
 
     return 0;
 }
 
-int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
+int loadProg(const char* const elfPath) {
     ElfObject elfObj(elfPath);
     vector<char> license;
     vector<codeSection> cs;
@@ -1341,13 +1336,13 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
               elfPath, (char*)license.data());
     }
 
-    ALOGD("BpfLoader ver 0x%05x processing ELF object %s", bpfloader_ver, elfPath);
+    ALOGD("Processing ELF object %s", elfPath);
 
     ret = elfObj.readSectionByName(".android_maps", md);
     if (ret == -2) ret = 0; // -2 means there were no maps to read
     if (ret) return ret;
 
-    ret = createMaps(elfObj, md, mapFds, bpfloader_ver);
+    ret = createMaps(elfObj, md, mapFds);
     if (ret) {
         ALOGE("Failed to create maps: (ret=%d) in %s", ret, elfPath);
         return ret;
@@ -1365,7 +1360,7 @@ int loadProg(const char* const elfPath, const unsigned int bpfloader_ver) {
 
     applyMapRelo(elfObj, md, mapFds, cs);
 
-    ret = loadCodeSections(elfObj, cs, string(license.data()), bpfloader_ver);
+    ret = loadCodeSections(elfObj, cs, string(license.data()));
     if (ret) ALOGE("Failed to load programs, loadCodeSections ret=%d", ret);
 
     return ret;
@@ -1379,10 +1374,8 @@ static bool exists(const char* const path) {
     abort();  // can only hit this if permissions (likely selinux) are screwed up
 }
 
-static bool loadObject(const unsigned int bpfloader_ver,
-                      const char* const progPath, const bool useLibbpf = false) {
-    if (useLibbpf ? loadProgByLibbpf(progPath, bpfloader_ver) :
-                          loadProg(progPath, bpfloader_ver)) {
+static bool loadObject(const char* const progPath, const bool useLibbpf = false) {
+    if (useLibbpf ? loadProgByLibbpf(progPath) : loadProg(progPath)) {
         ALOGE("Failed to load object: %s, libbpf: %d", progPath, useLibbpf);
         return false;
     }
@@ -1393,14 +1386,14 @@ static bool loadObject(const unsigned int bpfloader_ver,
 #define APEXROOT "/apex/com.android.tethering"
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
-static bool loadAllObjects(const unsigned int bpfloader_ver) {
+static bool loadAllObjects() {
     bool libbpf = isAtLeast26Q1 || useLibBpf;
-    if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
-    if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
+    if (!loadObject(BPFROOT "offload.o")) return false;
+    if (!loadObject(BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {
-        if (!loadObject(bpfloader_ver, BPFROOT "clatd.o", libbpf)) return false;
-        if (!loadObject(bpfloader_ver, BPFROOT "dscpPolicy.o", libbpf)) return false;
-        if (!loadObject(bpfloader_ver, BPFROOT "netd.o", libbpf)) return false;
+        if (!loadObject(BPFROOT "clatd.o", libbpf)) return false;
+        if (!loadObject(BPFROOT "dscpPolicy.o", libbpf)) return false;
+        if (!loadObject(BPFROOT "netd.o", libbpf)) return false;
     }
     return true;
 }
@@ -1593,11 +1586,8 @@ static int doLoad(char** argv, char * const envp[]) {
     // first in U QPR2 beta~2
     const bool has_platform_netbpfload_rc = exists("/system/etc/init/netbpfload.rc");
 
-    // Version of Network BpfLoader depends on the Android OS version
-    unsigned int bpfloader_ver = api_level_full;
-
-    ALOGI("NetBpfLoad v%u (%s) api:%d kver:%07x (%s) libbpf: v%u.%u uid:%d rc:%d%d",
-          bpfloader_ver, argv[0], android_get_device_api_level(),
+    ALOGI("NetBpfLoad (%s) api:%d/%d kver:%07x (%s) libbpf: v%u.%u uid:%d rc:%d%d",
+          argv[0], android_get_device_api_level(), api_level_full,
           kernelVer, describeArch(), libbpf_major_version(),
           libbpf_minor_version(), getuid(), has_platform_bpfloader_rc,
           has_platform_netbpfload_rc);
@@ -1881,7 +1871,7 @@ static int doLoad(char** argv, char * const envp[]) {
     }
 
     // Load all ELF objects, create programs and maps, and pin them
-    if (!loadAllObjects(bpfloader_ver)) {
+    if (!loadAllObjects()) {
         ALOGE("=== CRITICAL FAILURE LOADING BPF PROGRAMS ===");
         ALOGE("If this triggers reliably, you're probably missing kernel options or patches.");
         ALOGE("If this triggers randomly, you might be hitting some memory allocation "
