@@ -138,8 +138,8 @@ struct bpf_map_def {
     unsigned int gid;   // gid_t
     unsigned int mode;  // mode_t
 
-    unsigned int bpfloader_min_ver;
-    unsigned int bpfloader_max_ver;
+    int bpfloader_min_ver;
+    int bpfloader_max_ver;
 
     // kernelVer must be >= min_kver and < max_kver
     unsigned int min_kver;
@@ -181,8 +181,8 @@ struct bpf_prog_def {
 
     char pad0[3];  // manually pad up to 4 byte alignment, may be used for extensions in the future
 
-    unsigned int bpfloader_min_ver;
-    unsigned int bpfloader_max_ver;
+    int bpfloader_min_ver;
+    int bpfloader_max_ver;
 
     char create_location[BPF_DEF_CHAR_ARRAY_SIZE];
     char pin_location[BPF_DEF_CHAR_ARRAY_SIZE];
@@ -205,12 +205,12 @@ _Static_assert(__alignof__(struct bpf_prog_def) == 4, "__alignof__ struct bpf_pr
 _Static_assert(_Alignof(struct bpf_prog_def) == 4, "_Alignof struct bpf_prog_def != 4");
 
 // Android Mainline BpfLoader version when running on:
-#define BPFLOADER_MAINLINE_S_VERSION      3100u // Android S (31)
-#define BPFLOADER_MAINLINE_T_VERSION      3300u // Android T (33)
-#define BPFLOADER_MAINLINE_U_VERSION      3400u // Android U (34)
-#define BPFLOADER_MAINLINE_V_VERSION      3500u // Android V (35)
-#define BPFLOADER_MAINLINE_25Q2_VERSION   3600u // Android 25Q2 (36.0)
-#define BPFLOADER_MAINLINE_25Q3_VERSION   3602u // Android 25Q3 (36.0+)
-#define BPFLOADER_MAINLINE_25Q4_VERSION   3610u // Android 25Q4 (36.1)
-#define BPFLOADER_MAINLINE_26Q1_VERSION   3612u // Android 26Q1 (36.1+)
-#define BPFLOADER_MAINLINE_26Q2_VERSION   3700u // Android 26Q2 (37.0)
+#define BPFLOADER_MAINLINE_S_VERSION      3100 // Android S (31)
+#define BPFLOADER_MAINLINE_T_VERSION      3300 // Android T (33)
+#define BPFLOADER_MAINLINE_U_VERSION      3400 // Android U (34)
+#define BPFLOADER_MAINLINE_V_VERSION      3500 // Android V (35)
+#define BPFLOADER_MAINLINE_25Q2_VERSION   3600 // Android 25Q2 (36.0)
+#define BPFLOADER_MAINLINE_25Q3_VERSION   3602 // Android 25Q3 (36.0+)
+#define BPFLOADER_MAINLINE_25Q4_VERSION   3610 // Android 25Q4 (36.1)
+#define BPFLOADER_MAINLINE_26Q1_VERSION   3612 // Android 26Q1 (36.1+)
+#define BPFLOADER_MAINLINE_26Q2_VERSION   3700 // Android 26Q2 (37.0)
