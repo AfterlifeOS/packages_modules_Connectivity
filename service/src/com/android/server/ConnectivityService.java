@@ -531,6 +531,10 @@ public class ConnectivityService extends IConnectivityManager.Stub
     // CONNECTIVITY_ACTION broadcast.
     private static final char DELIVERY_GROUP_KEY_DELIMITER = ';';
 
+    // TODO: Use android.Manifest.permission.CREATE_APP_SPECIFIC_NETWORK once it's available.
+    private static final String PERMISSION_CREATE_APP_SPECIFIC_NETWORK =
+            "android.permission.CREATE_APP_SPECIFIC_NETWORK";
+
     // The maximum value for the blocking validation result, in milliseconds.
     public static final int MAX_VALIDATION_IGNORE_AFTER_ROAM_TIME_MS = 10000;
 
@@ -4144,7 +4148,7 @@ public class ConnectivityService extends IConnectivityManager.Stub
         // The CREATE_APP_SPECIFIC_NETWORK permission was introduced in 25Q4.
         // It must not be granted on earlier platform versions, even if an app declares it.
         return mDeps.isAtLeast25Q4() && hasAnyPermissionOf(mContext,
-                android.Manifest.permission.CREATE_APP_SPECIFIC_NETWORK);
+                PERMISSION_CREATE_APP_SPECIFIC_NETWORK);
     }
 
     private boolean hasNetworkFactoryPermission() {
