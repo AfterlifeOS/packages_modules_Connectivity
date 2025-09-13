@@ -1394,7 +1394,7 @@ static bool loadObject(const unsigned int bpfloader_ver,
 #define BPFROOT APEXROOT "/etc/bpf/mainline/"
 
 static bool loadAllObjects(const unsigned int bpfloader_ver) {
-    bool libbpf = isAtLeast25Q3 || useLibBpf;
+    bool libbpf = isAtLeast26Q1 || useLibBpf;
     if (!loadObject(bpfloader_ver, BPFROOT "offload.o")) return false;
     if (!loadObject(bpfloader_ver, BPFROOT "test.o", libbpf)) return false;
     if (isAtLeastT) {
@@ -1586,7 +1586,7 @@ static int doLoad(char** argv, char * const envp[]) {
 
     const bool runningAsRoot = !getuid();  // true iff U QPR3 or V+
 
-    const int first_api_level = GetIntProperty("ro.board.first_api_level", api_level);
+    const int first_api_level = GetIntProperty("ro.board.first_api_level", api_level_full / 100);
 
     // last in U QPR2 beta1
     const bool has_platform_bpfloader_rc = exists("/system/etc/init/bpfloader.rc");
@@ -1594,19 +1594,10 @@ static int doLoad(char** argv, char * const envp[]) {
     const bool has_platform_netbpfload_rc = exists("/system/etc/init/netbpfload.rc");
 
     // Version of Network BpfLoader depends on the Android OS version
-    unsigned int bpfloader_ver = BPFLOADER_MAINLINE_S_VERSION;
-    if (isAtLeastT)    bpfloader_ver = BPFLOADER_MAINLINE_T_VERSION;
-    if (isAtLeastU)    bpfloader_ver = BPFLOADER_MAINLINE_U_VERSION;
-    if (isAtLeastV)    bpfloader_ver = BPFLOADER_MAINLINE_V_VERSION;
-    if (isAtLeast25Q2) bpfloader_ver = BPFLOADER_MAINLINE_25Q2_VERSION;
-    if (isAtLeast25Q3) bpfloader_ver = BPFLOADER_MAINLINE_25Q3_VERSION;
-    if (isAtLeast25Q4) bpfloader_ver = BPFLOADER_MAINLINE_25Q4_VERSION;
-    if (isAtLeast26Q1) bpfloader_ver = BPFLOADER_MAINLINE_26Q1_VERSION;
-    if (isAtLeast26Q2) bpfloader_ver = BPFLOADER_MAINLINE_26Q2_VERSION;
+    unsigned int bpfloader_ver = api_level_full;
 
-    ALOGI("NetBpfLoad v0.%u (%s) api:%d/%d kver:%07x (%s) libbpf: v%u.%u "
-          "uid:%d rc:%d%d",
-          bpfloader_ver, argv[0], android_get_device_api_level(), api_level,
+    ALOGI("NetBpfLoad v%u (%s) api:%d kver:%07x (%s) libbpf: v%u.%u uid:%d rc:%d%d",
+          bpfloader_ver, argv[0], android_get_device_api_level(),
           kernelVer, describeArch(), libbpf_major_version(),
           libbpf_minor_version(), getuid(), has_platform_bpfloader_rc,
           has_platform_netbpfload_rc);
