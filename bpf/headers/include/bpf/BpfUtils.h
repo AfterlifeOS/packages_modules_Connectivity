@@ -64,14 +64,12 @@ static inline int get_api_level_full() {
 
 const int api_level_full = get_api_level_full();
 
-const bool isAtLeastR    = (api_level_full >= 3000);  // 30
 const bool isAtLeastS    = (api_level_full >= 3100);  // 31
-const bool isAtLeastSv2  = (api_level_full >= 3200);  // 32
+                                                      // 32 is Sv2
 const bool isAtLeastT    = (api_level_full >= 3300);  // 33
 const bool isAtLeastU    = (api_level_full >= 3400);  // 34
 const bool isAtLeastV    = (api_level_full >= 3500);  // 35
 const bool isAtLeast25Q2 = (api_level_full >= 3600);  // 36.0
-const bool isAtLeast25Q3 = (api_level_full >= 3602);  // 36.0+
 const bool isAtLeast25Q4 = (api_level_full >= 3610);  // 36.1
 const bool isAtLeast26Q1 = (api_level_full >= 3612);  // 36.1+
 const bool isAtLeast26Q2 = (api_level_full >= 3700);  // 37.0
