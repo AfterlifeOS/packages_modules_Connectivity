@@ -1873,7 +1873,7 @@ static int doLoad(char** argv, char * const envp[]) {
             // implies Android S with 4.14 or 4.19 kernel
             ALOGW("Detected kernel with invalid BPF UAPI - disabling mainline use of eBPF.");
             // leave a flag that we're 'done'
-            if (!createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 43;  // same as below
+            if (!createDir("/sys/fs/bpf/netd_shared/mainline_done")) return 37;
             return 0;
         }
     } else {  // implies S/T with 4.9 kernel
@@ -1888,19 +1888,12 @@ static int doLoad(char** argv, char * const envp[]) {
               "problems or startup script race.");
         ALOGE("--- DO NOT EXPECT SYSTEM TO BOOT SUCCESSFULLY ---");
         sleep(20);
-        return 37;
+        return 38;
     }
 
     {
         // Create a trivial bpf map: a two element array [int->int]
         unique_fd map(createMap(BPF_MAP_TYPE_ARRAY, sizeof(int), sizeof(int), 2, 0));
-
-        int zero = 0;
-        int kernel_bugs = 0;
-        if (writeToMapEntry(map, &zero, &kernel_bugs, BPF_ANY)) {
-            ALOGE("Failure to write into index 0 of kernel bugs array.");
-            return 38;
-        }
 
         int one = 1;
         int value = 123;
