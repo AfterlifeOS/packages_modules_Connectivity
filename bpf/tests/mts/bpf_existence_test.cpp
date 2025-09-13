@@ -32,7 +32,6 @@ using std::set;
 using std::string;
 
 using android::bpf::isAtLeastKernelVersion;
-using android::bpf::isAtLeastR;
 using android::bpf::isAtLeastS;
 using android::bpf::isAtLeastT;
 using android::bpf::isAtLeastU;
