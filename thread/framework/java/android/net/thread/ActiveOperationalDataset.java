@@ -602,17 +602,18 @@ public final class ActiveOperationalDataset implements Parcelable {
         // SparseArray<byte[]> is not hashable
         int result = byteArraySparseArrayHashCode(mChannelMask);
         result = result * 31 + byteArraySparseArrayHashCode(mUnknownTlvs);
-        return result * 31 + deepHashCode(
-                mActiveTimestamp,
-                mNetworkName,
-                mExtendedPanId,
-                mPanId,
-                mChannel,
-                mChannelPage,
-                mPskc,
-                mNetworkKey,
-                mMeshLocalPrefix,
-                mSecurityPolicy);
+        return result * 31
+                + deepHashCode(
+                        mActiveTimestamp,
+                        mNetworkName,
+                        mExtendedPanId,
+                        mPanId,
+                        mChannel,
+                        mChannelPage,
+                        mPskc,
+                        mNetworkKey,
+                        mMeshLocalPrefix,
+                        mSecurityPolicy);
     }
 
     @Override
