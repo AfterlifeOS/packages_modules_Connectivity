@@ -299,17 +299,16 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_eth, , AID_SYSTEM, 6_1)
             return TC_ACT_PIPE;
         }
 
-        uint32_t ce_packets = 1;
-        uint16_t *mss_ptr = bpf_l4s_accecn_mss_map_lookup_elem(&flow_key);
-        if (mss_ptr) {
-            uint16_t mss = *mss_ptr;
-            if (mss != 0xFFFF && mss != 0) {
-                ce_packets = (payload_size / mss) + 1;
-            }
-        }
-
         // update the map if CE is marked
         if (ip_ecn == 0b11) {
+            uint32_t ce_packets = 1;
+            uint16_t *mss_ptr = bpf_l4s_accecn_mss_map_lookup_elem(&flow_key);
+            if (mss_ptr) {
+                uint16_t mss = *mss_ptr;
+                if (mss != 0xFFFF && mss != 0) {
+                    ce_packets = (payload_size / mss) + 1;
+                }
+            }
             __sync_fetch_and_add(ce_count, ce_packets);
         }
 
@@ -547,17 +546,16 @@ DEFINE_BPF_PROG_KVER(schedcls, ingress_accecn_rawip, , AID_SYSTEM, 6_1)
             return TC_ACT_PIPE;
         }
 
-        uint32_t ce_packets = 1;
-        uint16_t *mss_ptr = bpf_l4s_accecn_mss_map_lookup_elem(&flow_key);
-        if (mss_ptr) {
-            uint16_t mss = *mss_ptr;
-            if (mss != 0xFFFF && mss != 0) {
-                ce_packets = (payload_size / mss) + 1;
-            }
-        }
-
         // update the map if CE is marked
         if (ip_ecn == 0b11) {
+            uint32_t ce_packets = 1;
+            uint16_t *mss_ptr = bpf_l4s_accecn_mss_map_lookup_elem(&flow_key);
+            if (mss_ptr) {
+                uint16_t mss = *mss_ptr;
+                if (mss != 0xFFFF && mss != 0) {
+                    ce_packets = (payload_size / mss) + 1;
+                }
+            }
             __sync_fetch_and_add(ce_count, ce_packets);
         }
 
