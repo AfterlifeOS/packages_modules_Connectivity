@@ -32,6 +32,10 @@ import com.android.testutils.TestableNetworkCallback.Event.CapabilitiesChanged
 import org.junit.Test
 import org.junit.runner.RunWith
 
+// TODO: Use android.Manifest.permission.CREATE_APP_SPECIFIC_NETWORK once it's available.
+private const val PERMISSION_CREATE_APP_SPECIFIC_NETWORK =
+        "android.permission.CREATE_APP_SPECIFIC_NETWORK"
+
 @RunWith(DevSdkIgnoreRunner::class)
 @IgnoreUpTo(Build.VERSION_CODES.R)
 class CSCreateAppSpecificNetworkPermissionTest : CSTest() {
@@ -47,7 +51,7 @@ class CSCreateAppSpecificNetworkPermissionTest : CSTest() {
                 PERMISSION_DENIED
         )
         context.setPermission(
-                android.Manifest.permission.CREATE_APP_SPECIFIC_NETWORK,
+                PERMISSION_CREATE_APP_SPECIFIC_NETWORK,
                 PERMISSION_GRANTED
         )
 
